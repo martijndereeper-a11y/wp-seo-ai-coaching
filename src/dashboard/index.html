@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Sales Coaching</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0f1117;--bg2:#1a1d27;--bg3:#242836;--border:#2e3348;--text:#e4e6f0;--text2:#8b8fa3;--purple:#a855f7;--purple2:#7c3aed;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--blue:#3b82f6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoration:underline}
+
+/* Topbar */
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar .logo{color:var(--purple);font-weight:800;font-size:18px}
+.topbar h1{font-size:15px;font-weight:500;color:var(--text2)}
+.tab-toggle{display:flex;background:var(--bg3);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.tab-btn{padding:7px 18px;font-size:12px;font-weight:600;background:none;border:none;color:var(--text2);cursor:pointer;transition:all .15s}
+.tab-btn.active{background:var(--purple2);color:white}
+.claap-input-row{margin-left:auto;display:flex;gap:6px;align-items:center}
+.claap-input-row input{padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;width:240px;outline:none}
+.claap-input-row input:focus{border-color:var(--purple)}
+.claap-input-row button{padding:7px 14px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.claap-input-row button:hover{background:var(--purple)}
+
+/* Layout */
+.container{max-width:1200px;margin:0 auto;padding:24px}
+.hidden{display:none}
+
+/* Back button */
+.back-btn{background:none;border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px;transition:all .15s}
+.back-btn:hover{border-color:var(--purple);color:var(--text)}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+
+/* Badges & pills */
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge.won{background:rgba(34,197,94,.15);color:var(--green)}.badge.lost{background:rgba(239,68,68,.15);color:var(--red)}
+.pill{display:inline-block;padding:4px 10px;border-radius:6px;font-size:12px;margin:2px 4px 2px 0;cursor:pointer;transition:background .15s}
+.pill.g{background:rgba(34,197,94,.12);color:var(--green)}.pill.r{background:rgba(239,68,68,.12);color:var(--red)}
+.pill.b{background:rgba(59,130,246,.12);color:var(--blue)}.pill.o{background:rgba(245,158,11,.12);color:var(--orange)}
+.pill:hover{opacity:.8}
+
+/* Progress bars */
+.pbar{background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;flex:1}
+.pbar .fill{height:100%;border-radius:4px}.pbar .fill.g{background:var(--green)}.pbar .fill.o{background:var(--orange)}.pbar .fill.p{background:var(--purple)}
+
+/* Stat boxes */
+.sbox{text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 8px}
+.sbox .sv{font-size:28px;font-weight:700}.sbox .sl{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* Moments */
+.moment{padding:10px 14px;border-left:3px solid var(--border);margin-bottom:6px;border-radius:0 8px 8px 0;background:var(--bg3)}
+.moment.good{border-color:var(--green)}.moment.bad{border-color:var(--orange)}
+.moment .mm{font-size:11px;color:var(--text2);margin-bottom:3px;display:flex;gap:8px;align-items:center}
+.moment .mm .ts{background:var(--bg2);padding:1px 6px;border-radius:3px;font-family:monospace;font-size:11px}
+.moment .mm .ts:hover{background:var(--purple2);color:white}
+.moment .mt{font-size:13px;font-style:italic}
+.moment .tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.moment .tag.w{background:rgba(34,197,94,.15);color:var(--green)}.moment .tag.l{background:rgba(239,68,68,.15);color:var(--red)}
+
+/* Confidence badges */
+.conf-badge{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-left:6px}
+.conf-badge.conf-high{background:rgba(34,197,94,.12);color:var(--green)}
+.conf-badge.conf-medium{background:rgba(245,158,11,.12);color:var(--orange)}
+.conf-badge.conf-low{background:rgba(239,68,68,.12);color:var(--red)}
+
+/* Feedback buttons */
+.fb-row{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px}
+.fb-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;transition:all .15s;color:var(--text2)}
+.fb-btn:hover{border-color:var(--purple)}
+.fb-btn.active-up{background:rgba(34,197,94,.15);border-color:var(--green)}
+.fb-btn.active-down{background:rgba(239,68,68,.15);border-color:var(--red)}
+.fb-count{color:var(--text2);font-size:10px}
+
+/* Guidance box */
+.guidance{margin-top:6px;padding:8px 12px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:6px;font-size:12px;line-height:1.6;color:var(--blue)}
+.guidance strong{color:var(--text)}
+
+/* Quality breakdown */
+.q-breakdown{margin-top:8px}
+.q-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px}
+.q-row .q-label{width:120px;color:var(--text2)}
+.q-row .q-score{width:45px;text-align:right;font-weight:600}
+.q-row .q-bar{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.q-row .q-fill{height:100%;border-radius:4px;transition:width .3s}
+
+/* Behavior scores & evidence */
+.bscore{padding:8px 12px;border-radius:8px;background:var(--bg3);margin-bottom:6px;cursor:pointer;transition:background .15s}
+.bscore:hover{background:var(--bg2)}
+.bscore .bs-head{display:flex;align-items:center;gap:8px;font-size:13px}
+.bscore .bs-count{font-weight:700;min-width:30px}
+.bscore .bs-label{flex:1}
+.bscore .bs-toggle{color:var(--text2);font-size:11px}
+.bscore .bs-evidence{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.bs-ev-item{padding:4px 0;font-size:12px;display:flex;gap:8px;border-bottom:1px solid rgba(46,51,72,.5)}
+.bs-ev-item:last-child{border:none}
+.bs-ev-item .ev-ts{color:var(--purple);font-family:monospace;font-size:11px;min-width:50px}
+.bs-ev-item .ev-text{color:var(--text2);flex:1;font-style:italic}
+.bs-ev-item .ev-kw{color:var(--orange);font-size:10px;font-weight:600}
+
+/* Script pills */
+.sp-row{display:flex;gap:3px;flex-wrap:wrap;margin:6px 0}
+.sp{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:500}
+.sp.hit{background:rgba(34,197,94,.15);color:var(--green)}.sp.miss{background:rgba(239,68,68,.07);color:#666}
+
+/* Grid helpers */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr 1fr}}
+
+/* Coaching boxes */
+.coach-box{padding:14px 16px;border-radius:10px;margin-bottom:10px}
+.coach-box.keep{background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15)}
+.coach-box.work{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15)}
+.coach-box .cb-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:8px}
+.coach-box.keep .cb-title{color:var(--green)}
+.coach-box.work .cb-title{color:var(--orange)}
+
+/* AE coaching card */
+.ae-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:border-color .15s}
+.ae-card:hover{border-color:var(--purple)}
+
+/* Leaderboard table */
+.lb-table{width:100%;border-collapse:collapse;font-size:13px}
+.lb-table th{text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border)}
+.lb-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.lb-table tr:hover{background:var(--bg3)}
+.lb-table tr{cursor:pointer}
+
+/* Collapsible */
+.collapsible-header{cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 0}
+.collapsible-header:hover{opacity:.8}
+
+/* Diagnostic */
+.diagnostic{font-size:14px;line-height:1.8;color:var(--text);padding:16px 20px;background:var(--bg3);border-radius:10px;border-left:3px solid var(--purple);margin-bottom:16px}
+
+/* Calls table */
+.calls-table{width:100%;border-collapse:collapse;font-size:13px}
+.calls-table th{text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border)}
+.calls-table td{padding:8px 10px;border-bottom:1px solid var(--border)}
+.calls-table tr:hover{background:var(--bg3);cursor:pointer}
+
+/* Chart containers */
+.chart-container{position:relative;height:250px;margin:12px 0}
+
+/* Alert items */
+.alert-item{padding:10px 14px;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;align-items:center;gap:10px}
+.alert-item.losing{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.12)}
+.alert-item.winning{background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.12)}
+
+/* Correlation row */
+.corr-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(46,51,72,.3)}
+.corr-row:last-child{border:none}
+.corr-bar{height:6px;border-radius:3px;background:var(--purple);transition:width .3s}
+
+/* Agenda item */
+.agenda-item{padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+.agenda-item.urgent{border-left:3px solid var(--red)}
+.agenda-item.high{border-left:3px solid var(--orange)}
+.agenda-item.medium{border-left:3px solid var(--blue)}
+
+/* Detection health */
+.health-bar{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px}
+.health-bar .h-label{width:140px;color:var(--text2)}
+.health-bar .h-bar{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.health-bar .h-fill{height:100%;border-radius:4px}
+.health-bar .h-score{width:40px;text-align:right;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">WP SEO AI</span>
+  <h1>Sales Coaching</h1>
+  <div class="tab-toggle">
+    <button class="tab-btn active" id="btn-ae" onclick="setMode('ae')">AE View</button>
+    <button class="tab-btn" id="btn-lead" onclick="setMode('lead')">Lead View</button>
+  </div>
+  <div class="claap-input-row">
+    <input id="claap-url" type="text" placeholder="Paste Claap link..." onkeydown="if(event.key==='Enter')analyzeClaapLink()">
+    <button onclick="analyzeClaapLink()">Analyze</button>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  CORE HELPERS
+// ════════════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+let mode = 'ae'; // 'ae' or 'lead'
+const SECTION_NAMES = ['Origin','AI Search','SEO Bridge','Tools Gap','96.55%','Manual Pain','Sitemap','Pling','Clusters','Fisher/1999','Snowball','Pricing'];
+
+function scriptPillsHTML(sectionsHit, sectionsMissed) {
+  const hit = new Set(sectionsHit || []);
+  let html = '<div class="sp-row">';
+  for (let i = 1; i <= 12; i++) {
+    const name = SECTION_NAMES[i-1];
+    html += `<span class="sp ${hit.has(i)?'hit':'miss'}" title="${name}">${name}</span>`;
+  }
+  html += '</div>';
+  const missedNames = (sectionsMissed || []).map(id => SECTION_NAMES[id-1]).filter(Boolean);
+  if (missedNames.length > 0 && missedNames.length < 12) {
+    html += `<div style="margin-top:6px;font-size:12px;color:var(--text2)">Missed: ${missedNames.join(', ')}</div>`;
+  }
+  return html;
+}
+let teamData = [];
+let benchData = {};
+let insightsData = {};
+let chartInstances = {};
+
+async function api(url) { return (await fetch(url)).json(); }
+function esc(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function qCls(q) { return q >= 65 ? 'hi' : q >= 45 ? 'mi' : 'lo'; }
+function qClr(q) { return q >= 65 ? 'var(--green)' : q >= 45 ? 'var(--orange)' : 'var(--red)'; }
+function wrClr(r) { return r >= 50 ? 'var(--green)' : r >= 30 ? 'var(--orange)' : 'var(--red)'; }
+
+function confBadge(conf) {
+  if (!conf) return '';
+  const map = { high: ['conf-high','HIGH','Confident this detection is accurate'], medium: ['conf-medium','MEDIUM','Likely accurate, verify by listening'], low: ['conf-low','LOW','Might be a false positive'] };
+  const [cls, label, tip] = map[conf] || map.medium;
+  return '<span class="conf-badge '+cls+'" title="'+tip+'">'+label+'</span>';
+}
+
+// ════════════════════════════════════════════════════════
+//  MOMENT RENDERING
+// ════════════════════════════════════════════════════════
+
+function renderSmartReview(sr, call, baseUrl, rid, dur) {
+  let h = '';
+
+  // Summary + One Thing
+  h += '<div class="card" style="border-left:3px solid var(--purple)">'+
+    '<div style="font-size:14px;line-height:1.7;margin-bottom:12px">'+sr.summary+'</div>'+
+    '<div style="padding:10px 14px;background:rgba(168,85,247,.08);border-radius:8px;font-size:13px;line-height:1.6">'+
+      '<strong style="color:var(--purple)">The one thing to change:</strong> '+sr.oneThingToChange+
+    '</div>'+
+  '</div>';
+
+  // Conversation Flow (phases)
+  if (sr.phases?.length) {
+    h += '<div class="card"><h3 style="font-size:14px;margin-bottom:10px">Conversation Flow</h3>';
+    sr.phases.forEach(p => {
+      const engIcon = p.engagement === 'high' ? '🟢' : p.engagement === 'low' ? '🔴' : '🟡';
+      const ctrlClr = p.control === 'AE dominated' ? 'var(--red)' : p.control === 'Prospect led' ? 'var(--orange)' : 'var(--green)';
+      h += '<div style="padding:8px 0;border-bottom:1px solid var(--border)">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<strong style="font-size:13px;width:120px">'+p.name+'</strong>'+
+          '<span style="font-size:11px;color:var(--text2)">'+p.timeRange+'</span>'+
+          '<span style="font-size:11px;color:'+ctrlClr+'">'+p.control+' ('+p.aeTalkRatio+'%)</span>'+
+          '<span style="font-size:11px">'+engIcon+' '+p.engagement+'</span>'+
+        '</div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-top:2px">AE asked '+p.aeQuestions+' Qs · Prospect: '+p.prospectLongAnswers+' long, '+p.prospectShortAnswers+' short answers</div>'+
+      '</div>';
+    });
+    // Conviction arc
+    if (sr.convictionArc?.length > 2) {
+      h += '<div style="margin-top:10px;font-size:12px;color:var(--text2)">'+
+        '<strong>Prospect conviction:</strong> '+sr.convictionTrend+
+        (sr.peakMoment ? ' · Peak at ~'+sr.peakMoment : '')+
+      '</div>';
+    }
+    h += '</div>';
+  }
+
+  // Script Review
+  if (sr.scriptReview?.length) {
+    const covered = sr.scriptReview.filter(s => s.covered).length;
+    h += '<div class="card"><h3 style="font-size:14px;margin-bottom:10px">Script Adherence — '+(call.script_adherence||0)+'% ('+covered+'/12 phases)</h3>';
+    sr.scriptReview.forEach(s => {
+      const icon = s.quality === 'good' ? '✅' : s.quality === 'ok' ? '🟡' : s.quality === 'weak' ? '⚠️' : '❌';
+      const clr = s.covered ? 'var(--text)' : 'var(--text2)';
+      h += '<div onclick="this.querySelector(\'.sr-detail\').classList.toggle(\'hidden\')" style="padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span>'+icon+'</span>'+
+          '<span style="font-size:13px;color:'+clr+';font-weight:'+(s.covered?'500':'400')+'">'+s.name+'</span>'+
+          (s.timestamp ? '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+s.timestamp+'</span>' : '')+
+          (s.duration ? '<span style="font-size:10px;color:var(--text2)">'+s.duration+'</span>' : '')+
+          '<span style="font-size:10px;color:var(--text2);margin-left:auto">▾</span>'+
+        '</div>'+
+        '<div class="sr-detail hidden" style="margin-top:6px;padding:6px 10px;font-size:12px;line-height:1.6;background:var(--bg3);border-radius:6px;color:var(--text)">'+(s.detail||'')+'</div>'+
+      '</div>';
+    });
+    h += '</div>';
+  }
+
+  // Objection Handling
+  if (sr.objections?.length) {
+    h += '<div class="card" style="border-top:3px solid var(--red)"><h3 style="font-size:14px;margin-bottom:10px;color:var(--red)">Objections & Doubts ('+sr.objections.length+')</h3>';
+    sr.objections.forEach(obj => {
+      const handlingClr = obj.handling === 'explored' || obj.handling === 'acknowledged' ? 'var(--green)' : 'var(--red)';
+      h += '<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
+        '<div style="padding:6px 10px;border-left:2px solid var(--red);background:var(--bg3);border-radius:0 6px 6px 0;margin-bottom:6px">'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+obj.prospectTimestamp+'</span> <span style="font-size:10px;color:var(--text2)">Prospect</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+obj.prospectSaid+'"</div>'+
+        '</div>'+
+        '<div style="padding:6px 10px;border-left:2px solid '+handlingClr+';background:var(--bg);border-radius:0 6px 6px 0;margin-bottom:6px">'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+obj.aeTimestamp+'</span> <span style="font-size:10px;color:'+handlingClr+'">AE — '+obj.handling.toUpperCase()+'</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+obj.aeSaid+'"</div>'+
+        '</div>'+
+        (obj.shouldHaveDone ? '<div class="guidance">'+obj.shouldHaveDone+'</div>' : '')+
+      '</div>';
+    });
+    h += '</div>';
+  }
+
+  // Buying Signals
+  if (sr.buyingSignals?.length) {
+    h += '<div class="card" style="border-top:3px solid var(--green)"><h3 style="font-size:14px;margin-bottom:10px;color:var(--green)">Buying Signals ('+sr.buyingSignals.length+')</h3>';
+    sr.buyingSignals.forEach(bs => {
+      const advClr = bs.didAdvance ? 'var(--green)' : 'var(--orange)';
+      const advLabel = bs.didAdvance ? 'ADVANCED ✅' : 'DIDN\'T ADVANCE ⚠️';
+      h += '<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
+        '<div style="padding:6px 10px;border-left:2px solid var(--green);background:var(--bg3);border-radius:0 6px 6px 0;margin-bottom:6px">'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+bs.prospectTimestamp+'</span> <span style="font-size:10px;color:var(--green)">'+bs.signalType+'</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+bs.prospectSaid+'"</div>'+
+        '</div>'+
+        '<div style="padding:6px 10px;border-left:2px solid '+advClr+';background:var(--bg);border-radius:0 6px 6px 0;margin-bottom:6px">'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+bs.aeTimestamp+'</span> <span style="font-size:10px;color:'+advClr+'">'+advLabel+'</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+bs.aeSaid+'"</div>'+
+        '</div>'+
+        (!bs.didAdvance && bs.shouldHaveDone ? '<div class="guidance">'+bs.shouldHaveDone+'</div>' : '')+
+      '</div>';
+    });
+    h += '</div>';
+  }
+
+  // Critical Moment
+  if (sr.criticalMoment) {
+    const cm = sr.criticalMoment;
+    h += '<div class="card" style="border-left:3px solid var(--orange)">'+
+      '<h3 style="font-size:14px;margin-bottom:8px;color:var(--orange)">The Critical Moment</h3>'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+cm.timestamp+' — '+cm.category+'</div>'+
+      '<div style="font-size:13px;line-height:1.6;margin-bottom:8px">'+cm.whatHappened+'</div>'+
+      (cm.aeReaction ? '<div style="font-size:13px;line-height:1.6;margin-bottom:8px;color:var(--text2)"><strong>AE responded:</strong> "'+cm.aeReaction+'"</div>' : '')+
+      (cm.shouldHaveDone ? '<div class="guidance">'+cm.shouldHaveDone+'</div>' : '')+
+    '</div>';
+  }
+
+  return h;
+}
+
+function renderMoment(h, type, baseUrl, recordingId) {
+  const cls = type === 'good' ? 'good' : 'bad';
+  const tagCls = type === 'good' ? 'w' : 'l';
+  const ctx = h.context;
+  const hasDetail = ctx && (ctx.before || ctx.after || ctx.shouldHaveDone);
+  const claapLink = baseUrl ? baseUrl + '?t=' + h.timestampSeconds : '#';
+
+  let s = '<div class="moment '+cls+'" style="cursor:'+(hasDetail?'pointer':'default')+'" '+(hasDetail?'onclick="this.querySelector(\'.mx\').classList.toggle(\'hidden\')"':'')+'>'+
+    '<div class="mm">'+
+      '<a class="ts" href="'+claapLink+'" target="_blank" onclick="event.stopPropagation()">'+h.timestampDisplay+'</a>'+
+      '<span class="tag '+tagCls+'">'+h.category+'</span>'+
+      confBadge(h.confidence)+
+      (hasDetail?'<span style="font-size:10px;color:var(--text2)">details</span>':'')+
+    '</div>'+
+    '<div class="mt">"'+h.excerpt+'"</div>';
+
+  if (hasDetail) {
+    s += '<div class="mx hidden" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px" onclick="event.stopPropagation()">';
+    if (ctx.before) {
+      s += '<div style="padding:6px 10px;margin-bottom:4px;border-left:2px solid var(--text2);background:var(--bg);border-radius:0 4px 4px 0">'+
+        '<span style="font-size:10px;color:var(--text2)">'+ctx.before.timestamp+' - '+ctx.before.speaker+'</span>'+
+        '<div style="font-size:12px;margin-top:2px">"'+ctx.before.text+'"</div></div>';
+    }
+    if (ctx.trigger) {
+      const bc = type==='good'?'var(--green)':'var(--red)';
+      s += '<div style="padding:6px 10px;margin-bottom:4px;border-left:3px solid '+bc+';background:'+(type==='good'?'rgba(34,197,94,.05)':'rgba(239,68,68,.05)')+';border-radius:0 4px 4px 0">'+
+        '<span style="font-size:10px;color:var(--text2)">'+ctx.trigger.timestamp+' - '+ctx.trigger.speaker+'</span>'+
+        '<div style="font-size:12px;margin-top:2px;font-weight:500">"'+ctx.trigger.text+'"</div></div>';
+    }
+    if (ctx.after) {
+      s += '<div style="padding:6px 10px;margin-bottom:4px;border-left:2px solid var(--text2);background:var(--bg);border-radius:0 4px 4px 0">'+
+        '<span style="font-size:10px;color:var(--text2)">'+ctx.after.timestamp+' - '+ctx.after.speaker+' (response)</span>'+
+        '<div style="font-size:12px;margin-top:2px">"'+ctx.after.text+'"</div></div>';
+    }
+    if (ctx.shouldHaveDone) {
+      s += '<div class="guidance" style="margin-top:6px">'+ctx.shouldHaveDone+'</div>';
+    } else if (h.guidance) {
+      s += '<div class="guidance" style="margin-top:6px">'+h.guidance+'</div>';
+    }
+    s += '<div class="fb-row" style="margin-top:6px">'+feedbackHTML(recordingId, h.category, h.excerpt)+'</div>';
+    s += '</div>';
+  } else if (h.guidance) {
+    s += '<div class="guidance">'+h.guidance+'</div>';
+  }
+  s += '</div>';
+  return s;
+}
+
+// ════════════════════════════════════════════════════════
+//  FEEDBACK (SUPABASE-BACKED)
+// ════════════════════════════════════════════════════════
+
+let callFeedback = {};
+let currentCallId = '';
+
+async function loadFeedback(recordingId) {
+  currentCallId = recordingId;
+  try { callFeedback = await api('/api/feedback/' + recordingId); } catch { callFeedback = {}; }
+}
+
+async function submitFeedback(recordingId, category, excerpt, vote) {
+  await fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recordingId, category, excerpt: excerpt?.slice(0, 200), vote }),
+  });
+  await loadFeedback(recordingId);
+  document.querySelectorAll('[data-fb-cat="'+category+'"]').forEach(el => {
+    const c = callFeedback[category] || { up: 0, down: 0 };
+    el.innerHTML = feedbackInnerHTML(recordingId, category, excerpt, c);
+  });
+}
+
+function feedbackHTML(recordingId, category, excerpt) {
+  const c = callFeedback[category] || { up: 0, down: 0 };
+  return '<div data-fb-cat="'+category+'" style="display:inline-flex;align-items:center;gap:4px">'+feedbackInnerHTML(recordingId, category, excerpt, c)+'</div>';
+}
+
+function feedbackInnerHTML(recordingId, category, excerpt, c) {
+  const catSafe = (category||'').replace(/'/g,"\\'");
+  const excSafe = (excerpt||'').replace(/'/g,"\\'");
+  return '<button class="fb-btn" onclick="event.stopPropagation();submitFeedback(\''+recordingId+'\',\''+catSafe+'\',\''+excSafe+'\',\'up\')" title="Accurate detection">+1 '+(c.up||'')+'</button>'+
+    '<button class="fb-btn" onclick="event.stopPropagation();submitFeedback(\''+recordingId+'\',\''+catSafe+'\',\''+excSafe+'\',\'down\')" title="False positive">-1 '+(c.down||'')+'</button>'+
+    (c.up+c.down>0?'<span class="fb-count">'+Math.round(c.up/(c.up+c.down)*100)+'% accurate</span>':'<span class="fb-count">Accurate?</span>');
+}
+
+// ════════════════════════════════════════════════════════
+//  QUALITY BREAKDOWN
+// ════════════════════════════════════════════════════════
+
+function qualityBreakdownHTML(call) {
+  const talkRatio = call.talk_ratio || call.talkRatio || 50;
+  const talkPts = Math.max(0, 25 - Math.abs(talkRatio - 50));
+  const qCount = call.question_count || call.questionCount || 0;
+  const qPts = Math.min(20, Math.round((qCount / 22) * 20));
+  const scriptAdh = call.script_adherence || call.scriptAdherence || 0;
+  const scriptPts = Math.round((scriptAdh / 100) * 20);
+  const pe = call.prospect_engagement || call.prospectEngagement || {};
+  const netEng = (pe.buyingSignals || 0) + (pe.engagementIndicators || 0) - (pe.redFlags || 0);
+  const engPts = Math.max(0, Math.min(15, Math.round((netEng / 8) * 15)));
+  const hl = call.highlights || [];
+  const coachCount = Array.isArray(hl) ? hl.filter(h => h.type === 'coachable').length : 0;
+  const coachPts = Math.max(0, 20 - coachCount * 4);
+
+  const rows = [
+    { label: 'Talk Balance', pts: talkPts, max: 25, clr: talkPts > 18 ? 'var(--green)' : talkPts > 10 ? 'var(--orange)' : 'var(--red)' },
+    { label: 'Discovery', pts: qPts, max: 20, clr: qPts > 14 ? 'var(--green)' : qPts > 8 ? 'var(--orange)' : 'var(--red)' },
+    { label: 'Script Coverage', pts: scriptPts, max: 20, clr: scriptPts > 14 ? 'var(--green)' : scriptPts > 8 ? 'var(--orange)' : 'var(--red)' },
+    { label: 'Engagement', pts: engPts, max: 15, clr: engPts > 10 ? 'var(--green)' : engPts > 5 ? 'var(--orange)' : 'var(--red)' },
+    { label: 'Call Discipline', pts: coachPts, max: 20, clr: coachPts > 14 ? 'var(--green)' : coachPts > 8 ? 'var(--orange)' : 'var(--red)' },
+  ];
+
+  return '<div class="q-breakdown">'+rows.map(r =>
+    '<div class="q-row"><span class="q-label">'+r.label+'</span><span class="q-score" style="color:'+r.clr+'">'+r.pts+'/'+r.max+'</span><div class="q-bar"><div class="q-fill" style="width:'+Math.round(r.pts/r.max*100)+'%;background:'+r.clr+'"></div></div></div>'
+  ).join('')+'</div>';
+}
+
+// ════════════════════════════════════════════════════════
+//  BEHAVIOR SCORES
+// ════════════════════════════════════════════════════════
+
+function behaviorScoresHTML(call) {
+  const patterns = call.patterns || {};
+  const evidence = call.pattern_evidence || {};
+  const dims = [
+    ['contentEngine','Content Engine'],['marketContext','Market Context'],['roiReframe','ROI Reframe'],
+    ['humor','Humor & Rapport'],['urgency','Urgency'],['contract','Close Language'],
+    ['checkIn','Pace Check-ins'],['theirBusiness','Prospect Business'],['activeListening','Active Listening'],
+    ['personalStory','Personal Stories'],['vsAgency','Agency Diff.'],['directness','Directness'],
+    ['opinionAsk','Opinion Asks'],['research','Research Shown'],['priceAnchor','Price Anchoring'],
+    ['assumptiveClose','Assumptive Close'],['visibility','Visibility'],['dataDriven','Data-Driven'],
+    ['aiAngle','AI Angle'],['socialProof','Social Proof'],['challenging','Challenging'],
+  ];
+  return dims.filter(([k]) => (patterns[k] || 0) > 0).map(([key, label]) => {
+    const count = patterns[key] || 0;
+    const ev = evidence[key] || [];
+    return '<div class="bscore" onclick="var el=document.getElementById(\'ev-'+key+'\');if(el)el.classList.toggle(\'hidden\')">'+
+      '<div class="bs-head"><span class="bs-count">'+count+'</span><span class="bs-label">'+label+'</span>'+
+      (ev.length>0?'<span class="bs-toggle">show evidence</span>':'<span class="bs-toggle" style="opacity:.3">no evidence</span>')+'</div>'+
+      (ev.length>0?'<div class="bs-evidence hidden" id="ev-'+key+'">'+
+        ev.slice(0,5).map(e => '<div class="bs-ev-item"><span class="ev-ts">'+(e.timestampDisplay||'')+'</span><span class="ev-text">"'+(e.excerpt||'').slice(0,120)+'"</span><span class="ev-kw">'+(e.matchedKeyword||'')+'</span></div>').join('')+
+        (count>5?'<div style="font-size:11px;color:var(--text2);padding:4px 0">Based on '+count+' total matches</div>':'')+
+      '</div>':'')+
+    '</div>';
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+//  NARRATIVE (LLM DEEP ANALYSIS)
+// ════════════════════════════════════════════════════════
+
+async function generateAEDeepAnalysis(aeName) {
+  const btn = $('ae-deep-btn');
+  const result = $('ae-deep-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing all calls... (60-90 sec)'; }
+  if (result) result.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text2)">Reading ' + aeName + '\'s call history, identifying patterns across all calls...</div>';
+
+  try {
+    const res = await fetch('/api/ae/' + encodeURIComponent(aeName) + '/deep-analysis', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.error) {
+      result.innerHTML = '<div style="padding:12px;color:var(--red);margin-top:12px">' + data.error + '</div>';
+      if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+      return;
+    }
+
+    if (btn) { btn.textContent = 'Regenerate'; btn.disabled = false; }
+
+    const sections = [
+      ['Overview', data.overview, 'var(--purple)'],
+      ['Call Control & Conversation Management', data.callControl, 'var(--blue)'],
+      ['Discovery & Gap Creation', data.discoveryAndGapCreation, 'var(--blue)'],
+      ['Objection Handling Patterns', data.objectionPatterns, 'var(--red)'],
+      ['Closing Behavior', data.closingBehavior, 'var(--orange)'],
+      ['Script & Narrative Execution', data.scriptExecution, 'var(--text2)'],
+      ['Coaching Plan', data.coachingPlan, 'var(--green)'],
+    ];
+
+    result.innerHTML = '<div style="margin-top:16px">' +
+      sections.map(([title, content, color]) => content ? narrativeSectionHTML(title, content, color, true) : '').join('') +
+      '<div style="font-size:10px;color:var(--text2);margin-top:8px">Generated ' + (data.generatedAt ? new Date(data.generatedAt).toLocaleString() : 'now') + '</div>' +
+    '</div>';
+  } catch (err) {
+    result.innerHTML = '<div style="padding:12px;color:var(--red);margin-top:12px">Error: ' + err.message + '</div>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+  }
+}
+
+async function generateNarrative(recordingId) {
+  const btn = $('narrative-btn');
+  const result = $('narrative-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing... (30-60 sec)'; }
+  if (result) result.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2)">Reading transcript, identifying objections, buying signals, and coaching moments...</div>';
+  try {
+    const res = await fetch('/api/call/'+recordingId+'/narrative', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+      result.innerHTML = '<div style="padding:12px;color:var(--red)">'+data.error+'</div>';
+      if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+      return;
+    }
+    if (btn) { btn.textContent = 'Regenerate'; btn.disabled = false; }
+    result.innerHTML = '<div style="margin-top:16px">'+
+      narrativeSectionHTML('Call Summary', data.summary, 'var(--text)', true)+
+      narrativeSectionHTML('Objections & Doubts', data.objectionsAnalysis, 'var(--red)', true)+
+      narrativeSectionHTML('Buying Signals', data.buyingSignalsAnalysis, 'var(--green)', true)+
+      narrativeSectionHTML('Key Coaching Moments', data.coachingMoments, 'var(--orange)', true)+
+      narrativeSectionHTML('Overall Verdict', data.overallVerdict, 'var(--purple)', true)+
+      '<div style="font-size:10px;color:var(--text2);margin-top:8px">Generated '+(data.generatedAt?new Date(data.generatedAt).toLocaleString():'now')+' - Results are cached</div></div>';
+  } catch (err) {
+    result.innerHTML = '<div style="padding:12px;color:var(--red)">Error: '+err.message+'</div>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+  }
+}
+
+function narrativeSectionHTML(title, content, color, startExpanded) {
+  if (!content) return '';
+  const formatted = content
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- /gm, '&bull; ')
+    .replace(/\n\n/g, '</p><p style="margin-top:8px">')
+    .replace(/\n/g, '<br>');
+  return '<div style="margin-top:12px;border-left:3px solid '+color+';padding-left:14px">'+
+    '<div onclick="this.nextElementSibling.classList.toggle(\'hidden\')" style="cursor:pointer;display:flex;align-items:center;gap:8px">'+
+      '<div style="font-size:13px;font-weight:600;color:'+color+'">'+title+'</div>'+
+      '<span style="font-size:10px;color:var(--text2)">click to '+(startExpanded?'collapse':'expand')+'</span>'+
+    '</div>'+
+    '<div '+(startExpanded?'':'class="hidden"')+' style="margin-top:8px;font-size:13px;line-height:1.8;color:var(--text)"><p>'+formatted+'</p></div></div>';
+}
+
+// ════════════════════════════════════════════════════════
+//  CALL ROW HTML
+// ════════════════════════════════════════════════════════
+
+function callRowHTML(c, name) {
+  const cq = c.call_quality_score || 0;
+  const date = (c.created_at||'').slice(0,10);
+  const dur = c.duration_seconds ? Math.round(c.duration_seconds/60)+'m' : '';
+  const outcome = c.outcome || '';
+  const rid = c.recording_id || '';
+  return '<tr onclick="loadCallDetail(\''+rid+'\',\''+esc(name)+'\')">'+
+    '<td>'+date+'</td>'+
+    '<td>'+(c.title||'Untitled')+'</td>'+
+    '<td>'+(c.deal_name||'')+'</td>'+
+    '<td><span style="color:'+qClr(cq)+';font-weight:700">'+cq+'</span></td>'+
+    '<td>'+(c.talk_ratio||'')+'%</td>'+
+    '<td>'+(c.question_count||'')+'</td>'+
+    '<td>'+(outcome?'<span class="badge '+(outcome==='won'?'won':'lost')+'">'+outcome+'</span>':'')+'</td>'+
+    '<td>'+dur+'</td></tr>';
+}
+
+// ════════════════════════════════════════════════════════
+//  MODE TOGGLE
+// ════════════════════════════════════════════════════════
+
+function setMode(m) {
+  mode = m;
+  $('btn-ae').classList.toggle('active', m === 'ae');
+  $('btn-lead').classList.toggle('active', m === 'lead');
+  loadTeam();
+}
+
+// ════════════════════════════════════════════════════════
+//  TEAM DATA HELPERS
+// ════════════════════════════════════════════════════════
+
+function teamAvgPatterns(exclude) {
+  const others = teamData.filter(t => t.recorder_name !== exclude);
+  if (!others.length) return {};
+  const avg = {};
+  const dims = ['contentEngine','marketContext','roiReframe','humor','urgency','contract','checkIn','theirBusiness','activeListening','personalStory','vsAgency','directness','opinionAsk','research','priceAnchor','assumptiveClose'];
+  dims.forEach(d => {
+    const vals = others.map(t => {
+      const p = t.avg_patterns_all || t.avg_patterns_won || t.avg_patterns || {};
+      return p[d] || 0;
+    });
+    avg[d] = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  });
+  return avg;
+}
+
+function getEdgesAndGaps(wonPatterns, teamAvg) {
+  const edges = [], gaps = [];
+  Object.keys(wonPatterns || {}).forEach(k => {
+    const v = wonPatterns[k] || 0;
+    const t = teamAvg[k] || 0;
+    if (v > t + 1) edges.push({ dim: k, val: v, teamAvg: t, lift: +(v - t).toFixed(1) });
+    else if (v < t - 1) gaps.push({ dim: k, val: v, teamAvg: t, gap: +(t - v).toFixed(1) });
+  });
+  edges.sort((a,b) => b.lift - a.lift);
+  gaps.sort((a,b) => b.gap - a.gap);
+  return { edges, gaps };
+}
+
+// ════════════════════════════════════════════════════════
+//  LOAD TEAM
+// ════════════════════════════════════════════════════════
+
+async function loadTeam() {
+  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading...</div>';
+  try {
+    [teamData, benchData, insightsData] = await Promise.all([
+      api('/api/team'),
+      api('/api/team/benchmarks'),
+      api('/api/team/insights'),
+    ]);
+    if (mode === 'ae') renderTeamAE();
+    else renderTeamLead();
+  } catch (err) {
+    $('app').innerHTML = '<div class="card" style="border-color:var(--red)"><p>Error: '+err.message+'</p></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  AE VIEW (TEAM)
+// ════════════════════════════════════════════════════════
+
+function renderTeamAE() {
+  const html = '<div style="margin-bottom:20px"><h2 style="font-size:20px">Team — AE Coaching Cards</h2><p style="color:var(--text2);font-size:13px;margin-top:4px">'+teamData.length+' AEs</p></div>'+
+    '<div class="grid-3">'+teamData.map(ae => {
+      const q = ae.avg_call_quality || 0;
+      const name = ae.recorder_name || '';
+      const calls = ae.total_calls || 0;
+      const talk = ae.avg_talk_ratio || 0;
+      const script = ae.avg_script_adherence || 0;
+      const strengths = ae.top_strengths || [];
+      const weaknesses = ae.top_weaknesses || [];
+      return '<div class="ae-card" onclick="loadAEDetail(\''+esc(name)+'\')">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+          '<div style="font-weight:600;font-size:15px">'+name+'</div>'+
+          '<div style="font-size:22px;font-weight:700;color:'+qClr(q)+'">'+q+'</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+calls+' calls &middot; Talk: '+talk+'% &middot; Script: '+script+'%</div>'+
+        (strengths.length?'<div class="coach-box keep"><div class="cb-title">Keep doing</div>'+strengths.slice(0,2).map(s=>'<div style="font-size:12px;margin-bottom:2px">'+s+'</div>').join('')+'</div>':'')+
+        (weaknesses.length?'<div class="coach-box work"><div class="cb-title">Work on</div>'+weaknesses.slice(0,2).map(w=>'<div style="font-size:12px;margin-bottom:2px">'+w+'</div>').join('')+'</div>':'')+
+      '</div>';
+    }).join('')+'</div>';
+  $('app').innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════
+//  LEAD VIEW (TEAM)
+// ════════════════════════════════════════════════════════
+
+async function renderTeamLead() {
+  const tavg = benchData.teamAvg || {};
+  const alerts = insightsData.qualityAlerts || [];
+  const correlations = insightsData.correlations || [];
+  const talkBuckets = insightsData.talkBuckets || [];
+  const learnMoments = insightsData.learnMoments || [];
+  const totalCalls = insightsData.totalCalls || 0;
+  const avgQuality = insightsData.avgTeamQuality || 0;
+
+  // Fetch additional data
+  let agendaData = [], consistencyData = {}, healthData = [];
+  try {
+    [agendaData, consistencyData, healthData] = await Promise.all([
+      api('/api/team/coaching-agenda'),
+      api('/api/team/narrative-consistency'),
+      api('/api/feedback/health'),
+    ]);
+  } catch(e) {}
+
+  // Stat boxes
+  let html = '<div style="margin-bottom:20px"><h2 style="font-size:20px">Team — Lead View</h2></div>'+
+    '<div class="grid-4" style="margin-bottom:24px">'+
+      '<div class="sbox"><div class="sv">'+teamData.length+'</div><div class="sl">Active AEs</div></div>'+
+      '<div class="sbox"><div class="sv">'+totalCalls+'</div><div class="sl">Calls Analyzed</div></div>'+
+      '<div class="sbox"><div class="sv" style="color:'+qClr(avgQuality)+'">'+avgQuality+'</div><div class="sl">Avg Quality</div></div>'+
+      '<div class="sbox"><div class="sv">'+(tavg.winRate||0)+'%</div><div class="sl">Team Win Rate</div></div>'+
+    '</div>';
+
+  // Alerts & Momentum
+  if (alerts.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Alerts & Momentum</h3>';
+    alerts.forEach(a => {
+      const cls = a.trend === 'declining' ? 'losing' : 'winning';
+      const icon = a.trend === 'declining' ? '&#9660;' : '&#9650;';
+      const clr = a.trend === 'declining' ? 'var(--red)' : 'var(--green)';
+      html += '<div class="alert-item '+cls+'"><span style="color:'+clr+';font-size:16px">'+icon+'</span>'+
+        '<span style="font-weight:600;cursor:pointer" onclick="loadAEDetail(\''+esc(a.name)+'\')">'+a.name+'</span>'+
+        '<span style="color:var(--text2)">Recent avg: <strong style="color:'+qClr(a.recentAvg)+'">'+a.recentAvg+'</strong> vs overall: '+a.overallAvg+' ('+a.totalCalls+' calls)</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // What Drives Call Quality
+  html += '<div class="grid-2">';
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">What Drives Call Quality</h3>';
+  correlations.slice(0,10).forEach(c => {
+    const pct = Math.max(0, Math.min(100, Math.round(c.lift * 2 + 50)));
+    html += '<div class="corr-row"><span style="width:140px;font-size:12px;color:var(--text2)">'+c.label+'</span>'+
+      '<div style="flex:1"><div class="corr-bar" style="width:'+pct+'%"></div></div>'+
+      '<span style="width:50px;text-align:right;font-weight:600;color:'+(c.lift>0?'var(--green)':'var(--red)')+'">'+(c.lift>0?'+':'')+c.lift+'</span></div>';
+  });
+  html += '</div>';
+
+  // Talk Ratio Sweet Spot
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Talk Ratio Sweet Spot</h3><div class="chart-container"><canvas id="chart-talk-buckets"></canvas></div></div>';
+  html += '</div>'; // end grid-2
+
+  // Learn From The Best
+  if (learnMoments.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Learn From The Best</h3>';
+    learnMoments.forEach(lm => {
+      html += '<div style="margin-bottom:14px"><div style="font-weight:600;font-size:13px;margin-bottom:6px;cursor:pointer" onclick="loadAEDetail(\''+esc(lm.ae)+'\')">'+lm.ae+' <span style="color:var(--text2);font-weight:400">(avg quality: '+lm.avgQuality+')</span></div>';
+      lm.moments.forEach(m => {
+        const link = m.url ? m.url + '?t=' + m.ts : '#';
+        html += '<div style="display:flex;gap:8px;padding:4px 0;font-size:12px"><a href="'+link+'" target="_blank" style="font-family:monospace;font-size:11px">'+m.display+'</a><span class="tag w">'+m.category+'</span><span style="color:var(--text2);font-style:italic">"'+((m.excerpt||'').slice(0,80))+'"</span></div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Weekly Coaching Agenda
+  if (agendaData.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Weekly Coaching Agenda</h3>';
+    agendaData.forEach(a => {
+      const pcls = a.priority === 'urgent' ? 'urgent' : a.priority === 'high' ? 'high' : 'medium';
+      html += '<div class="agenda-item '+pcls+'">'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+
+          '<span class="badge" style="background:'+(a.priority==='urgent'?'rgba(239,68,68,.15)':a.priority==='high'?'rgba(245,158,11,.15)':'rgba(59,130,246,.15)')+';color:'+(a.priority==='urgent'?'var(--red)':a.priority==='high'?'var(--orange)':'var(--blue)')+'">'+a.priority.toUpperCase()+'</span>'+
+          '<span style="font-weight:600;cursor:pointer" onclick="loadAEDetail(\''+esc(a.ae)+'\')">'+a.ae+'</span>'+
+          '<span style="color:var(--text2);font-size:12px">Focus: '+a.focusArea+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+a.reason+'</div>'+
+        (a.listenTo && a.listenTo.url ? '<div style="font-size:12px"><a href="'+a.listenTo.url+'?t='+a.listenTo.timestamp+'" target="_blank">Listen: '+a.listenTo.callTitle+' at '+a.listenTo.timestamp+'</a>'+(a.listenTo.excerpt?' — <span style="color:var(--text2);font-style:italic">"'+a.listenTo.excerpt.slice(0,60)+'"</span>':'')+'</div>' : '')+
+      '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Narrative Consistency & Detection Health
+  html += '<div class="grid-2">';
+
+  // Narrative Consistency
+  const sc = consistencyData.sectionConsistency || [];
+  if (sc.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Narrative Consistency</h3>';
+    sc.forEach(s => {
+      const pct = s.teamAvg;
+      const clr = pct >= 60 ? 'var(--green)' : pct >= 30 ? 'var(--orange)' : 'var(--red)';
+      html += '<div class="health-bar"><span class="h-label">'+s.section+'</span><div class="h-bar"><div class="h-fill" style="width:'+pct+'%;background:'+clr+'"></div></div><span class="h-score" style="color:'+clr+'">'+pct+'%</span></div>';
+    });
+    if (consistencyData.driftAlerts && consistencyData.driftAlerts.length) {
+      html += '<div style="margin-top:12px;padding:10px;background:rgba(239,68,68,.05);border-radius:6px;border:1px solid rgba(239,68,68,.12);font-size:12px;color:var(--red)"><strong>Drift alerts:</strong><br>'+consistencyData.driftAlerts.join('<br>')+'</div>';
+    }
+    html += '</div>';
+  }
+
+  // Detection Health
+  if (healthData.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Detection Health</h3>';
+    healthData.forEach(h => {
+      const ts = h.trustScore != null ? h.trustScore : 0;
+      const clr = h.status === 'trusted' ? 'var(--green)' : h.status === 'review' ? 'var(--orange)' : h.status === 'untrusted' ? 'var(--red)' : 'var(--text2)';
+      html += '<div class="health-bar"><span class="h-label">'+h.category+'</span><div class="h-bar"><div class="h-fill" style="width:'+ts+'%;background:'+clr+'"></div></div><span class="h-score" style="color:'+clr+'">'+(h.totalVotes>0?ts+'%':'?')+'</span></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>'; // end grid-2
+
+  // Team Leaderboard
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Team Leaderboard</h3>';
+  html += '<table class="lb-table"><thead><tr><th>#</th><th>AE</th><th>Quality</th><th>Win Rate</th><th>Calls</th><th>Talk Ratio</th><th>Questions</th><th>Script</th></tr></thead><tbody>';
+  teamData.forEach((ae, i) => {
+    html += '<tr onclick="loadAEDetail(\''+esc(ae.recorder_name)+'\')"><td>'+(i+1)+'</td><td style="font-weight:600">'+ae.recorder_name+'</td>'+
+      '<td style="color:'+qClr(ae.avg_call_quality||0)+';font-weight:700">'+(ae.avg_call_quality||0)+'</td>'+
+      '<td style="color:'+wrClr(ae.win_rate||0)+'">'+(ae.win_rate||0)+'%</td>'+
+      '<td>'+(ae.total_calls||0)+'</td>'+
+      '<td>'+(ae.avg_talk_ratio||0)+'%</td>'+
+      '<td>'+(ae.avg_question_count||0)+'</td>'+
+      '<td>'+(ae.avg_script_adherence||0)+'%</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  $('app').innerHTML = html;
+
+  // Render talk ratio buckets chart
+  setTimeout(() => {
+    const ctx = document.getElementById('chart-talk-buckets');
+    if (ctx) {
+      destroyChart('talk-buckets');
+      chartInstances['talk-buckets'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: talkBuckets.map(b => b.label),
+          datasets: [{
+            label: 'Avg Quality',
+            data: talkBuckets.map(b => b.avgQuality),
+            backgroundColor: talkBuckets.map(b => b.avgQuality >= 55 ? 'rgba(34,197,94,.6)' : b.avgQuality >= 40 ? 'rgba(245,158,11,.6)' : 'rgba(239,68,68,.6)'),
+            borderRadius: 4,
+          }]
+        },
+        options: chartOpts('Quality Score'),
+      });
+    }
+  }, 50);
+}
+
+// ════════════════════════════════════════════════════════
+//  CHART HELPERS
+// ════════════════════════════════════════════════════════
+
+function destroyChart(key) {
+  if (chartInstances[key]) { chartInstances[key].destroy(); delete chartInstances[key]; }
+}
+
+function chartOpts(yLabel) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: 'rgba(46,51,72,.3)' }, ticks: { color: '#8b8fa3', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(46,51,72,.3)' }, ticks: { color: '#8b8fa3', font: { size: 11 } }, title: { display: true, text: yLabel, color: '#8b8fa3', font: { size: 11 } } },
+    }
+  };
+}
+
+function radarOpts() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#8b8fa3', font: { size: 11 } } } },
+    scales: {
+      r: {
+        grid: { color: 'rgba(46,51,72,.3)' },
+        angleLines: { color: 'rgba(46,51,72,.3)' },
+        ticks: { color: '#8b8fa3', backdropColor: 'transparent', font: { size: 10 } },
+        pointLabels: { color: '#8b8fa3', font: { size: 10 } },
+      }
+    }
+  };
+}
+
+// ════════════════════════════════════════════════════════
+//  COACHING DIAGNOSTIC (KOEN-STYLE)
+// ════════════════════════════════════════════════════════
+
+function generateDiagnostic(ae, calls) {
+  const q = ae.avg_call_quality || 0;
+  const talk = ae.avg_talk_ratio || 0;
+  const qs = ae.avg_question_count || 0;
+  const script = ae.avg_script_adherence || 0;
+  const wr = ae.win_rate || 0;
+  const total = ae.total_calls || 0;
+  const name = ae.recorder_name || 'This AE';
+  const strengths = ae.top_strengths || [];
+  const weaknesses = ae.top_weaknesses || [];
+
+  let para = name + ' has completed ' + total + ' calls with an average quality score of ' + q + ' and a ' + wr + '% win rate. ';
+
+  if (q >= 65) para += 'This is strong performance. ';
+  else if (q >= 45) para += 'Performance is mid-range with room for improvement. ';
+  else para += 'This is below the team benchmark and needs focused coaching. ';
+
+  if (talk > 62) para += 'Talk ratio is high at ' + talk + '% — ' + name + ' dominates the conversation and should ask more questions to let the prospect speak. ';
+  else if (talk < 42) para += 'Talk ratio is low at ' + talk + '% — ' + name + ' may not be providing enough product explanation. ';
+  else para += 'Talk ratio is healthy at ' + talk + '%. ';
+
+  if (qs < 14) para += 'With only ' + qs + ' questions per call on average, discovery is insufficient — top performers average 22+. ';
+  else if (qs >= 20) para += 'Strong discovery with ' + qs + ' questions per call. ';
+
+  if (script < 30) para += 'Script adherence is critically low at ' + script + '% — key narrative sections are being skipped consistently. ';
+  else if (script < 50) para += 'Script coverage at ' + script + '% suggests some narrative gaps to address. ';
+
+  if (strengths.length) para += 'Key strengths include: ' + strengths.slice(0,3).join(', ') + '. ';
+  if (weaknesses.length) para += 'Areas to develop: ' + weaknesses.slice(0,3).join(', ') + '. ';
+
+  // Check recent trends from calls
+  if (calls && calls.length >= 5) {
+    const recent5 = calls.slice(0, 5);
+    const recent5Avg = Math.round(recent5.reduce((s,c) => s + (c.call_quality_score||0), 0) / 5);
+    if (recent5Avg > q + 5) para += 'The last 5 calls show an upward trend (avg ' + recent5Avg + ') — keep the momentum. ';
+    else if (recent5Avg < q - 5) para += 'The last 5 calls show a declining trend (avg ' + recent5Avg + ') — this needs immediate attention. ';
+  }
+
+  return para;
+}
+
+// ════════════════════════════════════════════════════════
+//  AE DETAIL
+// ════════════════════════════════════════════════════════
+
+async function loadAEDetail(name) {
+  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading '+name+'...</div>';
+  try {
+    const [ae, calls, trend] = await Promise.all([
+      api('/api/ae/' + encodeURIComponent(name)),
+      api('/api/ae/' + encodeURIComponent(name) + '/calls'),
+      api('/api/ae/' + encodeURIComponent(name) + '/trend'),
+    ]);
+
+    await loadFeedback(calls[0]?.recording_id || '');
+
+    const q = ae.avg_call_quality || 0;
+    const talk = ae.avg_talk_ratio || 0;
+    const qs = ae.avg_question_count || 0;
+    const script = ae.avg_script_adherence || 0;
+    const wr = ae.win_rate || 0;
+    const total = ae.total_calls || 0;
+    const strengths = ae.top_strengths || [];
+    const weaknesses = ae.top_weaknesses || [];
+    const wonPatterns = ae.avg_patterns_won || ae.avg_patterns_all || ae.won_patterns || {};
+    const lostPatterns = ae.avg_patterns_lost || ae.lost_patterns || {};
+
+    // Hero
+    let html = '<button class="back-btn" onclick="loadTeam()">&larr; Back to Team</button>';
+    html += '<div class="card" style="margin-bottom:20px"><div style="display:flex;align-items:center;flex-wrap:wrap;gap:20px">'+
+      '<div style="flex:1"><div style="font-size:22px;font-weight:700">'+name+'</div><div style="color:var(--text2);font-size:13px;margin-top:4px">'+total+' calls &middot; Win rate: '+wr+'%</div></div>'+
+      '<div style="display:flex;gap:16px;align-items:center">'+
+        '<div style="text-align:center"><div style="font-size:32px;font-weight:700;color:'+qClr(q)+'">'+q+'</div><div style="font-size:11px;color:var(--text2)">Quality</div></div>'+
+        '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+talk+'%</div><div style="font-size:11px;color:var(--text2)">Talk Ratio</div></div>'+
+        '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+qs+'</div><div style="font-size:11px;color:var(--text2)">Questions</div></div>'+
+        '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+script+'%</div><div style="font-size:11px;color:var(--text2)">Script</div></div>'+
+      '</div></div></div>';
+
+    // Diagnostic
+    html += '<div class="diagnostic">'+generateDiagnostic(ae, calls)+'</div>';
+
+    // Deep AE Analysis (LLM-powered cross-call review)
+    html += '<div class="card" style="border-left:3px solid var(--purple);margin-bottom:16px">'+
+      '<div style="display:flex;align-items:center;gap:12px">'+
+        '<div style="flex:1"><div style="font-size:14px;font-weight:600">Full Performance Review</div><div style="font-size:12px;color:var(--text2)">AI analysis across all '+total+' calls — patterns, objection handling, coaching plan</div></div>'+
+        '<button id="ae-deep-btn" onclick="generateAEDeepAnalysis(\''+esc(name)+'\')" style="padding:8px 16px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Generate Full Review</button>'+
+      '</div>'+
+      '<div id="ae-deep-result"></div>'+
+    '</div>';
+
+    // How Scores Are Calculated (collapsible)
+    html += '<div class="card" style="padding:12px 16px"><div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><span style="font-size:13px;font-weight:600">How Scores Are Calculated</span><span style="font-size:10px;color:var(--text2)">click to expand</span></div>'+
+      '<div class="hidden" style="font-size:12px;color:var(--text2);line-height:1.7;padding-top:8px">'+
+        '<p>Quality Score (0-100) = Talk Balance (25) + Discovery (20) + Script Coverage (20) + Engagement (15) + Discipline (20)</p>'+
+        '<p style="margin-top:4px"><strong>Talk Balance:</strong> 25 - |talkRatio - 50|. Perfect at 50%. <strong>Discovery:</strong> min(20, questions/22*20). <strong>Script:</strong> adherence/100*20. <strong>Engagement:</strong> (buyingSignals + engagement - redFlags) / 8 * 15. <strong>Discipline:</strong> 20 - coachable_moments * 4.</p>'+
+      '</div></div>';
+
+    // Quality breakdown (using team average as a representative call)
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
+      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: ae.prospect_engagement || {}, highlights: [] })+
+    '</div>';
+
+    // MODE-SPECIFIC SECTIONS
+    if (mode === 'ae') {
+      // ── AE MODE ──
+
+      // Keep Doing / Work On
+      html += '<div class="grid-2">';
+      if (strengths.length) {
+        html += '<div class="coach-box keep"><div class="cb-title">Keep Doing</div>';
+        strengths.forEach(s => { html += '<div style="font-size:13px;margin-bottom:6px">'+s+'</div>'; });
+        // Add timestamped moments from recent good highlights
+        const goodMoments = [];
+        calls.slice(0,5).forEach(c => {
+          (c.highlights||[]).filter(h=>h.type==='strength').slice(0,2).forEach(h => {
+            goodMoments.push({ h, url: c.recording_url, rid: c.recording_id });
+          });
+        });
+        goodMoments.slice(0,3).forEach(m => { html += renderMoment(m.h, 'good', m.url, m.rid); });
+        html += '</div>';
+      }
+      if (weaknesses.length) {
+        html += '<div class="coach-box work"><div class="cb-title">Work On</div>';
+        weaknesses.forEach(w => { html += '<div style="font-size:13px;margin-bottom:6px">'+w+'</div>'; });
+        const badMoments = [];
+        calls.slice(0,5).forEach(c => {
+          (c.highlights||[]).filter(h=>h.type==='coachable').slice(0,2).forEach(h => {
+            badMoments.push({ h, url: c.recording_url, rid: c.recording_id });
+          });
+        });
+        badMoments.slice(0,3).forEach(m => { html += renderMoment(m.h, 'coachable', m.url, m.rid); });
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // Progression chart
+      if (trend.length >= 2) {
+        html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Progression (Rolling 5-Call Average)</h3><div class="chart-container"><canvas id="chart-progression"></canvas></div></div>';
+      }
+
+      // Recent Calls
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Recent Calls</h3>';
+      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Outcome</th><th>Dur</th></tr></thead><tbody>';
+      calls.slice(0,15).forEach(c => { html += callRowHTML(c, name); });
+      html += '</tbody></table></div>';
+
+    } else {
+      // ── LEAD MODE ──
+
+      // Performance Radar
+      const tavg = teamAvgPatterns(name);
+      const radarDims = ['contentEngine','roiReframe','urgency','contract','checkIn','activeListening','directness','research'];
+      const radarLabels = ['Content Engine','ROI Reframe','Urgency','Close Language','Check-ins','Active Listening','Directness','Research'];
+
+      html += '<div class="grid-2">';
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Performance Radar: AE vs Team</h3><div class="chart-container"><canvas id="chart-radar"></canvas></div></div>';
+
+      // Won vs Lost Patterns
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Won vs Lost Patterns</h3><div class="chart-container"><canvas id="chart-won-lost"></canvas></div></div>';
+      html += '</div>';
+
+      // Two progression charts
+      if (trend.length >= 2) {
+        html += '<div class="grid-2">';
+        html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality & Win Rate Trend</h3><div class="chart-container"><canvas id="chart-trend-quality"></canvas></div></div>';
+        html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Talk Ratio & Questions Trend</h3><div class="chart-container"><canvas id="chart-trend-talk"></canvas></div></div>';
+        html += '</div>';
+      }
+
+      // Strengths vs Team / Gaps vs Team
+      const { edges, gaps } = getEdgesAndGaps(wonPatterns, tavg);
+      const dimNames = {contentEngine:'Content Engine',marketContext:'Market Context',roiReframe:'ROI Reframe',humor:'Humor',urgency:'Urgency',contract:'Close Language',checkIn:'Check-ins',theirBusiness:'Prospect Business',activeListening:'Active Listening',personalStory:'Personal Stories',vsAgency:'Agency Diff.',directness:'Directness',opinionAsk:'Opinion Asks',research:'Research',priceAnchor:'Price Anchoring',assumptiveClose:'Assumptive Close'};
+
+      html += '<div class="grid-2">';
+      html += '<div class="coach-box keep"><div class="cb-title">Strengths vs Team</div>';
+      edges.slice(0,5).forEach(e => {
+        html += '<div style="font-size:13px;margin-bottom:4px">'+(dimNames[e.dim]||e.dim)+': <strong style="color:var(--green)">'+e.val.toFixed(1)+'</strong> vs team '+e.teamAvg.toFixed(1)+' <span style="color:var(--green)">(+'+e.lift+')</span></div>';
+      });
+      // Add strength moments
+      const strengthMoments = [];
+      calls.slice(0,5).forEach(c => { (c.highlights||[]).filter(h=>h.type==='strength').slice(0,1).forEach(h => { strengthMoments.push({h, url:c.recording_url, rid:c.recording_id}); }); });
+      strengthMoments.slice(0,2).forEach(m => { html += renderMoment(m.h, 'good', m.url, m.rid); });
+      html += '</div>';
+
+      html += '<div class="coach-box work"><div class="cb-title">Gaps vs Team</div>';
+      gaps.slice(0,5).forEach(g => {
+        html += '<div style="font-size:13px;margin-bottom:4px">'+(dimNames[g.dim]||g.dim)+': <strong style="color:var(--red)">'+g.val.toFixed(1)+'</strong> vs team '+g.teamAvg.toFixed(1)+' <span style="color:var(--red)">(-'+g.gap+')</span></div>';
+      });
+      const gapMoments = [];
+      calls.slice(0,5).forEach(c => { (c.highlights||[]).filter(h=>h.type==='coachable').slice(0,1).forEach(h => { gapMoments.push({h, url:c.recording_url, rid:c.recording_id}); }); });
+      gapMoments.slice(0,2).forEach(m => { html += renderMoment(m.h, 'coachable', m.url, m.rid); });
+      html += '</div>';
+      html += '</div>';
+
+      // What Changes Between Won & Lost
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">What Changes Between Won & Lost</h3>';
+      const allDimKeys = Object.keys(wonPatterns);
+      allDimKeys.forEach(k => {
+        const w = (wonPatterns[k] || 0);
+        const l = (lostPatterns[k] || 0);
+        const diff = w - l;
+        if (Math.abs(diff) > 0.5) {
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid rgba(46,51,72,.3)">'+
+            '<span style="width:130px;color:var(--text2)">'+(dimNames[k]||k)+'</span>'+
+            '<span style="width:40px;color:var(--green);font-weight:600">'+w.toFixed(1)+'</span>'+
+            '<span style="width:40px;color:var(--red);font-weight:600">'+l.toFixed(1)+'</span>'+
+            '<span style="color:'+(diff>0?'var(--green)':'var(--red)')+';font-weight:600">'+(diff>0?'+':'')+diff.toFixed(1)+'</span></div>';
+        }
+      });
+      html += '</div>';
+
+      // Full calls table
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">All Calls</h3>';
+      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Outcome</th><th>Dur</th></tr></thead><tbody>';
+      calls.forEach(c => { html += callRowHTML(c, name); });
+      html += '</tbody></table></div>';
+    }
+
+    // ── SHARED: Engagement pills, Verdict, Script, Behavior scores ──
+    // (These are computed from the most recent call for the AE-level view)
+    const latestCall = calls[0] || {};
+    const pe = latestCall.prospect_engagement || {};
+
+    // Engagement pills
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Engagement Signals (Latest Call)</h3>';
+    const engTypes = [
+      { key: 'buyingSignals', label: 'Buying Signals', cls: 'g', count: pe.buyingSignals || 0 },
+      { key: 'engagementIndicators', label: 'Engagement', cls: 'b', count: pe.engagementIndicators || 0 },
+      { key: 'redFlags', label: 'Red Flags', cls: 'r', count: pe.redFlags || 0 },
+    ];
+    engTypes.forEach(e => {
+      const evidence = (pe[e.key + 'Evidence'] || pe[e.key + 'List'] || []);
+      html += '<span class="pill '+e.cls+'" onclick="var el=document.getElementById(\'eng-'+e.key+'\');if(el)el.classList.toggle(\'hidden\')">'+e.label+': '+e.count+'</span>';
+      if (evidence.length) {
+        html += '<div id="eng-'+e.key+'" class="hidden" style="margin:6px 0 10px 8px;padding:8px 12px;background:var(--bg3);border-radius:6px;font-size:12px">';
+        evidence.forEach(ev => {
+          const text = typeof ev === 'string' ? ev : (ev.quote || ev.excerpt || ev.text || '');
+          html += '<div style="padding:3px 0;border-bottom:1px solid rgba(46,51,72,.3);font-style:italic">"'+text+'"</div>';
+        });
+        html += '</div>';
+      }
+    });
+    html += '</div>';
+
+    // Call verdict pills
+    const verdict = latestCall.call_verdict || [];
+    const verdictArr = Array.isArray(verdict) ? verdict : (typeof verdict === 'string' ? verdict.split(',').map(v => v.trim()) : []);
+    if (verdictArr.length > 0) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Call Verdicts (Latest Call)</h3>';
+      verdictArr.filter(Boolean).forEach(v => {
+        const isNeg = v.includes('No ') || v.includes('Never') || v.includes('Missed') || v.includes('Too ') || v.includes('Accepted');
+        html += '<span class="pill '+(isNeg?'r':'g')+'" onclick="var el=document.getElementById(\'vd-'+v.replace(/[^a-zA-Z]/g,'')+'\');if(el)el.classList.toggle(\'hidden\')">'+v+'</span>';
+      });
+      html += '</div>';
+    }
+
+    // Script adherence pills
+    const sHit = latestCall.sections_hit || [];
+    const sMiss = latestCall.sections_missed || [];
+    if (sHit.length || sMiss.length) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Script Adherence — '+(latestCall.script_adherence||0)+'% (Latest Call)</h3>'+scriptPillsHTML(sHit, sMiss)+'</div>';
+    }
+
+    // Behavior scores
+    if (latestCall.patterns && Object.keys(latestCall.patterns).length) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Behavior Scores (Latest Call)</h3>'+behaviorScoresHTML(latestCall)+'</div>';
+    }
+
+    $('app').innerHTML = html;
+
+    // Render charts after DOM is ready
+    setTimeout(() => {
+      if (mode === 'ae' && trend.length >= 2) {
+        // Progression chart
+        const ctx = document.getElementById('chart-progression');
+        if (ctx) {
+          destroyChart('progression');
+          chartInstances['progression'] = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: trend.map(t => t.date || 'Call '+t.callIndex),
+              datasets: [
+                { label: 'Quality', data: trend.map(t => t.callQuality), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.1)', fill: true, tension: .3 },
+                { label: 'Win Rate', data: trend.map(t => t.winRate), borderColor: '#22c55e', tension: .3 },
+              ]
+            },
+            options: chartOpts('Score'),
+          });
+        }
+      }
+
+      if (mode === 'lead') {
+        // Radar chart
+        console.log('LEAD MODE: rendering charts. wonPatterns:', Object.keys(wonPatterns).length, 'tavg:', Object.keys(tavg).length, 'trend:', trend.length);
+        const rCtx = document.getElementById('chart-radar');
+        console.log('radar canvas:', rCtx ? 'found' : 'NOT FOUND');
+        if (rCtx) {
+          destroyChart('radar');
+          chartInstances['radar'] = new Chart(rCtx, {
+            type: 'radar',
+            data: {
+              labels: radarLabels,
+              datasets: [
+                { label: name, data: radarDims.map(d => (wonPatterns[d]||0)), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.15)', pointBackgroundColor: '#a855f7' },
+                { label: 'Team Avg', data: radarDims.map(d => (tavg[d]||0)), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.1)', pointBackgroundColor: '#3b82f6' },
+              ]
+            },
+            options: radarOpts(),
+          });
+        }
+
+        // Won vs Lost
+        const wlCtx = document.getElementById('chart-won-lost');
+        if (wlCtx) {
+          destroyChart('won-lost');
+          const wlDims = Object.keys(wonPatterns).filter(k => Math.abs((wonPatterns[k]||0) - (lostPatterns[k]||0)) > 0.3).slice(0,10);
+          const wlLabels = wlDims.map(d => dimNames[d]||d);
+          chartInstances['won-lost'] = new Chart(wlCtx, {
+            type: 'bar',
+            data: {
+              labels: wlLabels,
+              datasets: [
+                { label: 'Won', data: wlDims.map(d => wonPatterns[d]||0), backgroundColor: 'rgba(34,197,94,.6)', borderRadius: 4 },
+                { label: 'Lost', data: wlDims.map(d => lostPatterns[d]||0), backgroundColor: 'rgba(239,68,68,.6)', borderRadius: 4 },
+              ]
+            },
+            options: { ...chartOpts('Count'), indexAxis: 'y' },
+          });
+        }
+
+        // Trend charts
+        if (trend.length >= 2) {
+          const tqCtx = document.getElementById('chart-trend-quality');
+          if (tqCtx) {
+            destroyChart('trend-quality');
+            chartInstances['trend-quality'] = new Chart(tqCtx, {
+              type: 'line',
+              data: {
+                labels: trend.map(t => t.date || 'Call '+t.callIndex),
+                datasets: [
+                  { label: 'Quality', data: trend.map(t => t.callQuality), borderColor: '#a855f7', tension: .3 },
+                  { label: 'Win Rate', data: trend.map(t => t.winRate), borderColor: '#22c55e', tension: .3 },
+                ]
+              },
+              options: chartOpts('Score'),
+            });
+          }
+
+          const ttCtx = document.getElementById('chart-trend-talk');
+          if (ttCtx) {
+            destroyChart('trend-talk');
+            chartInstances['trend-talk'] = new Chart(ttCtx, {
+              type: 'line',
+              data: {
+                labels: trend.map(t => t.date || 'Call '+t.callIndex),
+                datasets: [
+                  { label: 'Talk Ratio', data: trend.map(t => t.talkRatio), borderColor: '#f59e0b', tension: .3 },
+                  { label: 'Questions', data: trend.map(t => t.questionCount), borderColor: '#3b82f6', tension: .3, yAxisID: 'y1' },
+                ]
+              },
+              options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8b8fa3' } } },
+                scales: {
+                  x: { grid: { color: 'rgba(46,51,72,.3)' }, ticks: { color: '#8b8fa3' } },
+                  y: { grid: { color: 'rgba(46,51,72,.3)' }, ticks: { color: '#8b8fa3' }, title: { display: true, text: 'Talk %', color: '#8b8fa3' } },
+                  y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#8b8fa3' }, title: { display: true, text: 'Questions', color: '#8b8fa3' } },
+                }
+              },
+            });
+          }
+        }
+      }
+    }, 50);
+
+  } catch (err) {
+    $('app').innerHTML = '<button class="back-btn" onclick="loadTeam()">&larr; Back</button><div class="card" style="border-color:var(--red)"><p>Error: '+err.message+'</p></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  CALL DETAIL
+// ════════════════════════════════════════════════════════
+
+async function loadCallDetail(rid, aeName) {
+  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading call...</div>';
+  try {
+    const call = await api('/api/call/' + rid);
+    await loadFeedback(rid);
+
+    const cq = call.call_quality_score || 0;
+    const date = (call.created_at || '').slice(0, 10);
+    const dur = call.duration_seconds ? Math.round(call.duration_seconds / 60) : 0;
+    const outcome = call.outcome || '';
+    const baseUrl = call.recording_url || '';
+
+    // Header
+    let html = '<button class="back-btn" onclick="loadAEDetail(\''+esc(aeName)+'\')">&larr; Back to '+aeName+'</button>';
+    html += '<div class="card" style="margin-bottom:20px">'+
+      '<div style="font-size:18px;font-weight:700;margin-bottom:4px">'+(call.title||'Untitled Call')+'</div>'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">'+call.recorder_name+' &middot; '+date+' &middot; '+(call.deal_name||'')+
+      (outcome?' &middot; <span class="badge '+(outcome==='won'?'won':'lost')+'">'+outcome+'</span>':'')+
+      '</div>'+
+      (baseUrl?'<a href="'+baseUrl+'" target="_blank" style="font-size:12px">Open in Claap &rarr;</a>':'')+
+    '</div>';
+
+    // Smart Review (primary call analysis)
+    const sr = call.smart_review || {};
+    if (sr.summary) {
+      html += renderSmartReview(sr, call, baseUrl, rid, dur);
+    } else {
+      // Fallback: show basic stats if no smart review
+      html += '<div class="card" style="padding:16px;color:var(--text2);font-size:13px">Smart review not yet generated. Run <code>npm run analyze -- --full</code> to generate.</div>';
+    }
+
+    // Deep Analysis (LLM) — available on demand for deeper insight
+    html += '<div class="card" style="border-left:3px solid var(--purple);margin-top:16px">'+
+      '<div style="display:flex;align-items:center;gap:12px">'+
+        '<div style="flex:1"><div style="font-size:14px;font-weight:600">Go Deeper</div><div style="font-size:12px;color:var(--text2)">AI-powered Koen-style coaching review with full prescriptions</div></div>'+
+        '<button id="narrative-btn" onclick="generateNarrative(\''+rid+'\')" style="padding:8px 16px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Generate Deep Analysis</button>'+
+      '</div>'+
+      '<div id="narrative-result"></div>'+
+    '</div>';
+
+    $('app').innerHTML = html;
+
+  } catch (err) {
+    $('app').innerHTML = '<button class="back-btn" onclick="loadAEDetail(\''+esc(aeName)+'\')">&larr; Back</button><div class="card" style="border-color:var(--red)"><p>Error: '+err.message+'</p></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  CLAAP ANALYZER
+// ════════════════════════════════════════════════════════
+
+async function analyzeClaapLink() {
+  const input = $('claap-url');
+  const url = input ? input.value.trim() : '';
+  if (!url) return;
+
+  $('app').innerHTML = '<div style="text-align:center;padding:60px"><div style="font-size:20px;margin-bottom:8px">Analyzing...</div><div style="color:var(--text2)">Fetching from Claap, parsing transcript, running pattern detection</div></div>';
+
+  try {
+    const res = await fetch('/api/analyze-call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      $('app').innerHTML = '<div style="max-width:700px;margin:40px auto"><div class="card" style="border-color:var(--red)"><h3>Error</h3><p>'+data.error+'</p></div><button class="back-btn" onclick="loadTeam()">&larr; Back to team</button></div>';
+      return;
+    }
+    renderLiveAnalysis(data, url);
+  } catch (err) {
+    $('app').innerHTML = '<div style="max-width:700px;margin:40px auto"><div class="card" style="border-color:var(--red)"><h3>Error</h3><p>'+(err.message||'Failed to analyze')+'</p></div><button class="back-btn" onclick="loadTeam()">&larr; Back</button></div>';
+  }
+}
+
+function renderLiveAnalysis(data, originalUrl) {
+  const r = data.recording || {};
+  const a = data.analysis || {};
+  const rid = r.id || '';
+  const cq = a.callQualityScore || a.callQuality || 0;
+  const verdicts = data.verdicts || [];
+
+  let html = '<div style="max-width:900px;margin:0 auto">';
+  html += '<button class="back-btn" onclick="loadTeam()">&larr; Back to team</button>';
+
+  // Recording info
+  html += '<div class="card" style="border-left:3px solid var(--purple)">'+
+    '<div style="font-size:11px;color:var(--purple);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Live Call Analysis</div>'+
+    '<h2 style="font-size:18px;margin-bottom:4px">'+(r.title||'Untitled')+'</h2>'+
+    '<div style="color:var(--text2);font-size:13px">'+(r.recorder||'')+' &middot; '+(r.createdAt||'').slice(0,10)+' &middot; '+(r.duration||'')+'min</div>'+
+    (r.url?'<a href="'+r.url+'" target="_blank" style="display:inline-block;margin-top:8px;font-size:12px">Open in Claap &rarr;</a>':'')+
+  '</div>';
+
+  // Instant verdict table
+  if (verdicts.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Instant Verdict</h3>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left;padding:6px 10px;color:var(--text2);font-size:11px;border-bottom:1px solid var(--border)">Metric</th><th style="text-align:right;padding:6px 10px;color:var(--text2);font-size:11px;border-bottom:1px solid var(--border)">This Call</th><th style="text-align:right;padding:6px 10px;color:var(--text2);font-size:11px;border-bottom:1px solid var(--border)">Team Avg</th><th style="text-align:left;padding:6px 10px;color:var(--text2);font-size:11px;border-bottom:1px solid var(--border)">Verdict</th></tr></thead><tbody>';
+    verdicts.forEach(v => {
+      const vClr = v.verdict === 'good' ? 'var(--green)' : v.verdict === 'bad' ? 'var(--red)' : 'var(--orange)';
+      html += '<tr><td style="padding:6px 10px;border-bottom:1px solid var(--border)">'+v.metric+'</td>'+
+        '<td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);font-weight:600">'+v.value+'</td>'+
+        '<td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)">'+v.teamAvg+'</td>'+
+        '<td style="padding:6px 10px;border-bottom:1px solid var(--border);color:'+vClr+'">'+v.tip+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Stats
+  html += '<div class="grid-4" style="margin-bottom:16px">'+
+    '<div class="sbox"><div class="sv" style="color:'+qClr(cq)+'">'+cq+'</div><div class="sl">Quality</div></div>'+
+    '<div class="sbox"><div class="sv">'+(a.talkRatio||0)+'%</div><div class="sl">Talk Ratio</div></div>'+
+    '<div class="sbox"><div class="sv">'+(a.questionCount||0)+'</div><div class="sl">Questions</div></div>'+
+    '<div class="sbox"><div class="sv">'+(r.duration||0)+'m</div><div class="sl">Duration</div></div>'+
+  '</div>';
+
+  // Script coverage
+  const sHit = a.sectionsHit || [];
+  const sMiss = a.sectionsMissed || [];
+  if (sHit.length || sMiss.length) {
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Script Adherence — '+(a.scriptAdherence||0)+'%</h3>'+scriptPillsHTML(sHit, sMiss)+'</div>';
+  }
+
+  // Good / Coachable moments
+  const highlights = a.highlights || [];
+  const good = highlights.filter(h => h.type === 'strength');
+  const bad = highlights.filter(h => h.type === 'coachable');
+
+  html += '<div class="grid-2">';
+  html += '<div class="card" style="border-top:3px solid var(--green)"><h3 style="font-size:14px;margin-bottom:12px;color:var(--green)">Good Moments</h3>';
+  good.slice(0,6).forEach(h => { html += renderMoment(h, 'good', r.url, rid); });
+  if (!good.length) html += '<div style="color:var(--text2);font-size:13px">None detected</div>';
+  html += '</div>';
+
+  html += '<div class="card" style="border-top:3px solid var(--orange)"><h3 style="font-size:14px;margin-bottom:12px;color:var(--orange)">Coachable Moments</h3>';
+  bad.slice(0,6).forEach(h => { html += renderMoment(h, 'coachable', r.url, rid); });
+  if (!bad.length) html += '<div style="color:var(--text2);font-size:13px">None detected</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Deep analysis (auto-trigger)
+  html += '<div class="card" style="border-left:3px solid var(--purple)">'+
+    '<div style="font-size:14px;font-weight:600;margin-bottom:8px">Deep Call Analysis</div>'+
+    '<div id="narrative-result"><div style="padding:20px;text-align:center;color:var(--text2)">Generating analysis...</div></div>'+
+  '</div>';
+
+  html += '</div>'; // end wrapper
+
+  $('app').innerHTML = html;
+
+  // Auto-trigger narrative
+  if (rid) {
+    (async () => {
+      const result = $('narrative-result');
+      try {
+        const res = await fetch('/api/call/'+rid+'/narrative', { method: 'POST' });
+        const d = await res.json();
+        if (d.error) { result.innerHTML = '<div style="color:var(--red)">'+d.error+'</div>'; return; }
+        result.innerHTML = '<div style="margin-top:8px">'+
+          narrativeSectionHTML('Call Summary', d.summary, 'var(--text)', true)+
+          narrativeSectionHTML('Objections & Doubts', d.objectionsAnalysis, 'var(--red)', true)+
+          narrativeSectionHTML('Buying Signals', d.buyingSignalsAnalysis, 'var(--green)', true)+
+          narrativeSectionHTML('Key Coaching Moments', d.coachingMoments, 'var(--orange)', true)+
+          narrativeSectionHTML('Overall Verdict', d.overallVerdict, 'var(--purple)', true)+
+          '<div style="font-size:10px;color:var(--text2);margin-top:8px">Generated '+(d.generatedAt?new Date(d.generatedAt).toLocaleString():'now')+'</div></div>';
+      } catch (err) { result.innerHTML = '<div style="color:var(--red)">'+err.message+'</div>'; }
+    })();
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════
+
+loadTeam();
+</script>
+</body>
+</html>

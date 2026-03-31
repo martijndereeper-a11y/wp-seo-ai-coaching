@@ -1,0 +1,33 @@
+node_modules/
+dist/
+.env
+*.env
+.claude/
+.DS_Store
+
+# Everything except the coaching platform
+*.pptx
+*.docx
+*.pdf
+assets/
+career/
+context/
+work/
+proposal-system/
+scripts/
+build_*.py
+supabase/
+PROPOSAL_SYSTEM_DESIGN.md
+MASTER_PROMPT_SALES_DECK.md
+WP_SEO_AI_*.md
+WP SEO AI*.md
+Reference Sales Script
+reference-sales-script.txt
+.vscode/
+.mcp.json
+CLAUDE.md
+
+# Coaching guides: keep .md rules, exclude raw source files
+coaching-guides/*.pdf
+coaching-guides/*.txt
+coaching-guides/README.md
