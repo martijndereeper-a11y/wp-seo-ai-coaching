@@ -269,7 +269,14 @@ app.get('/admin', (c) => {
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
+const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL_ENV;
+if (!isVercel) {
 const port = parseInt(process.env.PORT || '3001');
 console.log(`Use Case Finder running at http://localhost:${port}`);
 console.log(`Admin panel at http://localhost:${port}/admin`);
 serve({ fetch: app.fetch, port });
+}
+
+// ─── Export for Vercel ───────────────────────────────────────────────────────
+
+export default app;

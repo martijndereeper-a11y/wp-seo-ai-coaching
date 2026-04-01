@@ -171,7 +171,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="topbar">
   <span class="logo">WP SEO AI</span>
   <h1>Use Case Finder</h1>
-  <a href="/admin" class="nav-link">Admin</a>
+  <a href="admin" class="nav-link">Admin</a>
 </div>
 
 <div class="container">
@@ -257,6 +257,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <script>
+// Detect base path: '/cases' on Vercel, '' locally
+const BASE = location.pathname.replace(/\/(admin)?$/, '');
+function apiUrl(path) { return BASE + path; }
+
 const quickMatches = [
   { label: 'Prospect says:', text: '"We don\'t have time for SEO"', query: 'no time capacity' },
   { label: 'Prospect says:', text: '"Our agency isn\'t delivering"', query: 'agency underperforming' },
@@ -279,7 +283,7 @@ const svgDown = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 async function init() {
-  const res = await fetch('/api/use-cases');
+  const res = await fetch(apiUrl('/api/use-cases'));
   const data = await res.json();
   allCases = data.cases;
   renderStats(data);
@@ -408,7 +412,7 @@ function renderResults(cases) {
   }
 
   el.innerHTML = cases.map(c => {
-    const pdfUrl = `/use-cases/pdf/${encodeURIComponent(c.pdfFile)}`;
+    const pdfUrl = `${apiUrl('/use-cases/pdf/')}${encodeURIComponent(c.pdfFile)}`;
     return `
     <div class="case-card">
       <div class="case-top">
@@ -439,7 +443,7 @@ function renderResults(cases) {
 async function doSearch(query) {
   if (!query) { renderResults(allCases); document.getElementById('quickMatch').style.display = ''; return; }
   document.getElementById('quickMatch').style.display = 'none';
-  const res = await fetch(`/api/use-cases/search?q=${encodeURIComponent(query)}`);
+  const res = await fetch(`${apiUrl('/api/use-cases/search')}?q=${encodeURIComponent(query)}`);
   const data = await res.json();
   renderResults(data.results);
 }
@@ -467,7 +471,7 @@ document.getElementById('search').addEventListener('input', (e) => {
 // ─── Chat widget logic ──────────────────────────────────────────────────────
 
 function buildChatCard(c) {
-  const pdfUrl = `/use-cases/pdf/${encodeURIComponent(c.pdfFile)}`;
+  const pdfUrl = `${apiUrl('/use-cases/pdf/')}${encodeURIComponent(c.pdfFile)}`;
   return `<div class="chat-case">
     <span class="cc-name">${escapeHtml(c.company)}</span>
     <span class="cc-meta">${escapeHtml(c.industry)} &middot; ${escapeHtml(c.businessType)} &middot; ${(c.countries||[]).join(', ')}</span>
@@ -509,7 +513,7 @@ async function handleChat(text) {
   addChatUser(text);
   document.getElementById('chatInput').value = '';
 
-  const res = await fetch(`/api/use-cases/search?q=${encodeURIComponent(text)}`);
+  const res = await fetch(`${apiUrl('/api/use-cases/search')}?q=${encodeURIComponent(text)}`);
   const data = await res.json();
   const results = data.results;
 

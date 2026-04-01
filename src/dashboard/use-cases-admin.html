@@ -127,7 +127,7 @@ select{cursor:pointer}
 <div class="topbar">
   <span class="logo">WP SEO AI</span>
   <h1>Admin — Add Use Case</h1>
-  <a href="/" class="nav-link">Back to Finder</a>
+  <a href="./" class="nav-link">Back to Finder</a>
 </div>
 
 <div class="container">
@@ -263,6 +263,10 @@ let keywords = [];
 let selectedPdf = null;
 let adminToken = sessionStorage.getItem('adminToken') || '';
 
+// Detect base path
+const BASE = location.pathname.replace(/\/admin\/?$/, '');
+function apiUrl(path) { return BASE + path; }
+
 /** Wrapper for authenticated admin API calls */
 function adminFetch(url, opts = {}) {
   opts.headers = { ...(opts.headers || {}), 'Authorization': 'Bearer ' + adminToken };
@@ -279,7 +283,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.disabled = true; err.textContent = '';
 
   try {
-    const res = await fetch('/api/admin/login', {
+    const res = await fetch(apiUrl('/api/admin/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pw }),
@@ -303,7 +307,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 async function checkAuth() {
   if (!adminToken) return;
   try {
-    const res = await adminFetch('/api/admin/cases');
+    const res = await adminFetch(apiUrl('/api/admin/cases'));
     if (res.ok) {
       document.getElementById('loginOverlay').classList.add('hidden');
       init();
@@ -317,7 +321,7 @@ async function checkAuth() {
 checkAuth();
 
 async function init() {
-  const res = await fetch('/api/use-cases');
+  const res = await fetch(apiUrl('/api/use-cases'));
   const data = await res.json();
 
   // Populate datalists
@@ -427,7 +431,7 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
   fd.append('pdf', selectedPdf);
 
   try {
-    const res = await adminFetch('/api/admin/analyze-pdf', { method: 'POST', body: fd });
+    const res = await adminFetch(apiUrl('/api/admin/analyze-pdf'), { method: 'POST', body: fd });
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
 
@@ -533,7 +537,7 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
   fd.append('countries', document.getElementById('countries').value.trim());
 
   try {
-    const res = await adminFetch('/api/admin/cases', { method: 'POST', body: fd });
+    const res = await adminFetch(apiUrl('/api/admin/cases'), { method: 'POST', body: fd });
     const data = await res.json();
     if (data.error) { status.textContent = data.error; status.className = 'submit-status err'; btn.disabled = false; return; }
 
@@ -550,7 +554,7 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
     renderObjections();
 
     // Refresh cases list
-    const listRes = await fetch('/api/use-cases');
+    const listRes = await fetch(apiUrl('/api/use-cases'));
     const listData = await listRes.json();
     renderCasesList(listData.cases);
   } catch (err) {

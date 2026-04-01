@@ -12,7 +12,6 @@ import { createSupabaseClient } from '../database/supabase-client.ts';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { useCases, painPatterns, industries } from '../use-cases/data.ts';
 import { authMiddleware, requireRole } from './auth.ts';
 import { loadSettings, saveSetting, invalidateCache, getPasswords } from '../config/settings.ts';
 
@@ -1497,66 +1496,10 @@ app.get('/api/rep/:name/coaching-brief', async (c) => {
   });
 });
 
-// ─── Use Case Finder API ─────────────────────────────────────────────────────
+// ─── Use Case Finder (mounted as sub-app at /cases) ─────────────────────────
 
-app.get('/api/use-cases', (c) => {
-  return c.json({ cases: useCases, painPatterns, industries });
-});
-
-app.get('/api/use-cases/search', (c) => {
-  const q = (c.req.query('q') || '').toLowerCase().trim();
-  if (!q) return c.json({ results: useCases });
-
-  const terms = q.split(/\s+/);
-
-  const scored = useCases.map((uc) => {
-    const searchable = [
-      uc.company,
-      uc.industry,
-      uc.painPattern,
-      uc.headline,
-      uc.outcome,
-      ...uc.keywords,
-    ].join(' ').toLowerCase();
-
-    let score = 0;
-    for (const term of terms) {
-      if (searchable.includes(term)) score += 1;
-      // Boost exact keyword matches
-      if (uc.keywords.some((k) => k.includes(term))) score += 1;
-      // Boost company name matches
-      if (uc.company.toLowerCase().includes(term)) score += 2;
-      // Boost industry matches
-      if (uc.industry.toLowerCase().includes(term)) score += 2;
-    }
-    return { ...uc, score };
-  });
-
-  const results = scored.filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
-  return c.json({ results });
-});
-
-// Serve use case PDF files
-app.get('/use-cases/pdf/:filename', (c) => {
-  const filename = decodeURIComponent(c.req.param('filename'));
-  const pdfDir = join(__dirname, '..', '..', 'context', 'sales', 'use-cases');
-  const filePath = join(pdfDir, filename);
-  if (!existsSync(filePath)) return c.json({ error: 'PDF not found' }, 404);
-  const pdf = readFileSync(filePath);
-  return new Response(pdf, {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${filename}"`,
-    },
-  });
-});
-
-// ─── Dashboard ───────────────────────────────────────────────────────────────
-
-app.get('/use-cases', (c) => {
-  const html = readFileSync(join(__dirname, '..', 'dashboard', 'use-cases.html'), 'utf-8');
-  return c.html(html);
-});
+import useCaseApp from '../use-cases/server.ts';
+app.route('/cases', useCaseApp);
 
 app.get('/', (c) => {
   const html = readFileSync(join(__dirname, '..', 'dashboard', 'index.html'), 'utf-8');
