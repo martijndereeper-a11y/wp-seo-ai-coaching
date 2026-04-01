@@ -1496,14 +1496,21 @@ app.get('/api/rep/:name/coaching-brief', async (c) => {
   });
 });
 
-// ─── Use Case Finder (mounted as sub-app at /cases) ─────────────────────────
-
-import useCaseApp from '../use-cases/server.ts';
-app.route('/cases', useCaseApp);
+// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 app.get('/', (c) => {
-  const html = readFileSync(join(__dirname, '..', 'dashboard', 'index.html'), 'utf-8');
-  return c.html(html);
+  // Try multiple paths: local dev, Vercel serverless
+  const paths = [
+    join(__dirname, '..', 'dashboard', 'index.html'),           // local: src/api -> src/dashboard
+    join(process.cwd(), 'src', 'dashboard', 'index.html'),      // Vercel: project root
+    join(__dirname, '..', '..', 'src', 'dashboard', 'index.html'), // Vercel: from api/
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) {
+      return c.html(readFileSync(p, 'utf-8'));
+    }
+  }
+  return c.text('Dashboard not found. Tried: ' + paths.join(', '), 500);
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────
