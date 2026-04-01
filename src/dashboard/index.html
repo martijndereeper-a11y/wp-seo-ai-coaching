@@ -865,7 +865,8 @@ async function loadTeam() {
 // ════════════════════════════════════════════════════════
 
 function renderTeamAE() {
-  const html = '<div style="margin-bottom:20px"><h2 style="font-size:20px">Team — AE Coaching Cards</h2><p style="color:var(--text2);font-size:13px;margin-top:4px">'+teamData.length+' AEs</p></div>'+
+  const teamAvgQ = teamData.length ? Math.round(teamData.reduce((s,a)=>s+(a.avg_call_quality||0),0)/teamData.length) : 0;
+  const html = '<div style="margin-bottom:20px"><h2 style="font-size:20px">Team — AE Coaching Cards</h2><p style="color:var(--text2);font-size:13px;margin-top:4px">'+teamData.length+' AEs &middot; Team avg quality: <strong>'+teamAvgQ+'</strong> &middot; Scores combine talk balance, discovery depth, script coverage, prospect engagement, and call discipline</p></div>'+
     '<div class="grid-3">'+teamData.map(ae => {
       const q = ae.avg_call_quality || 0;
       const name = ae.recorder_name || '';
@@ -1209,12 +1210,12 @@ async function loadAEDetail(name) {
     html += '<div class="card" style="margin-bottom:20px"><div style="display:flex;align-items:center;flex-wrap:wrap;gap:20px">'+
       '<div style="flex:1"><div style="font-size:22px;font-weight:700">'+name+'</div><div style="color:var(--text2);font-size:13px;margin-top:4px">'+total+' calls</div></div>'+
       '<div style="display:flex;gap:16px;align-items:center">'+
-        '<div style="text-align:center"><div style="font-size:32px;font-weight:700;color:'+qClr(q)+'">'+q+'</div><div style="font-size:11px;color:var(--text2)">Quality</div></div>'+
-        '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+talk+'%</div><div style="font-size:11px;color:var(--text2)">Talk Ratio</div></div>'+
-        '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+qs+'</div><div style="font-size:11px;color:var(--text2)">Questions</div></div>'+
-        '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+script+'%</div><div style="font-size:11px;color:var(--text2)">Script</div></div>'+
+        '<div style="text-align:center" title="Composite of talk balance, discovery, script, engagement, and discipline"><div style="font-size:32px;font-weight:700;color:'+qClr(q)+'">'+q+'</div><div style="font-size:11px;color:var(--text2)">Call Quality</div></div>'+
+        '<div style="text-align:center" title="% of conversation spoken by the AE. Best: 45-55%"><div style="font-size:20px;font-weight:600;'+(talk>60?'color:var(--red)':talk<45?'color:var(--green)':'')+'">'+talk+'%</div><div style="font-size:11px;color:var(--text2)">Talk Ratio</div><div style="font-size:9px;color:var(--text2)">Best: 45-55%</div></div>'+
+        '<div style="text-align:center" title="Discovery questions asked per call. Target: 18-25"><div style="font-size:20px;font-weight:600;'+(qs<14?'color:var(--red)':'')+'">'+qs+'</div><div style="font-size:11px;color:var(--text2)">Avg Questions</div><div style="font-size:9px;color:var(--text2)">Target: 18-25</div></div>'+
+        '<div style="text-align:center" title="% of the 12 key script phases covered on average"><div style="font-size:20px;font-weight:600">'+script+'%</div><div style="font-size:11px;color:var(--text2)">Script Coverage</div><div style="font-size:9px;color:var(--text2)">12 phases</div></div>'+
       '</div></div>'+
-      (aePillars && Object.keys(aePillars).length ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">Pillar Averages (last 20 calls)</div>'+pillarBadgesHTML(aePillars)+'</div>' : '')+
+      (aePillars && Object.keys(aePillars).length ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">Koen\'s 5 Coaching Pillars (avg last 20 calls)</div>'+pillarBadgesHTML(aePillars)+'</div>' : '')+
     '</div>';
 
     // Diagnostic
@@ -1245,33 +1246,99 @@ async function loadAEDetail(name) {
     if (mode === 'ae') {
       // ── AE MODE ──
 
-      // Keep Doing / Work On
+      // What's Working / What To Change — based on pillars + concrete moments
+      const recentCalls = calls.slice(0, 10);
+
+      // Find best pillar and worst pillar from recent calls
+      const pillarAgg = {};
+      PILLAR_KEYS.forEach(k => { pillarAgg[k] = { scores: [], goodMoments: [], badMoments: [] }; });
+      recentCalls.forEach(c => {
+        const ps = c.pillar_scores || {};
+        PILLAR_KEYS.forEach(k => {
+          if (ps[k]) pillarAgg[k].scores.push(ps[k].score || 0);
+        });
+        // Categorize highlights by pillar
+        (c.highlights || []).forEach(h => {
+          const pillarMap = {
+            'Check-in': 'control', 'Long Monologue': 'control',
+            'Opinion Ask': 'discovery', 'Their Business': 'discovery', 'No Summary Before Pitch': 'discovery',
+            'Live Proof': 'gapCreation', 'Too Abstract': 'gapCreation',
+            'ROI Reframe': 'objectionHandling', 'Accepted Think-It-Over': 'objectionHandling', 'Minimizing Concern': 'objectionHandling', 'Challenging Belief': 'objectionHandling',
+            'Assumptive Close': 'advancement', 'No Close': 'advancement', 'Captured Buy Signal': 'advancement', 'Missed Buy Signal': 'advancement', 'Price Without Anchor': 'advancement', 'Pricing Without ROI': 'advancement',
+          };
+          const pillar = pillarMap[h.category];
+          if (pillar && h.type === 'strength' && pillarAgg[pillar].goodMoments.length < 3) {
+            pillarAgg[pillar].goodMoments.push({ h, url: c.recording_url, rid: c.recording_id, callTitle: c.title, date: (c.created_at||'').slice(0,10) });
+          }
+          if (pillar && h.type === 'coachable' && pillarAgg[pillar].badMoments.length < 3) {
+            pillarAgg[pillar].badMoments.push({ h, url: c.recording_url, rid: c.recording_id, callTitle: c.title, date: (c.created_at||'').slice(0,10) });
+          }
+        });
+      });
+
+      // Sort pillars by avg score
+      const pillarRanking = PILLAR_KEYS.map(k => ({
+        key: k, label: PILLAR_LABELS[k],
+        avg: pillarAgg[k].scores.length ? Math.round(pillarAgg[k].scores.reduce((a,b)=>a+b,0)/pillarAgg[k].scores.length) : 0,
+        goodMoments: pillarAgg[k].goodMoments,
+        badMoments: pillarAgg[k].badMoments,
+      })).sort((a,b) => b.avg - a.avg);
+
+      const bestPillars = pillarRanking.filter(p => p.avg >= 40).slice(0, 2);
+      const worstPillars = pillarRanking.filter(p => p.avg < 65).slice(-2).reverse();
+
+      // Prescriptions for each pillar
+      const pillarPrescriptions = {
+        control: { do: 'Check in every 2-3 minutes: "Gaat dit te snel?" or "Is dit relevant voor jullie?" This keeps the prospect engaged and shows you\'re listening.', avoid: 'Talking for more than 60 seconds without a question breaks the conversation flow. Pause and check in.' },
+        discovery: { do: 'Open with a hypothesis: "Van wat ik zag, zijn jullie vooral actief in X — klopt dat?" Then dig deeper with 3-4 follow-up questions before pitching.', avoid: 'Jumping into the demo before understanding their situation. Always summarize what you heard before transitioning.' },
+        gapCreation: { do: 'Search their product category live in Google and ChatGPT. Show them where competitors appear and they don\'t. This is the #1 "aha moment" that drives urgency.', avoid: 'Saying "we maken je beter vindbaar" without showing concrete proof. Abstract benefits don\'t stick.' },
+        objectionHandling: { do: 'When they push back, ask "Waar komt die vraag vandaan?" before answering. Stack all objections first, then address one by one. Never minimize with "dat is maar..."', avoid: 'Accepting "ik moet erover nadenken" without converting it to conditions. Ask: "Welke vragen moeten jullie beantwoorden om te beslissen?"' },
+        advancement: { do: 'End every call with: "Wat is er nodig om volgende week te starten?" or "Ik stuur je het contract, kun je het rustig bekijken." Be specific about the next step.', avoid: 'Ending with "laat maar weten" or "denk er maar over na." These kill momentum. Always book the next meeting during the call.' },
+      };
+
       html += '<div class="grid-2">';
-      if (strengths.length) {
-        html += '<div class="coach-box keep"><div class="cb-title">Keep Doing</div>';
-        strengths.forEach(s => { html += '<div style="font-size:13px;margin-bottom:6px">'+s+'</div>'; });
-        // Add timestamped moments from recent good highlights
-        const goodMoments = [];
-        calls.slice(0,5).forEach(c => {
-          (c.highlights||[]).filter(h=>h.type==='strength').slice(0,2).forEach(h => {
-            goodMoments.push({ h, url: c.recording_url, rid: c.recording_id });
-          });
+
+      // What's Working
+      html += '<div class="coach-box keep"><div class="cb-title">What\'s Working</div>';
+      if (bestPillars.length) {
+        bestPillars.forEach(p => {
+          html += '<div style="margin-bottom:12px">';
+          html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px"><span class="pillar-badge strong" style="margin-right:6px"><span class="pdot"></span>'+p.label+'</span> Score: '+p.avg+'</div>';
+          html += '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+pillarPrescriptions[p.key].do+'</div>';
+          // Show best moment as proof
+          if (p.goodMoments.length > 0) {
+            const m = p.goodMoments[0];
+            html += '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Example from '+m.callTitle?.slice(0,30)+' ('+m.date+'):</div>';
+            html += renderMoment(m.h, 'good', m.url, m.rid);
+          }
+          html += '</div>';
         });
-        goodMoments.slice(0,3).forEach(m => { html += renderMoment(m.h, 'good', m.url, m.rid); });
-        html += '</div>';
+      } else {
+        html += '<div style="font-size:13px;color:var(--text2)">Building baseline — keep calling and we\'ll identify your strengths.</div>';
       }
-      if (weaknesses.length) {
-        html += '<div class="coach-box work"><div class="cb-title">Work On</div>';
-        weaknesses.forEach(w => { html += '<div style="font-size:13px;margin-bottom:6px">'+w+'</div>'; });
-        const badMoments = [];
-        calls.slice(0,5).forEach(c => {
-          (c.highlights||[]).filter(h=>h.type==='coachable').slice(0,2).forEach(h => {
-            badMoments.push({ h, url: c.recording_url, rid: c.recording_id });
-          });
+      html += '</div>';
+
+      // What To Change
+      html += '<div class="coach-box work"><div class="cb-title">What To Change</div>';
+      if (worstPillars.length) {
+        worstPillars.forEach(p => {
+          html += '<div style="margin-bottom:12px">';
+          html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px"><span class="pillar-badge needs-work" style="margin-right:6px"><span class="pdot"></span>'+p.label+'</span> Score: '+p.avg+'</div>';
+          html += '<div style="font-size:12px;color:var(--text);margin-bottom:4px;line-height:1.6"><strong>Do this:</strong> '+pillarPrescriptions[p.key].do+'</div>';
+          html += '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;line-height:1.6"><strong>Avoid:</strong> '+pillarPrescriptions[p.key].avoid+'</div>';
+          // Show coachable moment as evidence
+          if (p.badMoments.length > 0) {
+            const m = p.badMoments[0];
+            html += '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">This happened in '+m.callTitle?.slice(0,30)+' ('+m.date+'):</div>';
+            html += renderMoment(m.h, 'coachable', m.url, m.rid);
+          }
+          html += '</div>';
         });
-        badMoments.slice(0,3).forEach(m => { html += renderMoment(m.h, 'coachable', m.url, m.rid); });
-        html += '</div>';
+      } else {
+        html += '<div style="font-size:13px;color:var(--text2)">All pillars developing or strong. Focus on consistency.</div>';
       }
+      html += '</div>';
+
       html += '</div>';
 
       // Progression chart
@@ -1279,11 +1346,52 @@ async function loadAEDetail(name) {
         html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Progression (Rolling 5-Call Average)</h3><div class="chart-container"><canvas id="chart-progression"></canvas></div></div>';
       }
 
-      // Recent Calls
-      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Recent Calls</h3>';
-      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
-      calls.slice(0,15).forEach(c => { html += callRowHTML(c, name); });
-      html += '</tbody></table></div>';
+      // Recent Calls — rich previews, not just a table
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Your Recent Calls</h3>';
+      calls.slice(0, 10).forEach(c => {
+        const ps = c.pillar_scores || {};
+        const sr = c.smart_review || {};
+        const vd = Array.isArray(c.call_verdict) ? c.call_verdict : [];
+        const dur = Math.round((c.duration_seconds||0)/60);
+        const date = (c.created_at||'').slice(0,10);
+
+        html += '<div onclick="loadCallDetail(\''+c.recording_id+'\',\''+esc(name)+'\')" style="padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--purple)\'" onmouseout="this.style.borderColor=\'var(--border)\'">';
+
+        // Top line: date, title, stats
+        html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+        html += '<span style="font-size:12px;color:var(--text2);width:75px">'+date+'</span>';
+        html += '<span style="font-size:13px;font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(c.title||'Untitled')+'</span>';
+        html += '<span style="font-size:12px;color:var(--text2)">'+dur+'min</span>';
+        html += '<span style="font-size:14px;font-weight:700;color:'+qClr(c.call_quality_score||0)+';width:30px;text-align:right">'+(c.call_quality_score||0)+'</span>';
+        html += '</div>';
+
+        // Pillar badges
+        html += '<div class="pillar-row" style="margin:4px 0">';
+        PILLAR_KEYS.forEach(k => {
+          const p = ps[k];
+          if (!p) return;
+          const level = p.level || pillarLevel(p.score || 0);
+          html += '<span class="pillar-badge '+pillarLevelCls(level)+'" style="font-size:10px;padding:2px 6px"><span class="pdot" style="width:5px;height:5px"></span>'+PILLAR_LABELS[k]+'</span>';
+        });
+        html += '</div>';
+
+        // Quick summary from smart review
+        if (sr.summary) {
+          html += '<div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sr.summary.slice(0,150)+'</div>';
+        }
+
+        // Verdict tags if any issues
+        if (vd.length > 0) {
+          html += '<div style="margin-top:4px">';
+          vd.slice(0,2).forEach(v => {
+            html += '<span style="font-size:10px;padding:2px 6px;background:rgba(239,68,68,.08);color:var(--red);border-radius:3px;margin-right:4px">'+v+'</span>';
+          });
+          html += '</div>';
+        }
+
+        html += '</div>';
+      });
+      html += '</div>';
 
     } else {
       // ── LEAD MODE ──
