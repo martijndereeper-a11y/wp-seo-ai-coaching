@@ -12,12 +12,47 @@ import { createSupabaseClient } from '../database/supabase-client.ts';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { authMiddleware, requireRole } from './auth.ts';
+import { loadSettings, saveSetting, invalidateCache, getPasswords } from '../config/settings.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const supabase = createSupabaseClient();
 const app = new Hono();
 
 app.use('*', cors());
+
+// Auth: protect all /api/* routes except login
+app.use('/api/*', authMiddleware);
+
+// ─── Auth Login ──────────────────────────────────────────────────────────────
+
+app.post('/api/auth/login', async (c) => {
+  const { password } = await c.req.json() as { password: string };
+  const passwords = await getPasswords();
+  if (password === passwords.lead) return c.json({ role: 'lead', token: password });
+  if (password === passwords.ae) return c.json({ role: 'ae', token: password });
+  return c.json({ error: 'Invalid password' }, 401);
+});
+
+// ─── Settings (lead only) ────────────────────────────────────────────────────
+
+app.get('/api/settings', requireRole('lead'), async (c) => {
+  const settings = await loadSettings();
+  // Don't expose passwords in the settings list
+  const safe = { ...settings };
+  if (safe.auth_passwords) safe.auth_passwords = { ae: '***', lead: '***' };
+  return c.json(safe);
+});
+
+app.put('/api/settings/:key', requireRole('lead'), async (c) => {
+  const key = c.req.param('key');
+  const { value } = await c.req.json();
+  const validKeys = ['auth_passwords','sync_channels','sync_personal_email','quality_weights','thresholds','deal_patterns','llm_model','coaching_rules','coaching_thresholds','script_sections'];
+  if (!validKeys.includes(key)) return c.json({ error: 'Unknown setting: ' + key }, 400);
+  const ok = await saveSetting(key, value);
+  if (!ok) return c.json({ error: 'Failed to save setting' }, 500);
+  return c.json({ ok: true, key });
+});
 
 // ─── Call Quality Score ───────────────────────────────────────────────────────
 
@@ -63,14 +98,12 @@ app.get('/api/team/benchmarks', async (c) => {
   return c.json({
     teamAvg: {
       callQuality: Math.round(avg(data.map(d => d.avg_call_quality || 0))),
-      winRate: Math.round(avg(data.map(d => d.win_rate))),
       talkRatio: Math.round(avg(data.map(d => d.avg_talk_ratio))),
       questionCount: Math.round(avg(data.map(d => d.avg_question_count))),
       scriptAdherence: Math.round(avg(data.map(d => d.avg_script_adherence))),
     },
     topPerformerAvg: {
       callQuality: Math.round(avg(topPerformers.map(d => d.avg_call_quality || 0))),
-      winRate: Math.round(avg(topPerformers.map(d => d.win_rate))),
       talkRatio: Math.round(avg(topPerformers.map(d => d.avg_talk_ratio))),
       questionCount: Math.round(avg(topPerformers.map(d => d.avg_question_count))),
       scriptAdherence: Math.round(avg(topPerformers.map(d => d.avg_script_adherence))),
@@ -122,7 +155,6 @@ app.get('/api/ae/:name/trend', async (c) => {
   const points = [];
   for (let i = windowSize - 1; i < data.length; i++) {
     const window = data.slice(i - windowSize + 1, i + 1);
-    const wins = window.filter(d => d.outcome === 'won').length;
     const avgTalk = Math.round(window.reduce((s, d) => s + (d.talk_ratio || 0), 0) / windowSize);
     const avgQs = Math.round(window.reduce((s, d) => s + (d.question_count || 0), 0) / windowSize);
     const avgScript = Math.round(window.reduce((s, d) => s + (d.script_adherence || 0), 0) / windowSize);
@@ -130,7 +162,6 @@ app.get('/api/ae/:name/trend', async (c) => {
     points.push({
       date: data[i].created_at?.slice(0, 10) || '',
       callIndex: i + 1,
-      winRate: Math.round(wins / windowSize * 100),
       talkRatio: avgTalk,
       questionCount: avgQs,
       scriptAdherence: avgScript,
@@ -287,7 +318,7 @@ app.post('/api/analyze-call', async (c) => {
       if (Math.abs(val - ta) > 1) verdicts.push({ metric:label, value:val, teamAvg:ta, verdict:val>ta?'good':'warning', tip:val<ta-1?`Below average (${ta}).`:'Above average.' });
     }
 
-    const aeProfile = (await supabase.from('ae_coaching_profiles').select('win_rate, avg_call_quality, total_calls').eq('recorder_name', existingAnalysis.recorder_name).single()).data;
+    const aeProfile = (await supabase.from('ae_coaching_profiles').select('avg_call_quality, total_calls').eq('recorder_name', existingAnalysis.recorder_name).single()).data;
 
     return c.json({
       recording: { id: recordingId, title: existingAnalysis.title, recorder: existingAnalysis.recorder_name, duration: Math.round((existingAnalysis.duration_seconds||0)/60), url: existingAnalysis.recording_url, createdAt: existingAnalysis.created_at },
@@ -320,7 +351,7 @@ app.post('/api/analyze-call', async (c) => {
     verdicts.push({ metric:'Questions', value:analysis.questionCount, teamAvg:teamAvgQs, verdict:analysis.questionCount>=20?'good':analysis.questionCount>=14?'warning':'bad', tip:analysis.questionCount<16?'Not enough discovery.':'Solid.' });
     verdicts.push({ metric:'Script Score', value:analysis.scriptAdherence+'%', teamAvg:teamAvgScript+'%', verdict:analysis.scriptAdherence>=50?'good':analysis.scriptAdherence>=30?'warning':'bad', tip:analysis.scriptAdherence<30?'Low coverage.':'OK.' });
 
-    const aeProfile = (await supabase.from('ae_coaching_profiles').select('win_rate, avg_call_quality, total_calls').eq('recorder_name', existingRec.recorder_name).single()).data;
+    const aeProfile = (await supabase.from('ae_coaching_profiles').select('avg_call_quality, total_calls').eq('recorder_name', existingRec.recorder_name).single()).data;
 
     return c.json({
       recording: { id: recordingId, title: existingRec.title, recorder: existingRec.recorder_name, duration: Math.round((existingRec.duration_seconds||0)/60), url: existingRec.url, createdAt: existingRec.created_at },
@@ -621,7 +652,7 @@ app.get('/api/team/narrative-consistency', async (c) => {
       .select('recorder_name, outcome, sections_hit, sections_missed, script_adherence')
       .order('created_at', { ascending: false }),
     supabase.from('ae_coaching_profiles')
-      .select('recorder_name, win_rate, avg_call_quality, total_calls'),
+      .select('recorder_name, avg_call_quality, total_calls'),
   ]);
   if (callsErr) return c.json({ error: callsErr.message }, 500);
   if (profilesErr) return c.json({ error: profilesErr.message }, 500);
@@ -721,7 +752,7 @@ app.get('/api/team/narrative-consistency', async (c) => {
 // ─── Narrative Coach (LLM-powered deep analysis) ─────────────────────────────
 
 // Generate deep narrative review for a call
-app.post('/api/call/:id/narrative', async (c) => {
+app.post('/api/call/:id/narrative', requireRole('lead'), async (c) => {
   const recordingId = c.req.param('id');
 
   // Check if we already have a narrative cached
@@ -816,7 +847,7 @@ app.post('/api/narrative/live', async (c) => {
 
 // ─── AE Deep Analysis (cross-call LLM review) ───────────────────────────────
 
-app.post('/api/ae/:name/deep-analysis', async (c) => {
+app.post('/api/ae/:name/deep-analysis', requireRole('lead'), async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
 
   // Check cache first

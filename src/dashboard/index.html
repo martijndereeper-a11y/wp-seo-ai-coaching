@@ -37,7 +37,6 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 
 /* Badges & pills */
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
-.badge.won{background:rgba(34,197,94,.15);color:var(--green)}.badge.lost{background:rgba(239,68,68,.15);color:var(--red)}
 .pill{display:inline-block;padding:4px 10px;border-radius:6px;font-size:12px;margin:2px 4px 2px 0;cursor:pointer;transition:background .15s}
 .pill.g{background:rgba(34,197,94,.12);color:var(--green)}.pill.r{background:rgba(239,68,68,.12);color:var(--red)}
 .pill.b{background:rgba(59,130,246,.12);color:var(--blue)}.pill.o{background:rgba(245,158,11,.12);color:var(--orange)}
@@ -173,6 +172,16 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 </head>
 <body>
 
+<div id="login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;pointer-events:all">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:360px;text-align:center;position:relative;z-index:10000">
+    <div style="color:var(--purple);font-weight:800;font-size:24px;margin-bottom:8px">WP SEO AI</div>
+    <div style="color:var(--text2);font-size:14px;margin-bottom:24px">Sales Coaching Platform</div>
+    <input id="login-pw" type="password" placeholder="Enter password" style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;margin-bottom:12px;outline:none" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()" style="width:100%;padding:10px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Login</button>
+    <div id="login-error" style="color:var(--red);font-size:12px;margin-top:8px"></div>
+  </div>
+</div>
+
 <div class="topbar">
   <span class="logo">WP SEO AI</span>
   <h1>Sales Coaching</h1>
@@ -184,11 +193,64 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
     <input id="claap-url" type="text" placeholder="Paste Claap link..." onkeydown="if(event.key==='Enter')analyzeClaapLink()">
     <button onclick="analyzeClaapLink()">Analyze</button>
   </div>
+  <button id="btn-settings" onclick="loadSettingsPage()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px">&#9881;</button>
+  <button onclick="logout()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px">Logout</button>
 </div>
 
 <div class="container" id="app"></div>
 
 <script>
+// ════════════════════════════════════════════════════════
+//  AUTH
+// ════════════════════════════════════════════════════════
+
+let authToken = localStorage.getItem('auth_token') || '';
+let authRole = localStorage.getItem('auth_role') || '';
+
+async function doLogin() {
+  const pw = document.getElementById('login-pw').value;
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.error) { document.getElementById('login-error').textContent = data.error; return; }
+    authToken = data.token;
+    authRole = data.role;
+    localStorage.setItem('auth_token', authToken);
+    localStorage.setItem('auth_role', authRole);
+    document.getElementById('login-overlay').style.display = 'none';
+    applyRoleRestrictions();
+    loadTeam();
+  } catch (e) { document.getElementById('login-error').textContent = 'Connection error'; }
+}
+
+function logout() {
+  authToken = '';
+  authRole = '';
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_role');
+  location.reload();
+}
+
+function applyRoleRestrictions() {
+  // Hide lead-only UI elements for AE role
+  if (authRole !== 'lead') {
+    const leadBtn = document.getElementById('btn-lead');
+    if (leadBtn) leadBtn.style.display = 'none';
+    const settingsBtn = document.getElementById('btn-settings');
+    if (settingsBtn) settingsBtn.style.display = 'none';
+  }
+}
+
+// Check auth on load
+if (authToken) {
+  document.getElementById('login-overlay').style.display = 'none';
+  applyRoleRestrictions();
+}
+
 // ════════════════════════════════════════════════════════
 //  CORE HELPERS
 // ════════════════════════════════════════════════════════
@@ -216,11 +278,26 @@ let benchData = {};
 let insightsData = {};
 let chartInstances = {};
 
-async function api(url) { return (await fetch(url)).json(); }
+async function api(url, opts = {}) {
+  if (!authToken) return null;
+  const res = await fetch(url, {
+    ...opts,
+    headers: { ...opts.headers, 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
+  });
+  if (res.status === 401) {
+    // Clear token and show login — don't reload to avoid loop
+    authToken = '';
+    authRole = '';
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_role');
+    document.getElementById('login-overlay').style.display = 'flex';
+    return null;
+  }
+  return res.json();
+}
 function esc(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function qCls(q) { return q >= 65 ? 'hi' : q >= 45 ? 'mi' : 'lo'; }
 function qClr(q) { return q >= 65 ? 'var(--green)' : q >= 45 ? 'var(--orange)' : 'var(--red)'; }
-function wrClr(r) { return r >= 50 ? 'var(--green)' : r >= 30 ? 'var(--orange)' : 'var(--red)'; }
 
 function confBadge(conf) {
   if (!conf) return '';
@@ -586,7 +663,6 @@ function callRowHTML(c, name) {
   const cq = c.call_quality_score || 0;
   const date = (c.created_at||'').slice(0,10);
   const dur = c.duration_seconds ? Math.round(c.duration_seconds/60)+'m' : '';
-  const outcome = c.outcome || '';
   const rid = c.recording_id || '';
   return '<tr onclick="loadCallDetail(\''+rid+'\',\''+esc(name)+'\')">'+
     '<td>'+date+'</td>'+
@@ -595,7 +671,6 @@ function callRowHTML(c, name) {
     '<td><span style="color:'+qClr(cq)+';font-weight:700">'+cq+'</span></td>'+
     '<td>'+(c.talk_ratio||'')+'%</td>'+
     '<td>'+(c.question_count||'')+'</td>'+
-    '<td>'+(outcome?'<span class="badge '+(outcome==='won'?'won':'lost')+'">'+outcome+'</span>':'')+'</td>'+
     '<td>'+dur+'</td></tr>';
 }
 
@@ -629,10 +704,10 @@ function teamAvgPatterns(exclude) {
   return avg;
 }
 
-function getEdgesAndGaps(wonPatterns, teamAvg) {
+function getEdgesAndGaps(aePatterns, teamAvg) {
   const edges = [], gaps = [];
-  Object.keys(wonPatterns || {}).forEach(k => {
-    const v = wonPatterns[k] || 0;
+  Object.keys(aePatterns || {}).forEach(k => {
+    const v = aePatterns[k] || 0;
     const t = teamAvg[k] || 0;
     if (v > t + 1) edges.push({ dim: k, val: v, teamAvg: t, lift: +(v - t).toFixed(1) });
     else if (v < t - 1) gaps.push({ dim: k, val: v, teamAvg: t, gap: +(t - v).toFixed(1) });
@@ -717,7 +792,7 @@ async function renderTeamLead() {
       '<div class="sbox"><div class="sv">'+teamData.length+'</div><div class="sl">Active AEs</div></div>'+
       '<div class="sbox"><div class="sv">'+totalCalls+'</div><div class="sl">Calls Analyzed</div></div>'+
       '<div class="sbox"><div class="sv" style="color:'+qClr(avgQuality)+'">'+avgQuality+'</div><div class="sl">Avg Quality</div></div>'+
-      '<div class="sbox"><div class="sv">'+(tavg.winRate||0)+'%</div><div class="sl">Team Win Rate</div></div>'+
+      '<div class="sbox"><div class="sv">'+(tavg.talkRatio||0)+'%</div><div class="sl">Avg Talk Ratio</div></div>'+
     '</div>';
 
   // Alerts & Momentum
@@ -813,11 +888,10 @@ async function renderTeamLead() {
 
   // Team Leaderboard
   html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Team Leaderboard</h3>';
-  html += '<table class="lb-table"><thead><tr><th>#</th><th>AE</th><th>Quality</th><th>Win Rate</th><th>Calls</th><th>Talk Ratio</th><th>Questions</th><th>Script</th></tr></thead><tbody>';
+  html += '<table class="lb-table"><thead><tr><th>#</th><th>AE</th><th>Quality</th><th>Calls</th><th>Talk Ratio</th><th>Questions</th><th>Script</th></tr></thead><tbody>';
   teamData.forEach((ae, i) => {
     html += '<tr onclick="loadAEDetail(\''+esc(ae.recorder_name)+'\')"><td>'+(i+1)+'</td><td style="font-weight:600">'+ae.recorder_name+'</td>'+
       '<td style="color:'+qClr(ae.avg_call_quality||0)+';font-weight:700">'+(ae.avg_call_quality||0)+'</td>'+
-      '<td style="color:'+wrClr(ae.win_rate||0)+'">'+(ae.win_rate||0)+'%</td>'+
       '<td>'+(ae.total_calls||0)+'</td>'+
       '<td>'+(ae.avg_talk_ratio||0)+'%</td>'+
       '<td>'+(ae.avg_question_count||0)+'</td>'+
@@ -894,13 +968,12 @@ function generateDiagnostic(ae, calls) {
   const talk = ae.avg_talk_ratio || 0;
   const qs = ae.avg_question_count || 0;
   const script = ae.avg_script_adherence || 0;
-  const wr = ae.win_rate || 0;
   const total = ae.total_calls || 0;
   const name = ae.recorder_name || 'This AE';
   const strengths = ae.top_strengths || [];
   const weaknesses = ae.top_weaknesses || [];
 
-  let para = name + ' has completed ' + total + ' calls with an average quality score of ' + q + ' and a ' + wr + '% win rate. ';
+  let para = name + ' has completed ' + total + ' calls with an average quality score of ' + q + '. ';
 
   if (q >= 65) para += 'This is strong performance. ';
   else if (q >= 45) para += 'Performance is mid-range with room for improvement. ';
@@ -949,17 +1022,15 @@ async function loadAEDetail(name) {
     const talk = ae.avg_talk_ratio || 0;
     const qs = ae.avg_question_count || 0;
     const script = ae.avg_script_adherence || 0;
-    const wr = ae.win_rate || 0;
     const total = ae.total_calls || 0;
     const strengths = ae.top_strengths || [];
     const weaknesses = ae.top_weaknesses || [];
-    const wonPatterns = ae.avg_patterns_won || ae.avg_patterns_all || ae.won_patterns || {};
-    const lostPatterns = ae.avg_patterns_lost || ae.lost_patterns || {};
+    const allPatterns = ae.avg_patterns_all || ae.avg_patterns_won || ae.won_patterns || {};
 
     // Hero
     let html = '<button class="back-btn" onclick="loadTeam()">&larr; Back to Team</button>';
     html += '<div class="card" style="margin-bottom:20px"><div style="display:flex;align-items:center;flex-wrap:wrap;gap:20px">'+
-      '<div style="flex:1"><div style="font-size:22px;font-weight:700">'+name+'</div><div style="color:var(--text2);font-size:13px;margin-top:4px">'+total+' calls &middot; Win rate: '+wr+'%</div></div>'+
+      '<div style="flex:1"><div style="font-size:22px;font-weight:700">'+name+'</div><div style="color:var(--text2);font-size:13px;margin-top:4px">'+total+' calls</div></div>'+
       '<div style="display:flex;gap:16px;align-items:center">'+
         '<div style="text-align:center"><div style="font-size:32px;font-weight:700;color:'+qClr(q)+'">'+q+'</div><div style="font-size:11px;color:var(--text2)">Quality</div></div>'+
         '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+talk+'%</div><div style="font-size:11px;color:var(--text2)">Talk Ratio</div></div>'+
@@ -1031,7 +1102,7 @@ async function loadAEDetail(name) {
 
       // Recent Calls
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Recent Calls</h3>';
-      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Outcome</th><th>Dur</th></tr></thead><tbody>';
+      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
       calls.slice(0,15).forEach(c => { html += callRowHTML(c, name); });
       html += '</tbody></table></div>';
 
@@ -1046,20 +1117,22 @@ async function loadAEDetail(name) {
       html += '<div class="grid-2">';
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Performance Radar: AE vs Team</h3><div class="chart-container"><canvas id="chart-radar"></canvas></div></div>';
 
-      // Won vs Lost Patterns
-      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Won vs Lost Patterns</h3><div class="chart-container"><canvas id="chart-won-lost"></canvas></div></div>';
+      // Quality Score Breakdown
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
+        qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: ae.prospect_engagement || {}, highlights: [] })+
+      '</div>';
       html += '</div>';
 
       // Two progression charts
       if (trend.length >= 2) {
         html += '<div class="grid-2">';
-        html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality & Win Rate Trend</h3><div class="chart-container"><canvas id="chart-trend-quality"></canvas></div></div>';
+        html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality & Script Trend</h3><div class="chart-container"><canvas id="chart-trend-quality"></canvas></div></div>';
         html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Talk Ratio & Questions Trend</h3><div class="chart-container"><canvas id="chart-trend-talk"></canvas></div></div>';
         html += '</div>';
       }
 
       // Strengths vs Team / Gaps vs Team
-      const { edges, gaps } = getEdgesAndGaps(wonPatterns, tavg);
+      const { edges, gaps } = getEdgesAndGaps(allPatterns, tavg);
       const dimNames = {contentEngine:'Content Engine',marketContext:'Market Context',roiReframe:'ROI Reframe',humor:'Humor',urgency:'Urgency',contract:'Close Language',checkIn:'Check-ins',theirBusiness:'Prospect Business',activeListening:'Active Listening',personalStory:'Personal Stories',vsAgency:'Agency Diff.',directness:'Directness',opinionAsk:'Opinion Asks',research:'Research',priceAnchor:'Price Anchoring',assumptiveClose:'Assumptive Close'};
 
       html += '<div class="grid-2">';
@@ -1083,26 +1156,9 @@ async function loadAEDetail(name) {
       html += '</div>';
       html += '</div>';
 
-      // What Changes Between Won & Lost
-      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">What Changes Between Won & Lost</h3>';
-      const allDimKeys = Object.keys(wonPatterns);
-      allDimKeys.forEach(k => {
-        const w = (wonPatterns[k] || 0);
-        const l = (lostPatterns[k] || 0);
-        const diff = w - l;
-        if (Math.abs(diff) > 0.5) {
-          html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid rgba(46,51,72,.3)">'+
-            '<span style="width:130px;color:var(--text2)">'+(dimNames[k]||k)+'</span>'+
-            '<span style="width:40px;color:var(--green);font-weight:600">'+w.toFixed(1)+'</span>'+
-            '<span style="width:40px;color:var(--red);font-weight:600">'+l.toFixed(1)+'</span>'+
-            '<span style="color:'+(diff>0?'var(--green)':'var(--red)')+';font-weight:600">'+(diff>0?'+':'')+diff.toFixed(1)+'</span></div>';
-        }
-      });
-      html += '</div>';
-
       // Full calls table
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">All Calls</h3>';
-      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Outcome</th><th>Dur</th></tr></thead><tbody>';
+      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
       calls.forEach(c => { html += callRowHTML(c, name); });
       html += '</tbody></table></div>';
     }
@@ -1172,7 +1228,7 @@ async function loadAEDetail(name) {
               labels: trend.map(t => t.date || 'Call '+t.callIndex),
               datasets: [
                 { label: 'Quality', data: trend.map(t => t.callQuality), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.1)', fill: true, tension: .3 },
-                { label: 'Win Rate', data: trend.map(t => t.winRate), borderColor: '#22c55e', tension: .3 },
+                { label: 'Script', data: trend.map(t => t.scriptAdherence), borderColor: '#22c55e', tension: .3 },
               ]
             },
             options: chartOpts('Score'),
@@ -1182,9 +1238,7 @@ async function loadAEDetail(name) {
 
       if (mode === 'lead') {
         // Radar chart
-        console.log('LEAD MODE: rendering charts. wonPatterns:', Object.keys(wonPatterns).length, 'tavg:', Object.keys(tavg).length, 'trend:', trend.length);
         const rCtx = document.getElementById('chart-radar');
-        console.log('radar canvas:', rCtx ? 'found' : 'NOT FOUND');
         if (rCtx) {
           destroyChart('radar');
           chartInstances['radar'] = new Chart(rCtx, {
@@ -1192,30 +1246,11 @@ async function loadAEDetail(name) {
             data: {
               labels: radarLabels,
               datasets: [
-                { label: name, data: radarDims.map(d => (wonPatterns[d]||0)), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.15)', pointBackgroundColor: '#a855f7' },
+                { label: name, data: radarDims.map(d => (allPatterns[d]||0)), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.15)', pointBackgroundColor: '#a855f7' },
                 { label: 'Team Avg', data: radarDims.map(d => (tavg[d]||0)), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.1)', pointBackgroundColor: '#3b82f6' },
               ]
             },
             options: radarOpts(),
-          });
-        }
-
-        // Won vs Lost
-        const wlCtx = document.getElementById('chart-won-lost');
-        if (wlCtx) {
-          destroyChart('won-lost');
-          const wlDims = Object.keys(wonPatterns).filter(k => Math.abs((wonPatterns[k]||0) - (lostPatterns[k]||0)) > 0.3).slice(0,10);
-          const wlLabels = wlDims.map(d => dimNames[d]||d);
-          chartInstances['won-lost'] = new Chart(wlCtx, {
-            type: 'bar',
-            data: {
-              labels: wlLabels,
-              datasets: [
-                { label: 'Won', data: wlDims.map(d => wonPatterns[d]||0), backgroundColor: 'rgba(34,197,94,.6)', borderRadius: 4 },
-                { label: 'Lost', data: wlDims.map(d => lostPatterns[d]||0), backgroundColor: 'rgba(239,68,68,.6)', borderRadius: 4 },
-              ]
-            },
-            options: { ...chartOpts('Count'), indexAxis: 'y' },
           });
         }
 
@@ -1230,7 +1265,7 @@ async function loadAEDetail(name) {
                 labels: trend.map(t => t.date || 'Call '+t.callIndex),
                 datasets: [
                   { label: 'Quality', data: trend.map(t => t.callQuality), borderColor: '#a855f7', tension: .3 },
-                  { label: 'Win Rate', data: trend.map(t => t.winRate), borderColor: '#22c55e', tension: .3 },
+                  { label: 'Script', data: trend.map(t => t.scriptAdherence), borderColor: '#22c55e', tension: .3 },
                 ]
               },
               options: chartOpts('Score'),
@@ -1290,7 +1325,7 @@ async function loadCallDetail(rid, aeName) {
     html += '<div class="card" style="margin-bottom:20px">'+
       '<div style="font-size:18px;font-weight:700;margin-bottom:4px">'+(call.title||'Untitled Call')+'</div>'+
       '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">'+call.recorder_name+' &middot; '+date+' &middot; '+(call.deal_name||'')+
-      (outcome?' &middot; <span class="badge '+(outcome==='won'?'won':'lost')+'">'+outcome+'</span>':'')+
+      (outcome?' &middot; <span style="font-size:11px;color:var(--text2)">'+outcome+'</span>':'')+
       '</div>'+
       (baseUrl?'<a href="'+baseUrl+'" target="_blank" style="font-size:12px">Open in Claap &rarr;</a>':'')+
     '</div>';
@@ -1443,10 +1478,127 @@ function renderLiveAnalysis(data, originalUrl) {
 }
 
 // ════════════════════════════════════════════════════════
+//  SETTINGS PAGE
+// ════════════════════════════════════════════════════════
+
+async function loadSettingsPage() {
+  if (authRole !== 'lead') return;
+  const settings = await api('/api/settings');
+  if (!settings) return;
+
+  let html = '<button class="back-btn" onclick="loadTeam()">&larr; Back</button>';
+  html += '<h2 style="font-size:20px;margin-bottom:16px">Platform Settings</h2>';
+
+  // Passwords
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Access Passwords</h3>' +
+    '<div style="display:flex;gap:12px;margin-bottom:8px"><label style="font-size:12px;color:var(--text2);width:80px">AE password</label><input id="s-pw-ae" type="text" value="" placeholder="Enter new AE password" style="flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"></div>' +
+    '<div style="display:flex;gap:12px;margin-bottom:8px"><label style="font-size:12px;color:var(--text2);width:80px">Lead password</label><input id="s-pw-lead" type="text" value="" placeholder="Enter new Lead password" style="flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"></div>' +
+    '<button onclick="savePasswords()" style="padding:6px 16px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer">Save Passwords</button></div>';
+
+  // Sync Channels
+  const channels = settings.sync_channels || [];
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Claap Sync Channels</h3>';
+  channels.forEach((ch, i) => {
+    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="font-size:13px;flex:1">' + ch.name + '</span><span style="font-size:11px;color:var(--text2)">' + ch.id + '</span><button onclick="removeChannel(' + i + ')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px">Remove</button></div>';
+  });
+  html += '<div style="display:flex;gap:8px;margin-top:8px"><input id="s-ch-id" placeholder="Channel ID" style="flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"><input id="s-ch-name" placeholder="Channel Name" style="flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"><button onclick="addChannel()" style="padding:6px 12px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer">Add</button></div></div>';
+
+  // Quality Weights
+  const qw = settings.quality_weights || {};
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Quality Score Weights (must sum to 100)</h3>';
+  ['talkBalance','discovery','scriptAdherence','engagement','coachable'].forEach(k => {
+    const labels = {talkBalance:'Talk Balance',discovery:'Discovery (Questions)',scriptAdherence:'Script Adherence',engagement:'Engagement',coachable:'Call Discipline'};
+    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><label style="font-size:12px;color:var(--text2);width:140px">' + labels[k] + '</label><input id="s-qw-' + k + '" type="number" value="' + (qw[k]||0) + '" style="width:60px;padding:6px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;text-align:center"></div>';
+  });
+  html += '<button onclick="saveQualityWeights()" style="padding:6px 16px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px">Save Weights</button></div>';
+
+  // Thresholds
+  const th = settings.thresholds || {};
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Analysis Thresholds</h3>';
+  [['talkRatioHigh','Talk ratio "too high" (%)',60],['questionCountLow','Questions "too low"',18],['questionCountTarget','Questions target',22],['monologueWords','Monologue threshold (words)',100],['softeningWordsPerTurn','Softening words per turn',3]].forEach(([k,label,def]) => {
+    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><label style="font-size:12px;color:var(--text2);width:200px">' + label + '</label><input id="s-th-' + k + '" type="number" value="' + (th[k]||def) + '" style="width:60px;padding:6px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;text-align:center"></div>';
+  });
+  html += '<button onclick="saveThresholds()" style="padding:6px 16px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-top:4px">Save Thresholds</button></div>';
+
+  // Deal Patterns
+  const dp = settings.deal_patterns || [];
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Won Deal Name Patterns</h3><div style="font-size:12px;color:var(--text2);margin-bottom:8px">Deal names containing these words are auto-classified as "won"</div>';
+  html += '<textarea id="s-dp" style="width:100%;height:60px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:monospace">' + dp.join(', ') + '</textarea>';
+  html += '<button onclick="saveDealPatterns()" style="padding:6px 16px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-top:8px">Save Patterns</button></div>';
+
+  // LLM Model
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">LLM Model for Deep Analysis</h3>';
+  html += '<select id="s-llm" style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">';
+  ['claude-sonnet-4-6','claude-sonnet-4-20250514','claude-haiku-4-5'].forEach(m => {
+    html += '<option value="' + m + '"' + (m === (settings.llm_model||'') ? ' selected' : '') + '>' + m + '</option>';
+  });
+  html += '</select><button onclick="saveLlmModel()" style="padding:6px 16px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-left:8px">Save</button></div>';
+
+  $('app').innerHTML = html;
+}
+
+// Settings save functions
+async function savePasswords() {
+  const ae = document.getElementById('s-pw-ae').value;
+  const lead = document.getElementById('s-pw-lead').value;
+  if (!ae || !lead) { alert('Both passwords required'); return; }
+  await fetch('/api/settings/auth_passwords', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: { ae, lead } }) });
+  alert('Passwords updated. New passwords take effect immediately.');
+}
+
+async function saveQualityWeights() {
+  const w = {};
+  ['talkBalance','discovery','scriptAdherence','engagement','coachable'].forEach(k => { w[k] = parseInt(document.getElementById('s-qw-' + k).value) || 0; });
+  const sum = Object.values(w).reduce((a, b) => a + b, 0);
+  if (sum !== 100) { alert('Weights must sum to 100 (currently ' + sum + ')'); return; }
+  await fetch('/api/settings/quality_weights', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: w }) });
+  alert('Quality weights saved. Run npm run analyze --full to recalculate.');
+}
+
+async function saveThresholds() {
+  const th = {};
+  ['talkRatioHigh','questionCountLow','questionCountTarget','monologueWords','softeningWordsPerTurn'].forEach(k => { th[k] = parseInt(document.getElementById('s-th-' + k).value) || 0; });
+  await fetch('/api/settings/thresholds', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: th }) });
+  alert('Thresholds saved.');
+}
+
+async function saveDealPatterns() {
+  const text = document.getElementById('s-dp').value;
+  const patterns = text.split(',').map(s => s.trim()).filter(Boolean);
+  await fetch('/api/settings/deal_patterns', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: patterns }) });
+  alert('Deal patterns saved.');
+}
+
+async function saveLlmModel() {
+  const model = document.getElementById('s-llm').value;
+  await fetch('/api/settings/llm_model', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: model }) });
+  alert('LLM model saved.');
+}
+
+async function removeChannel(index) {
+  const settings = await api('/api/settings');
+  const channels = settings.sync_channels || [];
+  channels.splice(index, 1);
+  await fetch('/api/settings/sync_channels', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: channels }) });
+  loadSettingsPage();
+}
+
+async function addChannel() {
+  const id = document.getElementById('s-ch-id').value.trim();
+  const name = document.getElementById('s-ch-name').value.trim();
+  if (!id || !name) { alert('Both ID and name required'); return; }
+  const settings = await api('/api/settings');
+  const channels = settings.sync_channels || [];
+  channels.push({ id, name });
+  await fetch('/api/settings/sync_channels', { method: 'PUT', headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ value: channels }) });
+  loadSettingsPage();
+}
+
+// ════════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════════
 
-loadTeam();
+if (authToken) loadTeam();
 </script>
 </body>
 </html>

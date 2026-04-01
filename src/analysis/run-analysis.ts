@@ -14,6 +14,7 @@ import { parseTranscript, identifyAE, getProspectStats } from './transcript-pars
 import { analyzeCall } from './pattern-detector.ts';
 import { SCRIPT_SECTIONS } from './script-sections.ts';
 import { loadCoachingGuides, matchRulesToCall } from './coaching-guides-loader.ts';
+import { scoreCallPillars } from './coaching-pillars.ts';
 import { generateSmartReview } from './smart-review.ts';
 
 const supabase = createSupabaseClient();
@@ -142,7 +143,11 @@ async function main() {
   for (const rec of toAnalyze) {
     const parsed = parseTranscript(rec.transcript_text, rec.recorder_name);
     const analysis = analyzeCall(parsed.turns, rec.recorder_name, rec.url);
-    const outcome = rec.channel_name === 'Closed Won Analysis' ? 'won' : 'lost';
+    // Determine outcome: channel name, deal name pattern, or unknown
+    let outcome = 'unknown';
+    if (rec.channel_name === 'Closed Won Analysis') outcome = 'won';
+    else if (rec.channel_name === 'Closed Lost Analysis') outcome = 'lost';
+    else if (/\b(starter|basic|pro|12m|12p|24m|12 month|24 month)\b/i.test(rec.deal_name || '')) outcome = 'won';
     const smartReview = generateSmartReview(
       parsed.turns,
       rec.recorder_name,
@@ -175,6 +180,11 @@ async function main() {
       call_quality_score: computeCallQualityScore(analysis),
       pattern_evidence: trimEvidence(analysis.patternEvidence || {}),
       smart_review: smartReview,
+      pillar_scores: scoreCallPillars(
+        analysis.talkRatio, analysis.questionCount, analysis.patterns as Record<string, number>,
+        analysis.highlights, analysis.callVerdict, analysis.sectionsHit,
+        analysis.prospectEngagement, smartReview,
+      ),
       analyzed_at: new Date().toISOString(),
     };
 
