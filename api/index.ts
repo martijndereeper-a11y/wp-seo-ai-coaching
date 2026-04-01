@@ -1,23 +1,25 @@
+import { Hono } from 'hono';
+import { handle } from 'hono/vercel';
+
 export const config = {
   runtime: 'nodejs',
   maxDuration: 60,
 };
 
-let handler: any;
+// Lazy import the full app to debug startup issues
+const app = new Hono();
 
-try {
-  const { handle } = await import('hono/vercel');
-  const { default: app } = await import('../src/api/server.ts');
-  handler = handle(app);
-} catch (err: any) {
-  // If the app fails to load, return the error as a response
-  handler = (req: Request) => {
-    return new Response(JSON.stringify({
-      error: 'Function failed to initialize',
+app.all('*', async (c) => {
+  try {
+    const { default: fullApp } = await import('../src/api/server.ts');
+    return fullApp.fetch(c.req.raw, c.env);
+  } catch (err: any) {
+    return c.json({
+      error: 'App failed to load',
       message: err.message,
-      stack: err.stack?.split('\n').slice(0, 5),
-    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-  };
-}
+      stack: err.stack?.split('\n').slice(0, 8),
+    }, 500);
+  }
+});
 
-export default handler;
+export default handle(app);
