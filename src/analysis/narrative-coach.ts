@@ -9,7 +9,15 @@
  *   2. analyzeCallQuick() — focused on top 3 moments only (faster, cheaper)
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+// Anthropic SDK is lazy-loaded to avoid 29MB cold start on Vercel
+let _Anthropic: any = null;
+async function getAnthropic() {
+  if (!_Anthropic) {
+    const mod = await import('@anthropic-ai/sdk');
+    _Anthropic = mod.default || mod;
+  }
+  return _Anthropic;
+}
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -63,7 +71,8 @@ export async function analyzeCallNarrative(
     return null;
   }
 
-  const client = new Anthropic({ apiKey });
+  const AnthropicClass = await getAnthropic();
+  const client = new AnthropicClass({ apiKey });
   const coachingRules = loadCoachingContext();
 
   // Trim transcript to fit context — keep first 30k chars (roughly 40 min of call)
@@ -202,7 +211,8 @@ export async function analyzeAEDeep(
   const apiKey = loadApiKey();
   if (!apiKey) return null;
 
-  const client = new Anthropic({ apiKey });
+  const AnthropicClass = await getAnthropic();
+  const client = new AnthropicClass({ apiKey });
   const coachingRules = loadCoachingContext();
 
   // Build a condensed view of all calls
