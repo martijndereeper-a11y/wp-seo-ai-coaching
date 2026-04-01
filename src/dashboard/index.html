@@ -168,6 +168,44 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 .health-bar .h-bar{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
 .health-bar .h-fill{height:100%;border-radius:4px}
 .health-bar .h-score{width:40px;text-align:right;font-weight:600}
+
+/* Pillar badges & bars */
+.pillar-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.pillar-badge{padding:3px 8px;border-radius:4px;font-size:11px;font-weight:500;display:inline-flex;align-items:center;gap:4px}
+.pillar-badge .pdot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.pillar-badge.strong{background:rgba(34,197,94,.15);color:var(--green)}
+.pillar-badge.strong .pdot{background:var(--green)}
+.pillar-badge.developing{background:rgba(249,115,22,.12);color:var(--orange)}
+.pillar-badge.developing .pdot{background:var(--orange)}
+.pillar-badge.needs-work{background:rgba(239,68,68,.12);color:var(--red)}
+.pillar-badge.needs-work .pdot{background:var(--red)}
+.pillar-bar{display:flex;align-items:center;gap:8px;padding:4px 0}
+.pillar-bar .pb-label{width:130px;font-size:12px;color:var(--text2)}
+.pillar-bar .bar-track{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.pillar-bar .bar-fill{height:100%;border-radius:4px;transition:width .3s}
+.pillar-bar .bar-fill.strong{background:var(--green)}
+.pillar-bar .bar-fill.developing{background:var(--orange)}
+.pillar-bar .bar-fill.needs-work{background:var(--red)}
+.pillar-bar .pb-score{width:30px;text-align:right;font-weight:600;font-size:12px}
+.pillar-bar .pb-level{font-size:10px;color:var(--text2);width:70px}
+.pillar-bar .pb-evidence{display:none;font-size:11px;color:var(--text2);font-style:italic;padding:2px 0 6px 138px}
+.pillar-bar.expanded .pb-evidence{display:block}
+
+/* What Good Looks Like */
+.wgll-section{margin-bottom:24px}
+.wgll-compare{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:12px 0}
+.wgll-col{padding:12px 16px}
+.wgll-col.best{background:rgba(34,197,94,.04);border-radius:10px 0 0 10px}
+.wgll-col.worst{background:rgba(239,68,68,.04);border-radius:0 10px 10px 0}
+.wgll-col h4{font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.wgll-col.best h4{color:var(--green)}
+.wgll-col.worst h4{color:var(--red)}
+.wgll-metric{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}
+.wgll-metric .wm-val{font-weight:600}
+.wgll-diff{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:6px;font-size:12px}
+.wgll-diff .wd-name{flex:1}
+.wgll-diff .wd-vals{color:var(--text2)}
+.wgll-diff .wd-arrow{color:var(--green);font-weight:600;font-size:11px}
 </style>
 </head>
 <body>
@@ -276,6 +314,8 @@ function scriptPillsHTML(sectionsHit, sectionsMissed) {
 let teamData = [];
 let benchData = {};
 let insightsData = {};
+let teamPillarsData = {};
+let wgllData = null;
 let chartInstances = {};
 
 async function api(url, opts = {}) {
@@ -572,6 +612,88 @@ function behaviorScoresHTML(call) {
 }
 
 // ════════════════════════════════════════════════════════
+//  PILLAR RENDERING HELPERS
+// ════════════════════════════════════════════════════════
+
+const PILLAR_LABELS = {control:'Control',discovery:'Discovery',gapCreation:'Gap Creation',objectionHandling:'Objections',advancement:'Advancement'};
+const PILLAR_KEYS = ['control','discovery','gapCreation','objectionHandling','advancement'];
+
+function pillarLevel(score) { return score >= 65 ? 'strong' : score >= 40 ? 'developing' : 'needs work'; }
+function pillarLevelCls(level) { return level === 'strong' ? 'strong' : level === 'developing' ? 'developing' : 'needs-work'; }
+
+function pillarBadgesHTML(pillarData) {
+  if (!pillarData) return '';
+  let html = '<div class="pillar-row">';
+  PILLAR_KEYS.forEach(k => {
+    const p = pillarData[k];
+    if (!p) return;
+    const score = typeof p === 'object' ? (p.score || 0) : p;
+    const level = typeof p === 'object' && p.level ? p.level : pillarLevel(score);
+    const cls = pillarLevelCls(level);
+    const label = PILLAR_LABELS[k] || k;
+    html += '<span class="pillar-badge '+cls+'" title="'+label+': '+score+'"><span class="pdot"></span>'+label+'</span>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function pillarBarsHTML(pillarScores, expandable) {
+  if (!pillarScores) return '';
+  let html = '<div style="margin:8px 0">';
+  PILLAR_KEYS.forEach(k => {
+    const p = pillarScores[k];
+    if (!p) return;
+    const score = typeof p === 'object' ? (p.score || 0) : p;
+    const level = typeof p === 'object' && p.level ? p.level : pillarLevel(score);
+    const cls = pillarLevelCls(level);
+    const label = PILLAR_LABELS[k] || k;
+    const evidence = typeof p === 'object' ? (p.evidence || '') : '';
+    if (expandable && evidence) {
+      html += '<div class="pillar-bar" style="cursor:pointer" onclick="var ev=document.getElementById(\'pev-'+k+'\');if(ev)ev.style.display=ev.style.display===\'none\'?\'block\':\'none\'">'+
+        '<span class="pb-label">'+label+'</span>'+
+        '<div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+score+'%"></div></div>'+
+        '<span class="pb-score" style="color:'+(level==='strong'?'var(--green)':level==='developing'?'var(--orange)':'var(--red)')+'">'+score+'</span>'+
+        '<span class="pb-level">'+level+'</span>'+
+      '</div>';
+      html += '<div class="pb-evidence" style="font-size:11px;color:var(--text2);font-style:italic;padding:2px 0 6px 138px;display:none" id="pev-'+k+'">'+evidence+'</div>';
+    } else {
+      html += '<div class="pillar-bar">'+
+        '<span class="pb-label">'+label+'</span>'+
+        '<div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+score+'%"></div></div>'+
+        '<span class="pb-score" style="color:'+(level==='strong'?'var(--green)':level==='developing'?'var(--orange)':'var(--red)')+'">'+score+'</span>'+
+        '<span class="pb-level">'+level+'</span>'+
+      '</div>';
+    }
+  });
+  html += '</div>';
+  return html;
+}
+
+function pillarComparisonBarsHTML(highPillars, lowPillars) {
+  if (!highPillars || !lowPillars) return '';
+  let html = '';
+  PILLAR_KEYS.forEach(k => {
+    const hScore = highPillars[k] || 0;
+    const lScore = lowPillars[k] || 0;
+    const hCls = pillarLevelCls(pillarLevel(hScore));
+    const lCls = pillarLevelCls(pillarLevel(lScore));
+    const label = PILLAR_LABELS[k] || k;
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">'+
+      '<span style="width:100px;color:var(--text2)">'+label+'</span>'+
+      '<div style="flex:1;display:flex;gap:4px;align-items:center">'+
+        '<div class="bar-track" style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden"><div class="bar-fill '+hCls+'" style="width:'+hScore+'%;height:100%;border-radius:4px"></div></div>'+
+        '<span style="width:24px;text-align:right;font-weight:600;color:'+(hScore>=65?'var(--green)':hScore>=40?'var(--orange)':'var(--red)')+'">'+hScore+'</span>'+
+      '</div>'+
+      '<div style="flex:1;display:flex;gap:4px;align-items:center">'+
+        '<div class="bar-track" style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden"><div class="bar-fill '+lCls+'" style="width:'+lScore+'%;height:100%;border-radius:4px"></div></div>'+
+        '<span style="width:24px;text-align:right;font-weight:600;color:'+(lScore>=65?'var(--green)':lScore>=40?'var(--orange)':'var(--red)')+'">'+lScore+'</span>'+
+      '</div>'+
+    '</div>';
+  });
+  return html;
+}
+
+// ════════════════════════════════════════════════════════
 //  NARRATIVE (LLM DEEP ANALYSIS)
 // ════════════════════════════════════════════════════════
 
@@ -724,11 +846,13 @@ function getEdgesAndGaps(aePatterns, teamAvg) {
 async function loadTeam() {
   $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading...</div>';
   try {
-    [teamData, benchData, insightsData] = await Promise.all([
+    [teamData, benchData, insightsData, teamPillarsData] = await Promise.all([
       api('/api/team'),
       api('/api/team/benchmarks'),
       api('/api/team/insights'),
+      api('/api/team/pillars'),
     ]);
+    teamPillarsData = teamPillarsData || {};
     if (mode === 'ae') renderTeamAE();
     else renderTeamLead();
   } catch (err) {
@@ -748,16 +872,14 @@ function renderTeamAE() {
       const calls = ae.total_calls || 0;
       const talk = ae.avg_talk_ratio || 0;
       const script = ae.avg_script_adherence || 0;
-      const strengths = ae.top_strengths || [];
-      const weaknesses = ae.top_weaknesses || [];
+      const aePillars = teamPillarsData[name] || null;
       return '<div class="ae-card" onclick="loadAEDetail(\''+esc(name)+'\')">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
           '<div style="font-weight:600;font-size:15px">'+name+'</div>'+
           '<div style="font-size:22px;font-weight:700;color:'+qClr(q)+'">'+q+'</div>'+
         '</div>'+
-        '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+calls+' calls &middot; Talk: '+talk+'% &middot; Script: '+script+'%</div>'+
-        (strengths.length?'<div class="coach-box keep"><div class="cb-title">Keep doing</div>'+strengths.slice(0,2).map(s=>'<div style="font-size:12px;margin-bottom:2px">'+s+'</div>').join('')+'</div>':'')+
-        (weaknesses.length?'<div class="coach-box work"><div class="cb-title">Work on</div>'+weaknesses.slice(0,2).map(w=>'<div style="font-size:12px;margin-bottom:2px">'+w+'</div>').join('')+'</div>':'')+
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+calls+' calls &middot; Talk: '+talk+'% &middot; Script: '+script+'%</div>'+
+        pillarBadgesHTML(aePillars)+
       '</div>';
     }).join('')+'</div>';
   $('app').innerHTML = html;
@@ -779,10 +901,11 @@ async function renderTeamLead() {
   // Fetch additional data
   let agendaData = [], consistencyData = {}, healthData = [];
   try {
-    [agendaData, consistencyData, healthData] = await Promise.all([
+    [agendaData, consistencyData, healthData, wgllData] = await Promise.all([
       api('/api/team/coaching-agenda'),
       api('/api/team/narrative-consistency'),
       api('/api/feedback/health'),
+      api('/api/team/what-good-looks-like'),
     ]);
   } catch(e) {}
 
@@ -806,6 +929,56 @@ async function renderTeamLead() {
         '<span style="font-weight:600;cursor:pointer" onclick="loadAEDetail(\''+esc(a.name)+'\')">'+a.name+'</span>'+
         '<span style="color:var(--text2)">Recent avg: <strong style="color:'+qClr(a.recentAvg)+'">'+a.recentAvg+'</strong> vs overall: '+a.overallAvg+' ('+a.totalCalls+' calls)</span></div>';
     });
+    html += '</div>';
+  }
+
+  // What Good Looks Like
+  if (wgllData && !wgllData.error) {
+    const wg = wgllData;
+    const mH = wg.metrics?.high || {};
+    const mL = wg.metrics?.low || {};
+    const pH = wg.pillars?.high || {};
+    const pL = wg.pillars?.low || {};
+    const topPatterns = (wg.patterns || []).filter(p => p.diff > 0.2).slice(0, 6);
+
+    html += '<div class="card wgll-section"><h3 style="font-size:16px;margin-bottom:4px">What Good Looks Like</h3>';
+    html += '<div style="font-size:12px;color:var(--text2);margin-bottom:16px">Based on '+
+      (wg.totalCalls||0).toLocaleString()+' calls — comparing top 25% vs bottom 25% quality calls</div>';
+
+    // Metrics comparison
+    html += '<div class="wgll-compare">';
+    html += '<div class="wgll-col best"><h4>Best Calls ('+wg.highQualityCalls+')</h4>'+
+      '<div class="wgll-metric"><span>Talk Ratio</span><span class="wm-val">'+(mH.talkRatio||0)+'%</span></div>'+
+      '<div class="wgll-metric"><span>Questions</span><span class="wm-val">'+(mH.questionCount||0)+'/call</span></div>'+
+      '<div class="wgll-metric"><span>Script Adherence</span><span class="wm-val">'+(mH.scriptAdherence||0)+'%</span></div>'+
+    '</div>';
+    html += '<div class="wgll-col worst"><h4>Weakest Calls ('+wg.lowQualityCalls+')</h4>'+
+      '<div class="wgll-metric"><span>Talk Ratio</span><span class="wm-val">'+(mL.talkRatio||0)+'%</span></div>'+
+      '<div class="wgll-metric"><span>Questions</span><span class="wm-val">'+(mL.questionCount||0)+'/call</span></div>'+
+      '<div class="wgll-metric"><span>Script Adherence</span><span class="wm-val">'+(mL.scriptAdherence||0)+'%</span></div>'+
+    '</div>';
+    html += '</div>';
+
+    // Pillar comparison bars
+    html += '<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Pillar Scores</div>';
+    html += '<div style="display:flex;gap:8px;padding:0 0 6px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">'+
+      '<span style="width:100px"></span><span style="flex:1;text-align:center">Best Calls</span><span style="flex:1;text-align:center">Weakest Calls</span></div>';
+    html += pillarComparisonBarsHTML(pH, pL);
+    html += '</div>';
+
+    // Top differentiators
+    if (topPatterns.length) {
+      html += '<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Top Differentiators</div>';
+      topPatterns.forEach((p, i) => {
+        html += '<div class="wgll-diff">'+
+          '<span class="wd-name" style="font-weight:'+(i===0?'600':'400')+'">'+p.name+'</span>'+
+          '<span class="wd-vals">'+p.highAvg+'x/call vs '+p.lowAvg+'x</span>'+
+          (i===0?'<span class="wd-arrow">Biggest gap</span>':'')+
+        '</div>';
+      });
+      html += '</div>';
+    }
+
     html += '</div>';
   }
 
@@ -1010,10 +1183,11 @@ function generateDiagnostic(ae, calls) {
 async function loadAEDetail(name) {
   $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading '+name+'...</div>';
   try {
-    const [ae, calls, trend] = await Promise.all([
+    const [ae, calls, trend, aePillars] = await Promise.all([
       api('/api/ae/' + encodeURIComponent(name)),
       api('/api/ae/' + encodeURIComponent(name) + '/calls'),
       api('/api/ae/' + encodeURIComponent(name) + '/trend'),
+      api('/api/ae/' + encodeURIComponent(name) + '/pillars'),
     ]);
 
     await loadFeedback(calls[0]?.recording_id || '');
@@ -1036,7 +1210,9 @@ async function loadAEDetail(name) {
         '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+talk+'%</div><div style="font-size:11px;color:var(--text2)">Talk Ratio</div></div>'+
         '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+qs+'</div><div style="font-size:11px;color:var(--text2)">Questions</div></div>'+
         '<div style="text-align:center"><div style="font-size:20px;font-weight:600">'+script+'%</div><div style="font-size:11px;color:var(--text2)">Script</div></div>'+
-      '</div></div></div>';
+      '</div></div>'+
+      (aePillars && Object.keys(aePillars).length ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">Pillar Averages (last 20 calls)</div>'+pillarBadgesHTML(aePillars)+'</div>' : '')+
+    '</div>';
 
     // Diagnostic
     html += '<div class="diagnostic">'+generateDiagnostic(ae, calls)+'</div>';
@@ -1329,6 +1505,13 @@ async function loadCallDetail(rid, aeName) {
       '</div>'+
       (baseUrl?'<a href="'+baseUrl+'" target="_blank" style="font-size:12px">Open in Claap &rarr;</a>':'')+
     '</div>';
+
+    // Pillar scores
+    if (call.pillar_scores && Object.keys(call.pillar_scores).length) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Pillar Scores</h3>'+
+        pillarBarsHTML(call.pillar_scores, true)+
+      '</div>';
+    }
 
     // Smart Review (primary call analysis)
     const sr = call.smart_review || {};

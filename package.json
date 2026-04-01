@@ -12,7 +12,8 @@
     "test": "vitest run",
     "sync": "node src/sync/claap-to-supabase.ts",
     "analyze": "node src/analysis/run-analysis.ts",
-    "serve": "node src/api/server.ts"
+    "serve": "node src/api/server.ts",
+    "use-cases": "npx tsx src/use-cases/server.ts"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

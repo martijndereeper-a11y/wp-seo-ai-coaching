@@ -9,9 +9,10 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { createSupabaseClient } from '../database/supabase-client.ts';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { useCases, painPatterns, industries } from '../use-cases/data.ts';
 import { authMiddleware, requireRole } from './auth.ts';
 import { loadSettings, saveSetting, invalidateCache, getPasswords } from '../config/settings.ts';
 
@@ -992,6 +993,141 @@ app.get('/api/feedback/:recordingId', async (c) => {
   return c.json(counts);
 });
 
+// ─── What Good Looks Like (team-wide benchmarking) ────────────────────────────
+
+app.get('/api/team/what-good-looks-like', async (c) => {
+  // Fetch all calls with quality scores, patterns, metrics, and pillar scores
+  const allCalls: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page } = await supabase
+      .from('ae_call_analysis')
+      .select('call_quality_score, talk_ratio, question_count, script_adherence, patterns, pillar_scores')
+      .order('call_quality_score', { ascending: false })
+      .range(from, from + 999);
+    if (!page || page.length === 0) break;
+    allCalls.push(...page);
+    if (page.length < 1000) break;
+    from += 1000;
+  }
+
+  if (allCalls.length < 8) return c.json({ error: 'Not enough calls for comparison' }, 400);
+
+  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+  // Sort by quality score descending (already sorted from query)
+  const cutoff = Math.max(1, Math.floor(allCalls.length * 0.25));
+  const highQuality = allCalls.slice(0, cutoff);
+  const lowQuality = allCalls.slice(-cutoff);
+
+  // Pattern dimension comparison
+  const dims = ['contentEngine','marketContext','roiReframe','humor','urgency','contract','checkIn','theirBusiness','activeListening','personalStory','vsAgency','directness','opinionAsk','research','priceAnchor','assumptiveClose'];
+  const dimLabels: Record<string,string> = {contentEngine:'Product explanation',marketContext:'Market context',roiReframe:'ROI reframing',humor:'Humor',urgency:'Urgency',contract:'Close language',checkIn:'Check-ins',theirBusiness:'Their business',activeListening:'Active listening',personalStory:'Personal stories',vsAgency:'vs Agencies',directness:'Directness',opinionAsk:'Asking opinions',research:'Research shown',priceAnchor:'Price anchoring',assumptiveClose:'Assumptive close'};
+
+  const patterns = dims.map(d => {
+    const highAvg = +(avg(highQuality.map(c => ((c.patterns as Record<string,number>) || {})[d] || 0))).toFixed(1);
+    const lowAvg = +(avg(lowQuality.map(c => ((c.patterns as Record<string,number>) || {})[d] || 0))).toFixed(1);
+    return { name: dimLabels[d] || d, dim: d, highAvg, lowAvg, diff: +(highAvg - lowAvg).toFixed(1) };
+  }).sort((a, b) => b.diff - a.diff);
+
+  // Pillar score comparison
+  const pillarKeys = ['control','discovery','gapCreation','objectionHandling','advancement'];
+  const pillarHigh: Record<string, number> = {};
+  const pillarLow: Record<string, number> = {};
+  for (const key of pillarKeys) {
+    const highVals = highQuality.filter(c => c.pillar_scores && (c.pillar_scores as any)[key]).map(c => ((c.pillar_scores as any)[key] as any).score || 0);
+    const lowVals = lowQuality.filter(c => c.pillar_scores && (c.pillar_scores as any)[key]).map(c => ((c.pillar_scores as any)[key] as any).score || 0);
+    pillarHigh[key] = highVals.length ? Math.round(avg(highVals)) : 0;
+    pillarLow[key] = lowVals.length ? Math.round(avg(lowVals)) : 0;
+  }
+
+  // Metrics comparison
+  const metrics = {
+    high: {
+      talkRatio: Math.round(avg(highQuality.map(c => c.talk_ratio || 0))),
+      questionCount: Math.round(avg(highQuality.map(c => c.question_count || 0))),
+      scriptAdherence: Math.round(avg(highQuality.map(c => c.script_adherence || 0))),
+    },
+    low: {
+      talkRatio: Math.round(avg(lowQuality.map(c => c.talk_ratio || 0))),
+      questionCount: Math.round(avg(lowQuality.map(c => c.question_count || 0))),
+      scriptAdherence: Math.round(avg(lowQuality.map(c => c.script_adherence || 0))),
+    },
+  };
+
+  return c.json({
+    highQualityCalls: highQuality.length,
+    lowQualityCalls: lowQuality.length,
+    totalCalls: allCalls.length,
+    patterns,
+    pillars: { high: pillarHigh, low: pillarLow },
+    metrics,
+  });
+});
+
+// ─── AE Pillar Averages ──────────────────────────────────────────────────────
+
+app.get('/api/ae/:name/pillars', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select('pillar_scores')
+    .eq('recorder_name', name)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) return c.json({ error: error.message }, 500);
+  if (!data || data.length === 0) return c.json({});
+
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+  const pillarKeys = ['control','discovery','gapCreation','objectionHandling','advancement'];
+  const result: Record<string, { score: number; level: string }> = {};
+
+  const pillarNames: Record<string, string> = { control: 'Control', discovery: 'Discovery', gapCreation: 'Gap Creation', objectionHandling: 'Objection Handling', advancement: 'Advancement' };
+  for (const key of pillarKeys) {
+    const scores = data.filter(d => d.pillar_scores && (d.pillar_scores as any)[key]).map(d => ((d.pillar_scores as any)[key] as any).score || 0);
+    const score = avg(scores);
+    result[key] = { name: pillarNames[key], score, level: score >= 65 ? 'strong' : score >= 40 ? 'developing' : 'needs work' };
+  }
+
+  return c.json(result);
+});
+
+// ─── Team Pillar Averages (for AE cards) ─────────────────────────────────────
+
+app.get('/api/team/pillars', async (c) => {
+  // Fetch recent calls per AE with pillar scores
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select('recorder_name, pillar_scores')
+    .order('created_at', { ascending: false });
+  if (error) return c.json({ error: error.message }, 500);
+  if (!data) return c.json({});
+
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+  const pillarKeys = ['control','discovery','gapCreation','objectionHandling','advancement'];
+
+  // Group by AE, take last 20 per AE
+  const byAE = new Map<string, any[]>();
+  for (const row of data) {
+    if (!row.pillar_scores) continue;
+    if (!byAE.has(row.recorder_name)) byAE.set(row.recorder_name, []);
+    const aeCalls = byAE.get(row.recorder_name)!;
+    if (aeCalls.length < 20) aeCalls.push(row);
+  }
+
+  const result: Record<string, Record<string, { score: number; level: string }>> = {};
+  for (const [ae, rows] of byAE) {
+    result[ae] = {};
+    for (const key of pillarKeys) {
+      const scores = rows.filter(r => (r.pillar_scores as any)[key]).map(r => ((r.pillar_scores as any)[key] as any).score || 0);
+      const score = avg(scores);
+      result[ae][key] = { score, level: score >= 65 ? 'strong' : score >= 40 ? 'developing' : 'needs work' };
+    }
+  }
+
+  return c.json(result);
+});
+
 // ─── V2 Coaching Dashboard ────────────────────────────────────────────────────
 
 // Helper: normalize a company name from a call title for deal grouping
@@ -1361,7 +1497,66 @@ app.get('/api/rep/:name/coaching-brief', async (c) => {
   });
 });
 
+// ─── Use Case Finder API ─────────────────────────────────────────────────────
+
+app.get('/api/use-cases', (c) => {
+  return c.json({ cases: useCases, painPatterns, industries });
+});
+
+app.get('/api/use-cases/search', (c) => {
+  const q = (c.req.query('q') || '').toLowerCase().trim();
+  if (!q) return c.json({ results: useCases });
+
+  const terms = q.split(/\s+/);
+
+  const scored = useCases.map((uc) => {
+    const searchable = [
+      uc.company,
+      uc.industry,
+      uc.painPattern,
+      uc.headline,
+      uc.outcome,
+      ...uc.keywords,
+    ].join(' ').toLowerCase();
+
+    let score = 0;
+    for (const term of terms) {
+      if (searchable.includes(term)) score += 1;
+      // Boost exact keyword matches
+      if (uc.keywords.some((k) => k.includes(term))) score += 1;
+      // Boost company name matches
+      if (uc.company.toLowerCase().includes(term)) score += 2;
+      // Boost industry matches
+      if (uc.industry.toLowerCase().includes(term)) score += 2;
+    }
+    return { ...uc, score };
+  });
+
+  const results = scored.filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
+  return c.json({ results });
+});
+
+// Serve use case PDF files
+app.get('/use-cases/pdf/:filename', (c) => {
+  const filename = decodeURIComponent(c.req.param('filename'));
+  const pdfDir = join(__dirname, '..', '..', 'context', 'sales', 'use-cases');
+  const filePath = join(pdfDir, filename);
+  if (!existsSync(filePath)) return c.json({ error: 'PDF not found' }, 404);
+  const pdf = readFileSync(filePath);
+  return new Response(pdf, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+    },
+  });
+});
+
 // ─── Dashboard ───────────────────────────────────────────────────────────────
+
+app.get('/use-cases', (c) => {
+  const html = readFileSync(join(__dirname, '..', 'dashboard', 'use-cases.html'), 'utf-8');
+  return c.html(html);
+});
 
 app.get('/', (c) => {
   const html = readFileSync(join(__dirname, '..', 'dashboard', 'index.html'), 'utf-8');
