@@ -1565,6 +1565,13 @@ app.get('/', (c) => {
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
-const port = parseInt(process.env.PORT || '3000');
-console.log(`Coaching Dashboard running at http://localhost:${port}`);
-serve({ fetch: app.fetch, port });
+// Export for Vercel serverless
+export default app;
+export const appFetch = app.fetch;
+
+// Local dev server (only runs when executed directly, not when imported)
+if (process.argv[1] && (process.argv[1].includes('server.ts') || process.argv[1].includes('server.js'))) {
+  const port = parseInt(process.env.PORT || '3000');
+  console.log(`Coaching Dashboard running at http://localhost:${port}`);
+  serve({ fetch: app.fetch, port });
+}
