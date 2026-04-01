@@ -1,10 +1,11 @@
 {
+  "buildCommand": "",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "context/sales/use-cases/**,src/dashboard/**,data/**"
+      "includeFiles": "context/sales/use-cases/**,src/dashboard/**,data/**,coaching-guides/**"
     }
   }
 }
