@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Add Use Case</title>
+<style>
+:root{--bg:#0f1117;--bg2:#1a1d27;--bg3:#242836;--border:#2e3348;--text:#e4e6f0;--text2:#8b8fa3;--purple:#a855f7;--purple2:#7c3aed;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--blue:#3b82f6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar .logo{color:var(--purple);font-weight:800;font-size:18px}
+.topbar h1{font-size:15px;font-weight:500;color:var(--text2)}
+.topbar .nav-link{margin-left:auto;font-size:13px;color:var(--text2);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:6px;transition:all .15s}
+.topbar .nav-link:hover{border-color:var(--purple);color:var(--text)}
+
+/* Login overlay */
+.login-overlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:360px;text-align:center}
+.login-box .logo{color:var(--purple);font-weight:800;font-size:22px;margin-bottom:4px}
+.login-box h2{font-size:18px;font-weight:600;margin-bottom:4px}
+.login-box p{color:var(--text2);font-size:13px;margin-bottom:20px}
+.login-box input{width:100%;padding:12px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:15px;outline:none;text-align:center;margin-bottom:12px;transition:border-color .15s}
+.login-box input:focus{border-color:var(--purple)}
+.login-box .login-btn{width:100%;padding:12px;border-radius:10px;border:none;background:var(--purple2);color:white;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s}
+.login-box .login-btn:hover{background:var(--purple)}
+.login-box .login-btn:disabled{opacity:.5;cursor:default}
+.login-err{color:var(--red);font-size:13px;margin-top:8px;min-height:20px}
+.topbar .nav-link:hover{border-color:var(--purple);color:var(--text)}
+
+.container{max-width:720px;margin:0 auto;padding:32px 24px}
+h2{font-size:22px;font-weight:700;margin-bottom:6px}
+.subtitle{color:var(--text2);font-size:14px;margin-bottom:28px}
+
+/* Form */
+.form-section{margin-bottom:24px}
+.form-section h3{font-size:13px;font-weight:600;color:var(--purple);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:5px}
+input[type="text"],textarea,select{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;outline:none;transition:border-color .15s;font-family:inherit}
+input:focus,textarea:focus,select:focus{border-color:var(--purple)}
+textarea{resize:vertical;min-height:70px}
+select{cursor:pointer}
+.field{margin-bottom:14px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field .hint{font-size:11px;color:var(--text2);margin-top:3px}
+
+/* PDF upload */
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg2);margin-bottom:6px}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--purple);background:var(--bg3)}
+.upload-zone .uz-icon{font-size:32px;margin-bottom:8px;opacity:.5}
+.upload-zone .uz-text{font-size:14px;color:var(--text2)}
+.upload-zone .uz-text strong{color:var(--text)}
+.upload-zone.has-file{border-color:var(--green);border-style:solid}
+.upload-zone.has-file .uz-icon{color:var(--green);opacity:1}
+.file-info{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border-radius:6px;font-size:13px;margin-top:8px}
+.file-info .fi-name{flex:1;font-weight:600}
+.file-info .fi-size{color:var(--text2);font-size:12px}
+.file-info .fi-remove{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px}
+
+/* Analyze banner */
+.analyze-bar{display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;margin-top:10px;font-size:13px}
+.analyze-bar.show{display:flex}
+.analyze-bar .ab-text{flex:1;color:var(--blue)}
+.analyze-btn{padding:6px 14px;border-radius:6px;border:none;background:var(--blue);color:white;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.analyze-btn:hover{opacity:.85}
+.analyze-btn:disabled{opacity:.5;cursor:default}
+
+/* Objection checkboxes */
+.obj-grid{display:grid;gap:6px}
+.obj-check{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);cursor:pointer;transition:all .15s;font-size:13px;line-height:1.4}
+.obj-check:hover{border-color:var(--purple)}
+.obj-check.checked{border-color:var(--purple);background:rgba(124,58,237,.08)}
+.obj-check.suggested{border-color:var(--orange);background:rgba(245,158,11,.06)}
+.obj-check.suggested.checked{border-color:var(--purple);background:rgba(124,58,237,.08)}
+.obj-check input{margin-top:2px;accent-color:var(--purple)}
+.obj-check .obj-label{flex:1}
+.obj-check .obj-badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:rgba(245,158,11,.15);color:var(--orange);flex-shrink:0}
+
+/* Keywords */
+.keyword-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.kw-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);font-size:12px}
+.kw-tag button{background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:0 2px}
+.kw-tag button:hover{color:var(--red)}
+.kw-add{display:flex;gap:6px;margin-top:6px}
+.kw-add input{flex:1;padding:6px 10px;font-size:12px}
+.kw-add button{padding:6px 12px;border-radius:6px;border:none;background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;border:1px solid var(--border)}
+.kw-add button:hover{border-color:var(--purple)}
+
+/* Submit */
+.submit-row{display:flex;gap:12px;align-items:center;margin-top:28px;padding-top:20px;border-top:1px solid var(--border)}
+.submit-btn{padding:12px 28px;border-radius:10px;border:none;background:var(--purple2);color:white;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s}
+.submit-btn:hover{background:var(--purple)}
+.submit-btn:disabled{opacity:.5;cursor:default}
+.submit-status{font-size:13px;color:var(--text2)}
+.submit-status.ok{color:var(--green)}
+.submit-status.err{color:var(--red)}
+
+/* Existing cases list */
+.cases-list{margin-top:40px}
+.cases-list h3{font-size:16px;font-weight:700;margin-bottom:14px}
+.cl-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.cl-card .cl-name{font-weight:700;font-size:14px;flex:1}
+.cl-card .cl-ind{font-size:12px;color:var(--text2)}
+.cl-card .cl-type{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(168,85,247,.1);color:var(--purple)}
+.cl-card .cl-src{font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg3);color:var(--text2)}
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="logo">WP SEO AI</div>
+    <h2>Admin access</h2>
+    <p>Enter the admin password to manage use cases.</p>
+    <form id="loginForm">
+      <input type="password" id="loginPassword" placeholder="Password" autofocus>
+      <button type="submit" class="login-btn" id="loginBtn">Sign in</button>
+    </form>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <span class="logo">WP SEO AI</span>
+  <h1>Admin — Add Use Case</h1>
+  <a href="/" class="nav-link">Back to Finder</a>
+</div>
+
+<div class="container">
+  <h2>Add a new success case</h2>
+  <p class="subtitle">Upload the PDF slides and fill in the details. Objections can be auto-detected from the PDF.</p>
+
+  <form id="caseForm">
+
+    <!-- PDF Upload -->
+    <div class="form-section">
+      <h3>1. Upload slides</h3>
+      <div class="upload-zone" id="uploadZone">
+        <div class="uz-icon">PDF</div>
+        <div class="uz-text">Drop your PDF here or <strong>click to browse</strong></div>
+      </div>
+      <input type="file" id="pdfInput" accept=".pdf" hidden>
+      <div id="fileInfo" style="display:none"></div>
+      <div class="analyze-bar" id="analyzeBar">
+        <span class="ab-text">PDF uploaded — scan it for matching objections?</span>
+        <button type="button" class="analyze-btn" id="analyzeBtn">Scan PDF</button>
+      </div>
+    </div>
+
+    <!-- Company info -->
+    <div class="form-section">
+      <h3>2. Company details</h3>
+      <div class="field">
+        <label for="company">Company name *</label>
+        <input type="text" id="company" name="company" placeholder="e.g. Schulte Energie & Techniek" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="industry">Industry / sector</label>
+          <input type="text" id="industry" name="industry" placeholder="e.g. Energy / Installation" list="industryList">
+          <datalist id="industryList"></datalist>
+        </div>
+        <div class="field">
+          <label for="painPattern">Pain pattern</label>
+          <input type="text" id="painPattern" name="painPattern" placeholder="e.g. No time / capacity for SEO" list="painList">
+          <datalist id="painList"></datalist>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="businessType">Business type</label>
+          <select id="businessType" name="businessType">
+            <option value="B2B">B2B</option>
+            <option value="B2C">B2C</option>
+            <option value="Mix">Mix</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="marketPosition">Market position</label>
+          <select id="marketPosition" name="marketPosition">
+            <option value="Niche">Niche</option>
+            <option value="Mainstream">Mainstream</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="countries">Country / countries</label>
+          <input type="text" id="countries" name="countries" placeholder="e.g. Netherlands, Germany">
+          <div class="hint">Comma-separated. E.g. "Finland" or "Netherlands, International"</div>
+        </div>
+        <div class="field">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;margin-top:22px">
+            <input type="checkbox" id="trustSensitive" name="trustSensitive" style="accent-color:var(--purple)">
+            Trust-sensitive sector
+          </label>
+          <div class="hint">Regulated or trust-critical industry (medical, legal, finance).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="form-section">
+      <h3>3. Case content</h3>
+      <div class="field">
+        <label for="headline">Headline</label>
+        <input type="text" id="headline" name="headline" placeholder="e.g. From limited marketing capacity to AI-ready SEO">
+      </div>
+      <div class="field">
+        <label for="outcome">Outcome (short)</label>
+        <input type="text" id="outcome" name="outcome" placeholder="e.g. AI-ready SEO">
+      </div>
+      <div class="field">
+        <label for="result">Result (1-2 sentences)</label>
+        <textarea id="result" name="result" placeholder="e.g. Built a complete AI-ready SEO strategy from scratch despite having no dedicated marketing resources."></textarea>
+      </div>
+      <div class="field">
+        <label for="summary">Summary (2-3 sentences)</label>
+        <textarea id="summary" name="summary" rows="3" placeholder="Context about the company, their challenge, and what WP SEO AI did for them."></textarea>
+      </div>
+    </div>
+
+    <!-- Objections -->
+    <div class="form-section">
+      <h3>4. Objections addressed (optional)</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Which prospect objections does this case help overcome? Upload a PDF first to auto-detect.</p>
+      <div class="obj-grid" id="objGrid"></div>
+    </div>
+
+    <!-- Keywords -->
+    <div class="form-section">
+      <h3>5. Search keywords</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px">Extra keywords to help deal makers find this case. Industry and company name are included automatically.</p>
+      <div class="keyword-tags" id="kwTags"></div>
+      <div class="kw-add">
+        <input type="text" id="kwInput" placeholder="Add a keyword and press Enter">
+        <button type="button" id="kwAddBtn">Add</button>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-row">
+      <button type="submit" class="submit-btn" id="submitBtn">Save case</button>
+      <span class="submit-status" id="submitStatus"></span>
+    </div>
+  </form>
+
+  <!-- Existing cases -->
+  <div class="cases-list" id="casesList">
+    <h3>All cases</h3>
+    <div id="casesGrid"></div>
+  </div>
+</div>
+
+<script>
+const OBJECTIONS = [];
+let suggestedObjIds = new Set();
+let keywords = [];
+let selectedPdf = null;
+let adminToken = sessionStorage.getItem('adminToken') || '';
+
+/** Wrapper for authenticated admin API calls */
+function adminFetch(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), 'Authorization': 'Bearer ' + adminToken };
+  return fetch(url, opts);
+}
+
+// ─── Login ───────────────────────────────────────────────────────────────────
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginErr');
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; err.textContent = '';
+
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      adminToken = data.token;
+      sessionStorage.setItem('adminToken', adminToken);
+      document.getElementById('loginOverlay').classList.add('hidden');
+      init();
+    } else {
+      err.textContent = 'Wrong password.';
+    }
+  } catch {
+    err.textContent = 'Connection failed.';
+  }
+  btn.disabled = false;
+});
+
+// Check if already logged in
+async function checkAuth() {
+  if (!adminToken) return;
+  try {
+    const res = await adminFetch('/api/admin/cases');
+    if (res.ok) {
+      document.getElementById('loginOverlay').classList.add('hidden');
+      init();
+      return;
+    }
+  } catch {}
+  // Token invalid, clear it
+  adminToken = '';
+  sessionStorage.removeItem('adminToken');
+}
+checkAuth();
+
+async function init() {
+  const res = await fetch('/api/use-cases');
+  const data = await res.json();
+
+  // Populate datalists
+  const indList = document.getElementById('industryList');
+  data.industries.forEach(i => { const o = document.createElement('option'); o.value = i; indList.appendChild(o); });
+  const painList = document.getElementById('painList');
+  data.painPatterns.forEach(p => { const o = document.createElement('option'); o.value = p; painList.appendChild(o); });
+
+  // Build objection checkboxes
+  OBJECTIONS.length = 0;
+  OBJECTIONS.push(...data.objections);
+  renderObjections();
+
+  // Render existing cases
+  renderCasesList(data.cases);
+}
+
+function renderObjections() {
+  const grid = document.getElementById('objGrid');
+  grid.innerHTML = OBJECTIONS.map((obj, i) => `
+    <label class="obj-check" id="objCheck${i}">
+      <input type="checkbox" value="${i}" onchange="toggleObj(this)">
+      <span class="obj-label">${escapeHtml(obj)}</span>
+    </label>
+  `).join('');
+}
+
+function toggleObj(cb) {
+  cb.closest('.obj-check').classList.toggle('checked', cb.checked);
+}
+
+function markSuggested(objections) {
+  suggestedObjIds.clear();
+  document.querySelectorAll('.obj-check').forEach(el => el.classList.remove('suggested'));
+
+  objections.forEach(obj => {
+    const idx = OBJECTIONS.indexOf(obj);
+    if (idx < 0) return;
+    suggestedObjIds.add(idx);
+    const el = document.getElementById('objCheck' + idx);
+    if (el) {
+      el.classList.add('suggested');
+      const cb = el.querySelector('input');
+      if (!cb.checked) { cb.checked = true; el.classList.add('checked'); }
+      // Add badge
+      if (!el.querySelector('.obj-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'obj-badge';
+        badge.textContent = 'From PDF';
+        el.appendChild(badge);
+      }
+    }
+  });
+}
+
+// ─── PDF upload ──────────────────────────────────────────────────────────────
+
+const uploadZone = document.getElementById('uploadZone');
+const pdfInput = document.getElementById('pdfInput');
+
+uploadZone.addEventListener('click', () => pdfInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+pdfInput.addEventListener('change', () => { if (pdfInput.files.length) handleFile(pdfInput.files[0]); });
+
+function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Please upload a PDF file.'); return; }
+  selectedPdf = file;
+  uploadZone.classList.add('has-file');
+  uploadZone.querySelector('.uz-icon').textContent = 'OK';
+  uploadZone.querySelector('.uz-text').innerHTML = `<strong>${escapeHtml(file.name)}</strong>`;
+
+  const info = document.getElementById('fileInfo');
+  info.style.display = '';
+  info.innerHTML = `<div class="file-info">
+    <span class="fi-name">${escapeHtml(file.name)}</span>
+    <span class="fi-size">${(file.size / 1024).toFixed(0)} KB</span>
+    <button class="fi-remove" type="button" onclick="removePdf()">&times;</button>
+  </div>`;
+
+  document.getElementById('analyzeBar').classList.add('show');
+}
+
+function removePdf() {
+  selectedPdf = null;
+  pdfInput.value = '';
+  uploadZone.classList.remove('has-file');
+  uploadZone.querySelector('.uz-icon').textContent = 'PDF';
+  uploadZone.querySelector('.uz-text').innerHTML = 'Drop your PDF here or <strong>click to browse</strong>';
+  document.getElementById('fileInfo').style.display = 'none';
+  document.getElementById('analyzeBar').classList.remove('show');
+}
+
+// Analyze PDF — extract case details + objections
+document.getElementById('analyzeBtn').addEventListener('click', async () => {
+  if (!selectedPdf) return;
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Scanning with AI...';
+
+  const fd = new FormData();
+  fd.append('pdf', selectedPdf);
+
+  try {
+    const res = await adminFetch('/api/admin/analyze-pdf', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    // Auto-fill form fields from AI extraction
+    const ex = data.extracted || {};
+    if (ex._error) console.warn('AI extraction failed:', ex._error);
+    if (ex.company) document.getElementById('company').value = ex.company;
+    if (ex.industry) document.getElementById('industry').value = ex.industry;
+    if (ex.painPattern) document.getElementById('painPattern').value = ex.painPattern;
+    if (ex.headline) document.getElementById('headline').value = ex.headline;
+    if (ex.outcome) document.getElementById('outcome').value = ex.outcome;
+    if (ex.result) document.getElementById('result').value = ex.result;
+    if (ex.summary) document.getElementById('summary').value = ex.summary;
+    if (ex.businessType) document.getElementById('businessType').value = ex.businessType;
+    if (ex.marketPosition) document.getElementById('marketPosition').value = ex.marketPosition;
+    if (ex.trustSensitive) document.getElementById('trustSensitive').checked = ex.trustSensitive;
+    if (Array.isArray(ex.countries)) document.getElementById('countries').value = ex.countries.join(', ');
+
+    // Auto-fill keywords
+    if (Array.isArray(ex.keywords)) {
+      keywords = ex.keywords.map(k => k.toLowerCase().trim()).filter(Boolean);
+      renderKeywords();
+    }
+
+    // Mark suggested objections
+    markSuggested(data.suggestedObjections);
+
+    const bar = document.getElementById('analyzeBar');
+    const hasFields = Object.keys(ex).length > 0 && !ex._error;
+    const objCount = data.suggestedObjections.length;
+    if (hasFields) {
+      bar.querySelector('.ab-text').textContent = `Auto-filled from PDF. ${objCount} objection${objCount !== 1 ? 's' : ''} detected. Review and adjust before saving.`;
+    } else {
+      bar.querySelector('.ab-text').textContent = objCount > 0
+        ? `Found ${objCount} matching objection${objCount > 1 ? 's' : ''} — fill in other fields manually.`
+        : 'Could not extract details — fill in the fields manually.';
+    }
+  } catch (err) {
+    alert('Failed to analyze PDF.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Scan PDF';
+  }
+});
+
+// ─── Keywords ────────────────────────────────────────────────────────────────
+
+function renderKeywords() {
+  const el = document.getElementById('kwTags');
+  el.innerHTML = keywords.map((kw, i) =>
+    `<span class="kw-tag">${escapeHtml(kw)}<button type="button" onclick="removeKw(${i})">&times;</button></span>`
+  ).join('');
+}
+
+function addKeyword(kw) {
+  kw = kw.trim().toLowerCase();
+  if (kw && !keywords.includes(kw)) { keywords.push(kw); renderKeywords(); }
+}
+
+function removeKw(i) { keywords.splice(i, 1); renderKeywords(); }
+
+document.getElementById('kwInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addKeyword(e.target.value); e.target.value = ''; }
+});
+document.getElementById('kwAddBtn').addEventListener('click', () => {
+  const inp = document.getElementById('kwInput');
+  addKeyword(inp.value); inp.value = '';
+});
+
+// ─── Submit ──────────────────────────────────────────────────────────────────
+
+document.getElementById('caseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('submitStatus');
+  btn.disabled = true;
+  status.className = 'submit-status';
+  status.textContent = 'Saving...';
+
+  if (!selectedPdf) { status.textContent = 'Please upload a PDF first.'; status.className = 'submit-status err'; btn.disabled = false; return; }
+  if (!document.getElementById('company').value.trim()) { status.textContent = 'Company name is required.'; status.className = 'submit-status err'; btn.disabled = false; return; }
+
+  // Gather selected objections
+  const selectedObj = [];
+  document.querySelectorAll('.obj-check input:checked').forEach(cb => {
+    selectedObj.push(OBJECTIONS[parseInt(cb.value)]);
+  });
+
+  const fd = new FormData();
+  fd.append('pdf', selectedPdf);
+  fd.append('company', document.getElementById('company').value.trim());
+  fd.append('industry', document.getElementById('industry').value.trim() || 'General');
+  fd.append('painPattern', document.getElementById('painPattern').value.trim() || 'Other');
+  fd.append('businessType', document.getElementById('businessType').value);
+  fd.append('marketPosition', document.getElementById('marketPosition').value);
+  fd.append('trustSensitive', document.getElementById('trustSensitive').checked ? 'true' : 'false');
+  fd.append('headline', document.getElementById('headline').value.trim());
+  fd.append('outcome', document.getElementById('outcome').value.trim());
+  fd.append('result', document.getElementById('result').value.trim());
+  fd.append('summary', document.getElementById('summary').value.trim());
+  fd.append('objections', selectedObj.join('|||'));
+  fd.append('keywords', keywords.join(','));
+  fd.append('countries', document.getElementById('countries').value.trim());
+
+  try {
+    const res = await adminFetch('/api/admin/cases', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { status.textContent = data.error; status.className = 'submit-status err'; btn.disabled = false; return; }
+
+    status.textContent = `Saved "${data.case.company}" — it's now live in the finder.`;
+    status.className = 'submit-status ok';
+    btn.disabled = false;
+
+    // Reset form
+    document.getElementById('caseForm').reset();
+    removePdf();
+    keywords = [];
+    renderKeywords();
+    suggestedObjIds.clear();
+    renderObjections();
+
+    // Refresh cases list
+    const listRes = await fetch('/api/use-cases');
+    const listData = await listRes.json();
+    renderCasesList(listData.cases);
+  } catch (err) {
+    status.textContent = 'Failed to save. Check the console.';
+    status.className = 'submit-status err';
+    btn.disabled = false;
+  }
+});
+
+// ─── Cases list ──────────────────────────────────────────────────────────────
+
+function renderCasesList(cases) {
+  const grid = document.getElementById('casesGrid');
+  grid.innerHTML = cases.map(c => `
+    <div class="cl-card">
+      <span class="cl-name">${escapeHtml(c.company)}</span>
+      <span class="cl-ind">${escapeHtml(c.industry)}</span>
+      <span class="cl-type">${escapeHtml(c.businessType)}</span>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+init();
+</script>
+</body>
+</html>

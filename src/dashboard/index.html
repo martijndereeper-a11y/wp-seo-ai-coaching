@@ -1200,6 +1200,9 @@ async function loadAEDetail(name) {
     const strengths = ae.top_strengths || [];
     const weaknesses = ae.top_weaknesses || [];
     const allPatterns = ae.avg_patterns_all || ae.avg_patterns_won || ae.won_patterns || {};
+    const tavg = teamAvgPatterns(name);
+    const radarDims = ['contentEngine','roiReframe','urgency','contract','checkIn','activeListening','directness','research'];
+    const radarLabels = ['Content Engine','ROI Reframe','Urgency','Close Language','Check-ins','Active Listening','Directness','Research'];
 
     // Hero
     let html = '<button class="back-btn" onclick="loadTeam()">&larr; Back to Team</button>';
@@ -1285,21 +1288,10 @@ async function loadAEDetail(name) {
     } else {
       // ── LEAD MODE ──
 
-      // Performance Radar
-      const tavg = teamAvgPatterns(name);
-      const radarDims = ['contentEngine','roiReframe','urgency','contract','checkIn','activeListening','directness','research'];
-      const radarLabels = ['Content Engine','ROI Reframe','Urgency','Close Language','Check-ins','Active Listening','Directness','Research'];
+      // Performance Radar — full width for visibility
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Performance Radar: AE vs Team Average</h3><div style="max-width:500px;margin:0 auto"><div class="chart-container" style="height:350px"><canvas id="chart-radar"></canvas></div></div></div>';
 
-      html += '<div class="grid-2">';
-      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Performance Radar: AE vs Team</h3><div class="chart-container"><canvas id="chart-radar"></canvas></div></div>';
-
-      // Quality Score Breakdown
-      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
-        qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: ae.prospect_engagement || {}, highlights: [] })+
-      '</div>';
-      html += '</div>';
-
-      // Two progression charts
+      // Progression charts
       if (trend.length >= 2) {
         html += '<div class="grid-2">';
         html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality & Script Trend</h3><div class="chart-container"><canvas id="chart-trend-quality"></canvas></div></div>';

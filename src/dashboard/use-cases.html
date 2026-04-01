@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Use Case Finder</title>
+<style>
+:root{--bg:#0f1117;--bg2:#1a1d27;--bg3:#242836;--border:#2e3348;--text:#e4e6f0;--text2:#8b8fa3;--purple:#a855f7;--purple2:#7c3aed;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--blue:#3b82f6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+/* Topbar */
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar .logo{color:var(--purple);font-weight:800;font-size:18px}
+.topbar h1{font-size:15px;font-weight:500;color:var(--text2)}
+.topbar .nav-link{margin-left:auto;font-size:13px;color:var(--text2);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:6px;transition:all .15s}
+.topbar .nav-link:hover{border-color:var(--purple);color:var(--text)}
+
+/* Layout */
+.container{max-width:960px;margin:0 auto;padding:32px 24px;flex:1;width:100%}
+
+/* Hero */
+.hero{text-align:center;margin-bottom:32px}
+.hero h2{font-size:26px;font-weight:700;margin-bottom:8px}
+.hero p{color:var(--text2);font-size:15px;max-width:520px;margin:0 auto}
+
+/* Stats bar */
+.stats{display:flex;gap:16px;justify-content:center;margin-bottom:28px;flex-wrap:wrap}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 20px;text-align:center;min-width:100px}
+.stat .num{font-size:24px;font-weight:700;color:var(--purple)}
+.stat .lbl{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* Search */
+.search-wrap{position:relative;margin-bottom:24px}
+.search-wrap input{width:100%;padding:14px 18px 14px 46px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:15px;outline:none;transition:border-color .15s}
+.search-wrap input:focus{border-color:var(--purple)}
+.search-wrap input::placeholder{color:var(--text2)}
+.search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--text2);pointer-events:none}
+
+/* Filter sections — collapsible */
+.filter-section{margin-bottom:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.filter-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none;transition:background .15s}
+.filter-header:hover{background:var(--bg3)}
+.filter-label{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:0}
+.filter-header .chevron{color:var(--text2);transition:transform .2s;flex-shrink:0}
+.filter-header.open .chevron{transform:rotate(180deg)}
+.filter-body{max-height:0;overflow:hidden;transition:max-height .25s ease;padding:0 16px}
+.filter-body.open{max-height:600px;padding:0 16px 14px}
+.filters{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{border-color:var(--purple);color:var(--text)}
+.chip.active{background:var(--purple2);border-color:var(--purple2);color:white}
+.chip .count{background:rgba(255,255,255,.12);padding:1px 6px;border-radius:10px;font-size:10px}
+.chip.active .count{background:rgba(255,255,255,.2)}
+
+/* Objection tiles */
+.objection-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.obj-tile{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;transition:all .15s;font-size:13px;line-height:1.4;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.obj-tile:hover{border-color:var(--purple);color:var(--text)}
+.obj-tile.active{background:var(--purple2);border-color:var(--purple2);color:white}
+.obj-tile .obj-count{background:rgba(255,255,255,.1);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;flex-shrink:0}
+.obj-tile.active .obj-count{background:rgba(255,255,255,.2)}
+
+/* Quick match */
+.quick-match{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:28px}
+.quick-match h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text2)}
+.quick-match-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+.quick-btn{padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4}
+.quick-btn:hover{border-color:var(--purple);background:var(--bg2)}
+.quick-btn .label{font-size:11px;color:var(--text2);display:block;margin-bottom:2px}
+
+/* Active filter banner */
+.active-filter{display:none;align-items:center;gap:10px;padding:10px 16px;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);border-radius:10px;margin-bottom:16px;font-size:13px}
+.active-filter.show{display:flex}
+.active-filter .af-text{flex:1;color:var(--text)}
+.active-filter .af-clear{background:none;border:1px solid var(--border);color:var(--text2);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;transition:all .15s}
+.active-filter .af-clear:hover{border-color:var(--purple);color:var(--text)}
+
+/* Results */
+.results-header{font-size:13px;color:var(--text2);margin-bottom:12px}
+.case-grid{display:grid;gap:14px}
+
+.case-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;transition:all .2s}
+.case-card:hover{border-color:var(--purple);transform:translateY(-1px)}
+.case-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px}
+.case-company{font-size:18px;font-weight:700}
+.case-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.case-meta .meta-pill{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.meta-pill.ind{background:rgba(59,130,246,.1);color:var(--blue)}
+.meta-pill.btype{background:rgba(168,85,247,.1);color:var(--purple)}
+.meta-pill.mpos{background:rgba(245,158,11,.1);color:var(--orange)}
+.meta-pill.trust{background:rgba(239,68,68,.1);color:var(--red)}
+.meta-pill.country{background:rgba(34,197,94,.1);color:var(--green)}
+.case-summary{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px}
+.case-result{font-size:13px;color:var(--text);line-height:1.5;margin-bottom:12px;padding:8px 12px;background:rgba(34,197,94,.06);border-left:3px solid var(--green);border-radius:0 6px 6px 0}
+.case-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.case-tag{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600}
+.case-tag.pain{background:rgba(168,85,247,.12);color:var(--purple)}
+.case-tag.outcome{background:rgba(34,197,94,.12);color:var(--green)}
+.case-tag.objection{background:rgba(245,158,11,.08);color:var(--orange);font-weight:500;font-size:10px}
+.case-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pdf-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;transition:all .15s}
+.pdf-btn svg{width:16px;height:16px}
+.pdf-btn.view{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.pdf-btn.view:hover{border-color:var(--purple);color:var(--purple)}
+.pdf-btn.download{background:var(--purple2);color:white;border:1px solid transparent}
+.pdf-btn.download:hover{background:var(--purple)}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty .icon{font-size:48px;margin-bottom:16px;opacity:.5}
+.empty h3{font-size:18px;color:var(--text);margin-bottom:8px}
+.empty p{font-size:14px;max-width:400px;margin:0 auto}
+
+/* ─── Chat widget ───────────────────────────────────────────────────────── */
+.chat-toggle{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--purple2);border:none;color:white;cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,.4);transition:all .2s;z-index:200;display:flex;align-items:center;justify-content:center}
+.chat-toggle:hover{background:var(--purple);transform:scale(1.05)}
+.chat-toggle svg{width:26px;height:26px}
+.chat-toggle.open svg.icon-chat{display:none}
+.chat-toggle:not(.open) svg.icon-close{display:none}
+
+.chat-panel{position:fixed;bottom:92px;right:24px;width:400px;height:520px;background:var(--bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.5);z-index:200;display:none;flex-direction:column;overflow:hidden}
+.chat-panel.open{display:flex}
+
+.chat-header{padding:14px 18px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.chat-header .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.chat-header span{font-size:14px;font-weight:600}
+.chat-header .sub{font-size:11px;color:var(--text2);margin-left:auto}
+
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.chat-messages::-webkit-scrollbar{width:5px}
+.chat-messages::-webkit-scrollbar-track{background:transparent}
+.chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+.chat-msg{max-width:88%;animation:chatFadeIn .2s ease}
+@keyframes chatFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.chat-msg.user{align-self:flex-end}
+.chat-msg.bot{align-self:flex-start}
+.chat-bubble{padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55}
+.chat-msg.user .chat-bubble{background:var(--purple2);color:white;border-bottom-right-radius:4px}
+.chat-msg.bot .chat-bubble{background:var(--bg2);border:1px solid var(--border);border-bottom-left-radius:4px}
+
+.chat-case{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:8px;transition:border-color .15s}
+.chat-case:hover{border-color:var(--purple)}
+.chat-case .cc-name{font-size:13px;font-weight:700}
+.chat-case .cc-meta{font-size:10px;color:var(--text2);margin-left:4px}
+.chat-case .cc-result{font-size:11px;color:var(--green);margin:4px 0 6px;line-height:1.4}
+.chat-case .cc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.chat-case .cc-tag{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600}
+.chat-case .cc-tag.pain{background:rgba(168,85,247,.12);color:var(--purple)}
+.chat-case .cc-tag.btype{background:rgba(59,130,246,.1);color:var(--blue)}
+.chat-case .cc-dl{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:5px;background:var(--purple2);color:white;text-decoration:none;font-size:11px;font-weight:600;transition:background .15s}
+.chat-case .cc-dl:hover{background:var(--purple)}
+.chat-case .cc-dl svg{width:12px;height:12px}
+
+.chat-suggestions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chat-suggest{padding:5px 10px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:11px;cursor:pointer;transition:all .15s}
+.chat-suggest:hover{border-color:var(--purple);color:var(--text)}
+
+.chat-input-bar{padding:12px;border-top:1px solid var(--border);background:var(--bg2);flex-shrink:0;display:flex;gap:8px}
+.chat-input-bar input{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
+.chat-input-bar input:focus{border-color:var(--purple)}
+.chat-input-bar input::placeholder{color:var(--text2)}
+.chat-send{padding:10px 14px;border-radius:10px;border:none;background:var(--purple2);color:white;cursor:pointer;transition:background .15s;display:flex;align-items:center}
+.chat-send:hover{background:var(--purple)}
+.chat-send svg{width:16px;height:16px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">WP SEO AI</span>
+  <h1>Use Case Finder</h1>
+  <a href="/admin" class="nav-link">Admin</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <h2>Find the right success story</h2>
+    <p>Search by industry, pain point, or describe your prospect's situation to find the best matching use case.</p>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="search-wrap">
+    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search" placeholder="e.g. &quot;energy&quot;, &quot;B2B niche&quot;, &quot;agency not delivering&quot;, &quot;ChatGPT leads&quot;..." autofocus>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-header" id="filterToggle">
+      <div class="filter-label">Sector &amp; Pain Pattern</div>
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="filter-body" id="filterBody">
+      <div class="filters" id="filters"></div>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-header" id="objToggle">
+      <div class="filter-label">Prospect objections</div>
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="filter-body" id="objBody">
+      <div class="objection-grid" id="objections"></div>
+    </div>
+  </div>
+
+  <div class="quick-match" id="quickMatch">
+    <h3>Quick match — what does your prospect say?</h3>
+    <div class="quick-match-grid" id="quickGrid"></div>
+  </div>
+
+  <div class="active-filter" id="activeFilter">
+    <span class="af-text" id="afText"></span>
+    <button class="af-clear" id="afClear">Clear filter</button>
+  </div>
+
+  <div class="results-header" id="resultsHeader"></div>
+  <div class="case-grid" id="results"></div>
+</div>
+
+<!-- Chat widget -->
+<button class="chat-toggle" id="chatToggle" title="Ask about use cases">
+  <svg class="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <div class="dot"></div>
+    <span>Use Case Assistant</span>
+    <span class="sub">Ask me anything</span>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg bot">
+      <div class="chat-bubble">
+        Hey! Describe your prospect's situation and I'll find the best matching success cases.
+        <div class="chat-suggestions" id="chatSuggestions">
+          <button class="chat-suggest" data-q="B2B niche company, thinks online marketing won't work for them">B2B niche sceptic</button>
+          <button class="chat-suggest" data-q="We don't have time for SEO">No time for SEO</button>
+          <button class="chat-suggest" data-q="Our agency isn't delivering">Bad agency</button>
+          <button class="chat-suggest" data-q="We want to appear in ChatGPT results">AI search</button>
+          <button class="chat-suggest" data-q="We spend too much on Google Ads">Too much on ads</button>
+          <button class="chat-suggest" data-q="Energy installation company relying on word of mouth">Energy sector</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="chat-input-bar">
+    <input type="text" id="chatInput" placeholder="Describe the prospect's situation...">
+    <button class="chat-send" id="chatSend">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+const quickMatches = [
+  { label: 'Prospect says:', text: '"We don\'t have time for SEO"', query: 'no time capacity' },
+  { label: 'Prospect says:', text: '"Our agency isn\'t delivering"', query: 'agency underperforming' },
+  { label: 'Prospect says:', text: '"What about AI search / ChatGPT?"', query: 'ai llm chatgpt' },
+  { label: 'Prospect says:', text: '"We rely on Google Ads"', query: 'google ads sea paid' },
+  { label: 'Prospect says:', text: '"We\'re expanding internationally"', query: 'international global expand' },
+  { label: 'Prospect says:', text: '"We need to do more with less"', query: 'efficiency manual' },
+  { label: 'Prospect says:', text: '"We lost traffic / rankings dropped"', query: 'traffic drop migration' },
+  { label: 'Prospect says:', text: '"Word of mouth isn\'t enough"', query: 'word of mouth referral' },
+];
+
+let allCases = [];
+let activePain = null;
+let activeIndustry = null;
+let activeObjection = null;
+
+const svgPdf = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
+const svgDown = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function init() {
+  const res = await fetch('/api/use-cases');
+  const data = await res.json();
+  allCases = data.cases;
+  renderStats(data);
+  renderFilters(data);
+  renderObjections(data);
+  renderQuickMatch();
+  renderResults(allCases);
+}
+
+function renderStats(data) {
+  const el = document.getElementById('stats');
+  const uniqueIndustries = data.industries.filter(i => i !== 'General').length;
+  const b2bCount = data.cases.filter(c => c.businessType === 'B2B').length;
+  el.innerHTML = `
+    <div class="stat"><div class="num">${data.cases.length}</div><div class="lbl">Success Cases</div></div>
+    <div class="stat"><div class="num">${data.painPatterns.length}</div><div class="lbl">Pain Patterns</div></div>
+    <div class="stat"><div class="num">${uniqueIndustries}</div><div class="lbl">Industries</div></div>
+    <div class="stat"><div class="num">${b2bCount}</div><div class="lbl">B2B Cases</div></div>
+  `;
+}
+
+function renderFilters(data) {
+  const el = document.getElementById('filters');
+  // Pain pattern chips with counts
+  const painCounts = {};
+  data.painPatterns.forEach(p => { painCounts[p] = data.cases.filter(c => c.painPattern === p).length; });
+  const chips = data.painPatterns.map(p =>
+    `<button class="chip pain-chip" data-pain="${p}">${p}<span class="count">${painCounts[p]}</span></button>`
+  ).join('');
+  // Industry chips with counts
+  const indCounts = {};
+  data.industries.filter(i => i !== 'General').sort().forEach(i => { indCounts[i] = data.cases.filter(c => c.industry === i).length; });
+  const industryChips = Object.keys(indCounts).map(i =>
+    `<button class="chip ind-chip" data-industry="${i}">${i}<span class="count">${indCounts[i]}</span></button>`
+  ).join('');
+  el.innerHTML = chips + industryChips;
+
+  el.querySelectorAll('.pain-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activePain = activePain === btn.dataset.pain ? null : btn.dataset.pain;
+      activeIndustry = null; activeObjection = null;
+      updateAll();
+    });
+  });
+  el.querySelectorAll('.ind-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeIndustry = activeIndustry === btn.dataset.industry ? null : btn.dataset.industry;
+      activePain = null; activeObjection = null;
+      updateAll();
+    });
+  });
+}
+
+function renderObjections(data) {
+  const el = document.getElementById('objections');
+  el.innerHTML = data.objectionCounts.map(oc =>
+    `<button class="obj-tile" data-obj="${escapeHtml(oc.objection)}">${escapeHtml(oc.objection)}<span class="obj-count">${oc.count}</span></button>`
+  ).join('');
+  el.querySelectorAll('.obj-tile').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeObjection = activeObjection === btn.dataset.obj ? null : btn.dataset.obj;
+      activePain = null; activeIndustry = null;
+      updateAll();
+    });
+  });
+}
+
+function updateAll() {
+  document.getElementById('search').value = '';
+  document.querySelectorAll('.pain-chip').forEach(b => b.classList.toggle('active', b.dataset.pain === activePain));
+  document.querySelectorAll('.ind-chip').forEach(b => b.classList.toggle('active', b.dataset.industry === activeIndustry));
+  document.querySelectorAll('.obj-tile').forEach(b => b.classList.toggle('active', b.dataset.obj === activeObjection));
+
+  const hasFilter = activePain || activeIndustry || activeObjection;
+  const af = document.getElementById('activeFilter');
+  const afText = document.getElementById('afText');
+  if (hasFilter) {
+    af.classList.add('show');
+    if (activePain) afText.textContent = `Filtering by pain: ${activePain}`;
+    else if (activeIndustry) afText.textContent = `Filtering by sector: ${activeIndustry}`;
+    else if (activeObjection) afText.textContent = `Filtering by objection: ${activeObjection}`;
+  } else {
+    af.classList.remove('show');
+  }
+
+  document.getElementById('quickMatch').style.display = hasFilter ? 'none' : '';
+
+  let filtered = allCases;
+  if (activePain) filtered = filtered.filter(c => c.painPattern === activePain);
+  if (activeIndustry) filtered = filtered.filter(c => c.industry === activeIndustry);
+  if (activeObjection) filtered = filtered.filter(c => c.objections.includes(activeObjection));
+  renderResults(filtered);
+}
+
+function renderQuickMatch() {
+  const grid = document.getElementById('quickGrid');
+  grid.innerHTML = quickMatches.map(qm =>
+    `<button class="quick-btn" data-query="${qm.query}"><span class="label">${qm.label}</span>${qm.text}</button>`
+  ).join('');
+  grid.querySelectorAll('.quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('search').value = btn.dataset.query;
+      activePain = null; activeIndustry = null; activeObjection = null;
+      updateAll();
+      doSearch(btn.dataset.query);
+    });
+  });
+}
+
+function renderResults(cases) {
+  const el = document.getElementById('results');
+  const header = document.getElementById('resultsHeader');
+
+  if (cases.length === 0) {
+    header.textContent = '';
+    el.innerHTML = `<div class="empty"><div class="icon">?</div><h3>No matching cases found</h3><p>Try different keywords or clear your filters.</p></div>`;
+    return;
+  }
+
+  const q = document.getElementById('search').value.trim();
+  const hasFilter = activePain || activeIndustry || activeObjection;
+  if (q || hasFilter) {
+    header.textContent = `${cases.length} matching case${cases.length === 1 ? '' : 's'}`;
+  } else {
+    header.textContent = `All ${cases.length} success cases`;
+  }
+
+  el.innerHTML = cases.map(c => {
+    const pdfUrl = `/use-cases/pdf/${encodeURIComponent(c.pdfFile)}`;
+    return `
+    <div class="case-card">
+      <div class="case-top">
+        <div class="case-company">${escapeHtml(c.company)}</div>
+      </div>
+      <div class="case-meta">
+        <span class="meta-pill ind">${escapeHtml(c.industry)}</span>
+        <span class="meta-pill btype">${escapeHtml(c.businessType)}</span>
+        <span class="meta-pill mpos">${escapeHtml(c.marketPosition)}</span>
+        ${c.trustSensitive ? '<span class="meta-pill trust">Trust-sensitive</span>' : ''}
+        ${(c.countries||[]).map(co => `<span class="meta-pill country">${escapeHtml(co)}</span>`).join('')}
+      </div>
+      <div class="case-summary">${escapeHtml(c.summary)}</div>
+      <div class="case-result">${escapeHtml(c.result)}</div>
+      <div class="case-tags">
+        <span class="case-tag pain">${escapeHtml(c.painPattern)}</span>
+        <span class="case-tag outcome">${escapeHtml(c.outcome)}</span>
+        ${c.objections.map(o => `<span class="case-tag objection">${escapeHtml(o)}</span>`).join('')}
+      </div>
+      <div class="case-actions">
+        <a class="pdf-btn view" href="${pdfUrl}" target="_blank">${svgPdf} View PDF</a>
+        <a class="pdf-btn download" href="${pdfUrl}?download=1" download>${svgDown} Download slides</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function doSearch(query) {
+  if (!query) { renderResults(allCases); document.getElementById('quickMatch').style.display = ''; return; }
+  document.getElementById('quickMatch').style.display = 'none';
+  const res = await fetch(`/api/use-cases/search?q=${encodeURIComponent(query)}`);
+  const data = await res.json();
+  renderResults(data.results);
+}
+
+// Clear filter button
+document.getElementById('afClear').addEventListener('click', () => {
+  activePain = null; activeIndustry = null; activeObjection = null;
+  updateAll();
+});
+
+// Debounced search
+let timer;
+document.getElementById('search').addEventListener('input', (e) => {
+  activePain = null; activeIndustry = null; activeObjection = null;
+  // Clear chip/tile states without touching the search input
+  document.querySelectorAll('.pain-chip').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.ind-chip').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.obj-tile').forEach(b => b.classList.remove('active'));
+  document.getElementById('activeFilter').classList.remove('show');
+  document.getElementById('quickMatch').style.display = 'none';
+  clearTimeout(timer);
+  timer = setTimeout(() => doSearch(e.target.value.trim()), 200);
+});
+
+// ─── Chat widget logic ──────────────────────────────────────────────────────
+
+function buildChatCard(c) {
+  const pdfUrl = `/use-cases/pdf/${encodeURIComponent(c.pdfFile)}`;
+  return `<div class="chat-case">
+    <span class="cc-name">${escapeHtml(c.company)}</span>
+    <span class="cc-meta">${escapeHtml(c.industry)} &middot; ${escapeHtml(c.businessType)} &middot; ${(c.countries||[]).join(', ')}</span>
+    <div class="cc-result">${escapeHtml(c.result)}</div>
+    <div class="cc-tags">
+      <span class="cc-tag pain">${escapeHtml(c.painPattern)}</span>
+      <span class="cc-tag btype">${escapeHtml(c.businessType)}</span>
+    </div>
+    <a class="cc-dl" href="${pdfUrl}?download=1" download>${svgDown} Download slides</a>
+  </div>`;
+}
+
+function chatScroll() {
+  const el = document.getElementById('chatMessages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function addChatUser(text) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg user';
+  div.innerHTML = `<div class="chat-bubble">${escapeHtml(text)}</div>`;
+  msgs.appendChild(div);
+  chatScroll();
+}
+
+function addChatBot(html) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg bot';
+  div.innerHTML = `<div class="chat-bubble">${html}</div>`;
+  msgs.appendChild(div);
+  chatScroll();
+}
+
+async function handleChat(text) {
+  text = text.trim();
+  if (!text) return;
+  addChatUser(text);
+  document.getElementById('chatInput').value = '';
+
+  const res = await fetch(`/api/use-cases/search?q=${encodeURIComponent(text)}`);
+  const data = await res.json();
+  const results = data.results;
+
+  if (results.length === 0) {
+    addChatBot("I couldn't find a matching case. Try describing the pain point differently — e.g. <em>\"B2B niche, doubts online marketing\"</em>, <em>\"agency not delivering\"</em>, or mention an industry.");
+    return;
+  }
+
+  const top = results.slice(0, 3);
+  const count = results.length;
+  let intro;
+  if (count === 1) intro = 'I found <strong>1 case</strong> that matches:';
+  else if (count <= 3) intro = `I found <strong>${count} cases</strong> that match:`;
+  else intro = `I found <strong>${count} cases</strong> — here are the top ${top.length}:`;
+
+  const cards = top.map(buildChatCard).join('');
+  let extra = '';
+  if (count > 3) extra = `<div style="margin-top:8px;font-size:11px;color:var(--text2)">+ ${count - 3} more — try narrowing by industry or objection.</div>`;
+
+  addChatBot(`${intro}${cards}${extra}`);
+}
+
+// Toggle panel
+document.getElementById('chatToggle').addEventListener('click', () => {
+  const panel = document.getElementById('chatPanel');
+  const btn = document.getElementById('chatToggle');
+  const isOpen = panel.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+  if (isOpen) document.getElementById('chatInput').focus();
+});
+
+document.getElementById('chatSend').addEventListener('click', () => handleChat(document.getElementById('chatInput').value));
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChat(e.target.value); }
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('chat-suggest')) handleChat(e.target.dataset.q);
+});
+
+// ─── Collapsible filter sections ─────────────────────────────────────────────
+
+function setupToggle(headerId, bodyId) {
+  const header = document.getElementById(headerId);
+  const body = document.getElementById(bodyId);
+  header.addEventListener('click', () => {
+    header.classList.toggle('open');
+    body.classList.toggle('open');
+  });
+}
+setupToggle('filterToggle', 'filterBody');
+setupToggle('objToggle', 'objBody');
+
+init();
+</script>
+</body>
+</html>
