@@ -1089,6 +1089,32 @@ async function renderTeamLead() {
   }
   html += '</div>'; // end grid-2
 
+  // Coaching Interventions
+  html += '<div class="card"><h3 style="font-size:14px;margin-bottom:4px">Coaching Interventions</h3><div style="font-size:11px;color:var(--text2);margin-bottom:12px">Track coaching actions and measure before/after impact.</div>';
+  html += '<div id="interventions-list" style="margin-bottom:12px"><div style="color:var(--text2);font-size:12px">Loading interventions...</div></div>';
+  html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">'+
+    '<div style="font-size:12px;font-weight:600;margin-bottom:8px">New Intervention</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      '<select id="int-ae" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">'+
+        teamData.map(ae => '<option value="'+esc(ae.recorder_name)+'">'+ae.recorder_name+'</option>').join('')+
+      '</select>'+
+      '<select id="int-pillar" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">'+
+        '<option value="">Focus Pillar</option><option value="control">Control</option><option value="discovery">Discovery</option><option value="gapCreation">Gap Creation</option><option value="objectionHandling">Objection Handling</option><option value="advancement">Advancement</option>'+
+      '</select>'+
+      '<input id="int-focus" placeholder="Focus area (e.g. Talk Ratio)" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;flex:1;min-width:150px">'+
+      '<input id="int-desc" placeholder="Coaching description" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;flex:2;min-width:200px">'+
+      '<button onclick="createIntervention()" style="padding:6px 14px;background:var(--purple2);color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Add</button>'+
+      '<button onclick="measureInterventions()" style="padding:6px 14px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;font-size:12px;cursor:pointer">Measure All</button>'+
+    '</div>'+
+  '</div>';
+  html += '</div>';
+
+  // Calibration Study
+  html += '<div class="card" id="calibration-card"><h3 style="font-size:14px;margin-bottom:4px">Threshold Calibration</h3><div style="font-size:11px;color:var(--text2);margin-bottom:12px">Do our scoring thresholds actually predict wins? Click to load empirical data.</div>'+
+    '<button id="cal-btn" onclick="loadCalibration()" style="padding:8px 16px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Run Calibration Study</button>'+
+    '<div id="calibration-result"></div>'+
+  '</div>';
+
   // Team Leaderboard
   html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Team Leaderboard</h3>';
   html += '<table class="lb-table"><thead><tr><th>#</th><th>AE</th><th>Quality</th><th>Calls</th><th>Talk Ratio</th><th>Questions</th><th>Script</th></tr></thead><tbody>';
@@ -1124,6 +1150,143 @@ async function renderTeamLead() {
       });
     }
   }, 50);
+
+  // Load interventions async
+  loadInterventionsList();
+}
+
+// ════════════════════════════════════════════════════════
+//  COACHING INTERVENTIONS
+// ════════════════════════════════════════════════════════
+
+async function loadInterventionsList() {
+  try {
+    const data = await api('/api/interventions');
+    const el = document.getElementById('interventions-list');
+    if (!el) return;
+    if (!data || data.length === 0) { el.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:8px 0">No active interventions. Create one below.</div>'; return; }
+    const statusClr = { active: 'var(--blue)', measured: 'var(--orange)', effective: 'var(--green)', ineffective: 'var(--red)', dismissed: 'var(--text2)' };
+    el.innerHTML = data.map(i => {
+      const delta = i.followup_quality != null && i.baseline_quality != null ? i.followup_quality - i.baseline_quality : null;
+      const metricDelta = i.followup_metric != null && i.baseline_metric != null ? i.followup_metric - i.baseline_metric : null;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(46,51,72,.3);font-size:12px">'+
+        '<span style="color:'+((statusClr[i.status])||'var(--text2)')+';font-weight:600;min-width:70px">'+i.status+'</span>'+
+        '<span style="font-weight:600;min-width:100px">'+i.recorder_name+'</span>'+
+        '<span style="flex:1;color:var(--text2)">'+i.focus_area+': '+i.description.slice(0,80)+'</span>'+
+        (delta != null ? '<span style="color:'+(delta>0?'var(--green)':'var(--red)')+';font-weight:600">'+(delta>0?'+':'')+delta+' quality</span>' : '')+
+        (metricDelta != null && i.focus_area.toLowerCase().includes('question') ? '<span style="color:'+(metricDelta>0?'var(--green)':'var(--red)')+';font-weight:600">'+(metricDelta>0?'+':'')+metricDelta+' qs</span>' : '')+
+        (i.calls_since > 0 ? '<span style="color:var(--text2)">'+i.calls_since+' calls</span>' : '')+
+        (i.status === 'active' ? '<button onclick="dismissIntervention(\''+i.id+'\')" style="padding:2px 8px;background:none;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer;font-size:10px">dismiss</button>' : '')+
+      '</div>';
+    }).join('');
+  } catch(e) {
+    const el = document.getElementById('interventions-list');
+    if (el) el.innerHTML = '<div style="color:var(--text2);font-size:12px">Could not load interventions.</div>';
+  }
+}
+
+async function createIntervention() {
+  const ae = document.getElementById('int-ae').value;
+  const pillar = document.getElementById('int-pillar').value;
+  const focus = document.getElementById('int-focus').value;
+  const desc = document.getElementById('int-desc').value;
+  if (!focus || !desc) { alert('Fill in focus area and description'); return; }
+  try {
+    await api('/api/interventions', { method: 'POST', body: JSON.stringify({ recorderName: ae, focusPillar: pillar || undefined, focusArea: focus, description: desc }) });
+    document.getElementById('int-focus').value = '';
+    document.getElementById('int-desc').value = '';
+    loadInterventionsList();
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
+async function measureInterventions() {
+  const btn = event.target;
+  btn.textContent = 'Measuring...';
+  btn.disabled = true;
+  try {
+    const result = await api('/api/interventions/measure', { method: 'POST' });
+    btn.textContent = 'Measured ' + (result.measured || 0) + ' interventions';
+    loadInterventionsList();
+    setTimeout(() => { btn.textContent = 'Measure All'; btn.disabled = false; }, 3000);
+  } catch(e) { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = 'Measure All'; btn.disabled = false; }, 2000); }
+}
+
+async function dismissIntervention(id) {
+  try {
+    await api('/api/interventions/' + id + '/dismiss', { method: 'PUT' });
+    loadInterventionsList();
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════════════════
+//  CALIBRATION STUDY
+// ════════════════════════════════════════════════════════
+
+async function loadCalibration() {
+  const btn = document.getElementById('cal-btn');
+  btn.textContent = 'Running...';
+  btn.disabled = true;
+  try {
+    const d = await api('/api/calibration');
+    const el = document.getElementById('calibration-result');
+    if (!el) return;
+
+    let html = '<div style="margin-top:16px">';
+
+    // Won vs Lost summary
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">'+
+      '<div style="padding:12px;background:rgba(34,197,94,.08);border-radius:8px;border:1px solid rgba(34,197,94,.2)">'+
+        '<div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:6px">Won Calls ('+d.wonCalls+')</div>'+
+        '<div style="font-size:12px;color:var(--text2)">Quality: <b>'+d.wonVsLost.won.avgQuality+'</b> &middot; Talk: <b>'+d.wonVsLost.won.avgTalkRatio+'%</b> &middot; Questions: <b>'+d.wonVsLost.won.avgQuestions+'</b> &middot; Script: <b>'+d.wonVsLost.won.avgScript+'%</b></div>'+
+      '</div>'+
+      '<div style="padding:12px;background:rgba(239,68,68,.08);border-radius:8px;border:1px solid rgba(239,68,68,.2)">'+
+        '<div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">Lost Calls ('+d.lostCalls+')</div>'+
+        '<div style="font-size:12px;color:var(--text2)">Quality: <b>'+d.wonVsLost.lost.avgQuality+'</b> &middot; Talk: <b>'+d.wonVsLost.lost.avgTalkRatio+'%</b> &middot; Questions: <b>'+d.wonVsLost.lost.avgQuestions+'</b> &middot; Script: <b>'+d.wonVsLost.lost.avgScript+'%</b></div>'+
+      '</div>'+
+    '</div>';
+
+    // Bucket tables
+    function bucketTable(title, buckets, recommend) {
+      return '<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">'+title+' <span style="font-size:11px;font-weight:400;color:var(--purple)">&rarr; best: '+recommend+'</span></div>'+
+        '<div style="display:flex;gap:4px">'+buckets.map(b => {
+          const isTop = b.label === recommend;
+          return '<div style="flex:1;padding:8px;background:'+(isTop?'rgba(168,85,247,.1)':'var(--bg3)')+';border-radius:6px;text-align:center;border:1px solid '+(isTop?'var(--purple)':'var(--border)')+'">'+
+            '<div style="font-size:11px;color:var(--text2)">'+b.label+'</div>'+
+            '<div style="font-size:18px;font-weight:700;color:'+(b.winRate>50?'var(--green)':b.winRate>30?'var(--orange)':'var(--red)')+'">'+b.winRate+'%</div>'+
+            '<div style="font-size:10px;color:var(--text2)">win rate ('+b.count+' calls)</div>'+
+          '</div>';
+        }).join('')+'</div></div>';
+    }
+
+    html += bucketTable('Questions', d.questionBuckets, d.thresholdRecommendations.questionTarget);
+    html += bucketTable('Talk Ratio', d.talkBuckets, d.thresholdRecommendations.talkRatioSweet);
+    html += bucketTable('Script Adherence', d.scriptBuckets, d.thresholdRecommendations.scriptMinimum);
+    html += bucketTable('Quality Score', d.qualityBuckets, d.thresholdRecommendations.qualityThreshold);
+
+    // Pillar calibration
+    html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px">Pillar Score vs Win Rate</div>';
+    html += '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:var(--text2);border-bottom:1px solid var(--border)">'+
+      '<th style="text-align:left;padding:6px 8px">Pillar</th><th>Strong (65+)</th><th>Developing (40-64)</th><th>Needs Work (&lt;40)</th></tr></thead><tbody>';
+    (d.pillarCalibration || []).forEach(p => {
+      html += '<tr style="border-bottom:1px solid rgba(46,51,72,.3)">'+
+        '<td style="padding:6px 8px;font-weight:600">'+p.pillar+'</td>'+
+        '<td style="text-align:center;color:var(--green)">'+p.strong.winRate+'% <span style="color:var(--text2);font-size:10px">('+p.strong.count+')</span></td>'+
+        '<td style="text-align:center;color:var(--orange)">'+p.developing.winRate+'% <span style="color:var(--text2);font-size:10px">('+p.developing.count+')</span></td>'+
+        '<td style="text-align:center;color:var(--red)">'+p.needsWork.winRate+'% <span style="color:var(--text2);font-size:10px">('+p.needsWork.count+')</span></td>'+
+      '</tr>';
+    });
+    html += '</tbody></table>';
+
+    html += '</div>';
+    el.innerHTML = html;
+    btn.textContent = 'Refresh';
+    btn.disabled = false;
+  } catch(e) {
+    btn.textContent = 'Error — retry';
+    btn.disabled = false;
+    const el = document.getElementById('calibration-result');
+    if (el) el.innerHTML = '<div style="color:var(--red);font-size:12px;margin-top:8px">'+e.message+'</div>';
+  }
 }
 
 // ════════════════════════════════════════════════════════
@@ -1269,9 +1432,21 @@ async function loadAEDetail(name) {
         '<p style="margin-top:4px"><strong>Talk Balance:</strong> 25 - |talkRatio - 50|. Perfect at 50%. <strong>Discovery:</strong> min(20, questions/22*20). <strong>Script:</strong> adherence/100*20. <strong>Engagement:</strong> (buyingSignals + engagement - redFlags) / 8 * 15. <strong>Discipline:</strong> 20 - coachable_moments * 4.</p>'+
       '</div></div>';
 
-    // Quality breakdown (using team average as a representative call)
-    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
-      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: {}, highlights: [] })+
+    // Quality breakdown — compute avg engagement from recent calls
+    const avgEng = { buyingSignals: 0, engagementIndicators: 0, redFlags: 0 };
+    let engN = 0;
+    (safeCalls || []).slice(0, 20).forEach(c => {
+      const pe = c.prospect_engagement || {};
+      if (pe.buyingSignals != null) {
+        avgEng.buyingSignals += pe.buyingSignals || 0;
+        avgEng.engagementIndicators += pe.engagementIndicators || 0;
+        avgEng.redFlags += pe.redFlags || 0;
+        engN++;
+      }
+    });
+    if (engN > 0) { avgEng.buyingSignals = Math.round(avgEng.buyingSignals/engN); avgEng.engagementIndicators = Math.round(avgEng.engagementIndicators/engN); avgEng.redFlags = Math.round(avgEng.redFlags/engN); }
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Avg Quality Breakdown (last 20 calls)</h3>'+
+      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: avgEng, highlights: safeCalls.slice(0,20).flatMap(c=>(c.highlights||[])) })+
     '</div>';
 
     // MODE-SPECIFIC SECTIONS
