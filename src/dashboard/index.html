@@ -584,7 +584,10 @@ function qualityBreakdownHTML(call) {
   const netEng = (pe.buyingSignals || 0) + (pe.engagementIndicators || 0) - (pe.redFlags || 0);
   const engPts = Math.max(0, Math.min(15, Math.round((netEng / 8) * 15)));
   const hl = call.highlights || [];
-  const coachCount = Array.isArray(hl) ? hl.filter(h => h.type === 'coachable').length : 0;
+  let coachCount = Array.isArray(hl) ? hl.filter(h => h.type === 'coachable').length : 0;
+  // If this is an aggregate (many highlights from multiple calls), normalize per call
+  const callCount = call._callCount || 1;
+  if (callCount > 1) coachCount = Math.round(coachCount / callCount);
   const coachPts = Math.max(0, 20 - coachCount * 4);
 
   const rows = [
@@ -1218,6 +1221,29 @@ async function dismissIntervention(id) {
   } catch(e) {}
 }
 
+async function loadAEInterventions(name) {
+  const el = document.getElementById('ae-interventions');
+  if (!el) return;
+  try {
+    const data = await api('/api/ae/' + encodeURIComponent(name) + '/interventions');
+    if (!data || data.length === 0) { el.innerHTML = 'No coaching interventions recorded yet.'; return; }
+    const statusClr = { active: 'var(--blue)', measured: 'var(--orange)', effective: 'var(--green)', ineffective: 'var(--red)', dismissed: 'var(--text2)' };
+    el.innerHTML = data.map(i => {
+      const delta = i.followup_quality != null && i.baseline_quality != null ? i.followup_quality - i.baseline_quality : null;
+      const date = (i.created_at || '').slice(0, 10);
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(46,51,72,.3)">'+
+        '<div style="display:flex;gap:8px;align-items:center">'+
+          '<span style="color:'+((statusClr[i.status])||'var(--text2)')+';font-weight:600;font-size:11px;text-transform:uppercase">'+i.status+'</span>'+
+          '<span style="color:var(--text2);font-size:11px">'+date+'</span>'+
+          '<span style="font-weight:600">'+i.focus_area+'</span>'+
+          (delta != null ? '<span style="margin-left:auto;color:'+(delta>0?'var(--green)':'var(--red)')+';font-weight:600">'+(delta>0?'+':'')+delta+' quality after '+i.calls_since+' calls</span>' : '')+
+        '</div>'+
+        '<div style="color:var(--text2);margin-top:2px">'+i.description+'</div>'+
+      '</div>';
+    }).join('');
+  } catch(e) { el.innerHTML = 'Could not load interventions.'; }
+}
+
 // ════════════════════════════════════════════════════════
 //  CALIBRATION STUDY
 // ════════════════════════════════════════════════════════
@@ -1446,7 +1472,7 @@ async function loadAEDetail(name) {
     });
     if (engN > 0) { avgEng.buyingSignals = Math.round(avgEng.buyingSignals/engN); avgEng.engagementIndicators = Math.round(avgEng.engagementIndicators/engN); avgEng.redFlags = Math.round(avgEng.redFlags/engN); }
     html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Avg Quality Breakdown (last 20 calls)</h3>'+
-      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: avgEng, highlights: safeCalls.slice(0,20).flatMap(c=>(c.highlights||[])) })+
+      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: avgEng, highlights: safeCalls.slice(0,20).flatMap(c=>(c.highlights||[])), _callCount: Math.min(safeCalls.length, 20) })+
     '</div>';
 
     // MODE-SPECIFIC SECTIONS
@@ -1639,6 +1665,9 @@ async function loadAEDetail(name) {
       html += '</div>';
       html += '</div>';
 
+      // Coaching Interventions for this AE
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Coaching Interventions</h3><div id="ae-interventions" style="font-size:12px;color:var(--text2)">Loading...</div></div>';
+
       // Full calls table
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">All Calls</h3>';
       html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
@@ -1808,6 +1837,9 @@ async function loadAEDetail(name) {
           }
         }
       }
+
+      // Load AE interventions
+      loadAEInterventions(name);
     }, 50);
 
   } catch (err) {
