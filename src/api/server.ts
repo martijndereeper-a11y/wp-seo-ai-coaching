@@ -175,15 +175,21 @@ app.get('/api/ae/:name', async (c) => {
   return c.json(data);
 });
 
-// AE's calls — with analysis data
+// AE's calls — light list for overview, full data loaded per-call on detail view
 app.get('/api/ae/:name/calls', async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
   const limit = parseInt(c.req.query('limit') || '100');
   const offset = parseInt(c.req.query('offset') || '0');
+  const full = c.req.query('full') === 'true'; // opt-in for heavy fields
+
+  // Light select for list views — skip highlights, patterns (heavy)
+  const columns = full
+    ? 'recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores, smart_review'
+    : 'recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, call_quality_score, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores';
 
   const { data, error } = await supabase
     .from('ae_call_analysis')
-    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores')
+    .select(columns)
     .eq('recorder_name', name)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -1282,11 +1288,13 @@ function groupCallsIntoDeals(calls: any[]): Map<string, { name: string; calls: a
 
 // GET /api/deals — Deal Board Data
 app.get('/api/deals', async (c) => {
+  const cached = getCached('deals');
+  if (cached) return c.json(cached);
   // Fetch calls without heavy JSONB columns; check narrative existence separately
   const cutoffDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
   const [{ data, error }, { data: narrativeIds }] = await Promise.all([
     supabase.from('ae_call_analysis')
-      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, patterns, highlights, call_verdict, prospect_engagement, call_quality_score, question_count')
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, call_verdict, call_quality_score, question_count, patterns')
       .gte('created_at', cutoffDate)
       .order('created_at', { ascending: false })
       .limit(1000),
@@ -1312,8 +1320,7 @@ app.get('/api/deals', async (c) => {
     const discoveryDone = (latest.question_count > 12) || (latestPatterns.theirBusiness > 0);
     const demoShown = deal.calls.some((call: any) => {
       const p = (call.patterns as Record<string, number>) || {};
-      const hl = (call.highlights as any[]) || [];
-      return (p.contentEngine > 5) || hl.some((h: any) => h.category === 'Live Proof');
+      return p.contentEngine > 5 || p.visibility > 3;
     });
     const pricingDiscussed = deal.calls.some((call: any) => {
       const p = (call.patterns as Record<string, number>) || {};
@@ -1324,10 +1331,7 @@ app.get('/api/deals', async (c) => {
     const latestDate = new Date(latest.created_at || 0);
     const daysSinceLatest = (Date.now() - latestDate.getTime()) / (1000 * 60 * 60 * 24);
     const stalling = daysSinceLatest > 7 && latest.outcome !== 'won';
-    const thinkItOver = deal.calls.some((call: any) => {
-      const hl = (call.highlights as any[]) || [];
-      return hl.some((h: any) => h.category === 'Accepted Think-It-Over');
-    });
+    const thinkItOver = latestVerdict.includes('Accepted') || latestVerdict.includes('think');
 
     // Assign column
     let column: string;
@@ -1359,6 +1363,7 @@ app.get('/api/deals', async (c) => {
 
   // Sort by lastCallDate desc
   result.sort((a, b) => (b.lastCallDate || '').localeCompare(a.lastCallDate || ''));
+  setCache('deals', result);
   return c.json(result);
 });
 
