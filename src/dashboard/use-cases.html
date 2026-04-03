@@ -223,11 +223,13 @@ function renderStats(data) {
   const el = document.getElementById('stats');
   const uniqueIndustries = data.industries.filter(i => i !== 'General').length;
   const b2bCount = data.cases.filter(c => c.businessType === 'B2B').length;
+  const b2cCount = data.cases.filter(c => c.businessType === 'B2C').length;
   el.innerHTML = `
     <div class="stat"><div class="num">${data.cases.length}</div><div class="lbl">Success Cases</div></div>
     <div class="stat"><div class="num">${data.painPatterns.length}</div><div class="lbl">Pain Patterns</div></div>
     <div class="stat"><div class="num">${uniqueIndustries}</div><div class="lbl">Industries</div></div>
     <div class="stat"><div class="num">${b2bCount}</div><div class="lbl">B2B Cases</div></div>
+    <div class="stat"><div class="num">${b2cCount}</div><div class="lbl">B2C Cases</div></div>
   `;
 }
 
