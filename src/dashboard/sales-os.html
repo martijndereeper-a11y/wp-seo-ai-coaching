@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Mid-Market Sales OS</title>
+<link rel="icon" type="image/png" href="/Users/martijndereeper/Downloads/WP SEO AI Branding Package/wpseoai-favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --white: #FFFFFF;
+  --light-bg: #E9EEFA;
+  --navy: #0f042c;
+  --blackish: #16151A;
+  --text: #615567;
+  --text-light: rgba(97,85,103,.55);
+  --purple-soft: #BEB5FF;
+  --purple3: #B748FF;
+  --purple2: #DA6BFF;
+  --pink: #FF5FC2;
+  --blue: #7B9FFF;
+  --yellow: #FFDD68;
+  --green: #2CB67D;
+  --red: #E5484D;
+  --orange: #F5A623;
+  --border: #E0DFE6;
+  --border-light: #EEEDF2;
+  --sidebar-w: 272px;
+  --max-w: 960px;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Archivo',sans-serif; background:var(--white); color:var(--text); overflow:hidden; height:100vh; font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+a { color:var(--purple3); text-decoration:none; }
+a:hover { text-decoration:underline; }
+::selection { background:var(--purple-soft); color:var(--blackish); }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--purple-soft); }
+
+/* ── LAYOUT ── */
+.app { display:flex; height:100vh; }
+.sidebar { width:var(--sidebar-w); background:var(--navy); display:flex; flex-direction:column; flex-shrink:0; overflow:hidden; }
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:var(--light-bg); }
+.topbar { background:var(--white); border-bottom:1px solid var(--border); padding:14px 32px; display:flex; align-items:center; gap:16px; flex-shrink:0; }
+.content { flex:1; overflow-y:auto; padding:32px; }
+.content-inner { max-width:var(--max-w); margin:0 auto; }
+
+/* ── SIDEBAR ── */
+.sb-header { padding:24px 24px 20px; border-bottom:1px solid rgba(255,255,255,.08); }
+.sb-logo { height:24px; opacity:.95; }
+.sb-title { font-size:12px; color:rgba(255,255,255,.45); margin-top:10px; text-transform:uppercase; letter-spacing:1.5px; font-weight:600; }
+.sb-nav { flex:1; overflow-y:auto; padding:16px 0; }
+.sb-section { padding:0 12px; margin-bottom:4px; }
+.sb-section-title { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:rgba(255,255,255,.3); padding:12px 12px 6px; font-weight:700; }
+.sb-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-sm); cursor:pointer; font-size:13px; color:rgba(255,255,255,.55); transition:all .15s; user-select:none; font-weight:500; }
+.sb-item:hover { background:rgba(255,255,255,.06); color:rgba(255,255,255,.85); }
+.sb-item.active { background:rgba(183,72,255,.2); color:#fff; }
+.sb-item .sb-icon { width:20px; text-align:center; font-size:15px; flex-shrink:0; opacity:.7; }
+.sb-item.active .sb-icon { opacity:1; }
+.sb-item .sb-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sb-footer { padding:16px; border-top:1px solid rgba(255,255,255,.08); }
+
+/* ── ROLE SELECTOR ── */
+.role-selector { display:flex; background:rgba(255,255,255,.06); border-radius:var(--radius-sm); overflow:hidden; }
+.role-btn { flex:1; padding:8px 0; font-size:11px; font-weight:700; background:none; border:none; color:rgba(255,255,255,.4); cursor:pointer; transition:all .15s; text-align:center; text-transform:uppercase; letter-spacing:.5px; }
+.role-btn.active { background:var(--purple3); color:white; }
+.role-btn:hover:not(.active) { color:rgba(255,255,255,.7); }
+
+/* ── TOPBAR ── */
+.topbar .breadcrumb { font-size:13px; color:var(--text-light); font-weight:500; }
+.topbar .breadcrumb span { color:var(--blackish); font-weight:600; }
+.search-box { margin-left:auto; position:relative; }
+.search-box input { padding:8px 14px 8px 34px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--light-bg); color:var(--blackish); font-size:13px; width:240px; outline:none; transition:all .2s; font-family:'Archivo',sans-serif; }
+.search-box input:focus { border-color:var(--purple3); width:320px; background:var(--white); box-shadow:0 0 0 3px rgba(183,72,255,.1); }
+.search-box input::placeholder { color:var(--text-light); }
+.search-box .search-icon { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--text-light); font-size:14px; }
+.search-results { position:absolute; top:calc(100% + 6px); right:0; width:420px; background:var(--white); border:1px solid var(--border); border-radius:var(--radius); max-height:420px; overflow-y:auto; z-index:200; display:none; box-shadow:0 12px 40px rgba(11,31,59,.12); }
+.search-results.show { display:block; }
+.sr-item { padding:12px 16px; cursor:pointer; border-bottom:1px solid var(--border-light); transition:background .1s; }
+.sr-item:hover { background:var(--light-bg); }
+.sr-item:last-child { border:none; }
+.sr-item .sr-title { font-size:14px; font-weight:600; color:var(--blackish); }
+.sr-item .sr-context { font-size:12px; color:var(--text); margin-top:2px; }
+.sr-item .sr-tag { display:inline-block; font-size:10px; padding:2px 8px; border-radius:4px; background:rgba(183,72,255,.08); color:var(--purple3); margin-top:4px; font-weight:600; }
+
+/* ── PAGE HEADER ── */
+.page-header { margin-bottom:28px; }
+.page-header h1 { font-size:28px; font-weight:800; color:var(--blackish); margin-bottom:6px; line-height:1.2; }
+.page-header p { font-size:15px; color:var(--text); max-width:640px; }
+
+/* ── CARD ── */
+.card { background:var(--white); border:1px solid var(--border-light); border-radius:var(--radius); padding:24px; margin-bottom:16px; transition:box-shadow .15s; }
+.card:hover { box-shadow:0 2px 12px rgba(11,31,59,.04); }
+.card h3 { font-size:16px; font-weight:700; color:var(--blackish); margin-bottom:10px; display:flex; align-items:center; gap:8px; line-height:1.3; }
+.card p { font-size:14px; color:var(--text); line-height:1.7; }
+
+/* ── STAT GRID ── */
+.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+.stat-box { background:var(--white); border:1px solid var(--border-light); border-radius:var(--radius); padding:20px; text-align:center; }
+.stat-box .sv { font-size:32px; font-weight:800; color:var(--blackish); }
+.stat-box .sl { font-size:12px; color:var(--text-light); margin-top:4px; font-weight:500; }
+.stat-box.purple .sv { color:var(--purple3); }
+.stat-box.green .sv { color:var(--green); }
+.stat-box.orange .sv { color:var(--orange); }
+.stat-box.blue .sv { color:var(--blue); }
+
+/* ── GRIDS ── */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+@media(max-width:1100px) { .grid-2,.grid-3 { grid-template-columns:1fr; } }
+
+/* ── PIPELINE ── */
+.pipeline { display:flex; gap:3px; margin:16px 0; }
+.pipe-stage { flex:1; padding:14px 8px; background:var(--light-bg); text-align:center; cursor:pointer; transition:all .15s; border-radius:var(--radius-sm); position:relative; }
+.pipe-stage:hover { background:rgba(183,72,255,.06); }
+.pipe-stage.active { background:rgba(183,72,255,.1); outline:2px solid var(--purple3); outline-offset:-2px; }
+.pipe-stage .ps-num { font-size:10px; color:var(--text-light); text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
+.pipe-stage .ps-name { font-size:11px; font-weight:600; color:var(--blackish); margin-top:3px; }
+.pipe-stage .ps-arrow { position:absolute; right:-7px; top:50%; transform:translateY(-50%); color:var(--text-light); z-index:2; font-size:13px; }
+
+/* ── CHECKLIST ── */
+.checklist { list-style:none; }
+.checklist li { padding:10px 14px; font-size:14px; display:flex; align-items:flex-start; gap:10px; border-bottom:1px solid var(--border-light); color:var(--blackish); }
+.checklist li:last-child { border:none; }
+.checklist .cl-icon { flex-shrink:0; width:20px; height:20px; border-radius:5px; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; margin-top:2px; font-weight:700; }
+.checklist .cl-icon.required { border-color:var(--purple3); color:var(--purple3); background:rgba(183,72,255,.06); }
+.checklist .cl-icon.done { border-color:var(--green); background:rgba(44,182,125,.1); color:var(--green); }
+
+/* ── TEMPLATE BOX ── */
+.template-box { background:var(--light-bg); border-radius:var(--radius-sm); padding:20px; margin:12px 0; font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; line-height:1.9; color:var(--text); white-space:pre-wrap; border-left:3px solid var(--purple3); position:relative; }
+.template-box .copy-btn { position:absolute; top:10px; right:10px; background:var(--white); border:1px solid var(--border); color:var(--purple3); padding:5px 14px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:600; font-family:'Archivo',sans-serif; transition:all .15s; }
+.template-box .copy-btn:hover { background:var(--purple3); color:white; border-color:var(--purple3); }
+
+/* ── TABLE ── */
+.os-table { width:100%; border-collapse:collapse; font-size:14px; }
+.os-table th { text-align:left; padding:12px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--text-light); border-bottom:2px solid var(--border); font-weight:700; }
+.os-table td { padding:12px 14px; border-bottom:1px solid var(--border-light); vertical-align:top; color:var(--blackish); }
+.os-table tr:hover { background:var(--light-bg); }
+
+/* ── BADGES ── */
+.badge { display:inline-block; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:.3px; }
+.badge.green { background:rgba(44,182,125,.1); color:var(--green); }
+.badge.orange { background:rgba(245,166,35,.1); color:var(--orange); }
+.badge.red { background:rgba(229,72,77,.1); color:var(--red); }
+.badge.purple { background:rgba(183,72,255,.1); color:var(--purple3); }
+.badge.blue { background:rgba(123,159,255,.1); color:var(--blue); }
+.badge.navy { background:rgba(11,31,59,.08); color:var(--navy); }
+
+/* ── CALLOUT ── */
+.callout { padding:16px 20px; border-radius:var(--radius-sm); margin:14px 0; font-size:14px; line-height:1.7; }
+.callout strong { color:var(--blackish); }
+.callout.warn { background:rgba(245,166,35,.06); border:1px solid rgba(245,166,35,.15); color:#8C6D1F; }
+.callout.info { background:rgba(123,159,255,.06); border:1px solid rgba(123,159,255,.15); color:#4A6FA5; }
+.callout.success { background:rgba(44,182,125,.06); border:1px solid rgba(44,182,125,.15); color:#1B7A52; }
+.callout.danger { background:rgba(229,72,77,.06); border:1px solid rgba(229,72,77,.15); color:#C53030; }
+
+/* ── ACCORDION ── */
+.accordion { border:1px solid var(--border-light); border-radius:var(--radius); overflow:hidden; margin:14px 0; }
+.acc-item { border-bottom:1px solid var(--border-light); }
+.acc-item:last-child { border:none; }
+.acc-header { padding:14px 18px; cursor:pointer; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:600; color:var(--blackish); transition:background .1s; user-select:none; }
+.acc-header:hover { background:var(--light-bg); }
+.acc-header .acc-arrow { color:var(--purple3); transition:transform .2s; font-size:12px; }
+.acc-header.open .acc-arrow { transform:rotate(90deg); }
+.acc-body { padding:0 18px 16px; font-size:14px; color:var(--text); line-height:1.7; display:none; }
+.acc-body.open { display:block; }
+
+/* ── DO/DON'T ── */
+.do-dont { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:14px 0; }
+.do-col { padding:20px; border-radius:var(--radius); }
+.do-col.do { background:rgba(44,182,125,.04); border:1px solid rgba(44,182,125,.15); }
+.do-col.dont { background:rgba(229,72,77,.04); border:1px solid rgba(229,72,77,.15); }
+.do-col h4 { font-size:12px; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-weight:800; }
+.do-col.do h4 { color:var(--green); }
+.do-col.dont h4 { color:var(--red); }
+.do-col ul { list-style:none; font-size:14px; line-height:2; }
+.do-col.do ul li::before { content:"→ "; color:var(--green); font-weight:700; }
+.do-col.dont ul li::before { content:"✕ "; color:var(--red); font-weight:700; }
+
+/* ── TIER CARDS ── */
+.tier-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:20px 0; }
+.tier-card { background:var(--white); border:1px solid var(--border-light); border-radius:var(--radius); padding:28px 24px; text-align:center; transition:all .2s; position:relative; }
+.tier-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(11,31,59,.08); }
+.tier-card.featured { border-color:var(--purple3); box-shadow:0 0 0 1px var(--purple3); }
+.tier-card .tier-label { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--text-light); font-weight:700; }
+.tier-card .tier-price { font-size:36px; font-weight:800; margin:10px 0; color:var(--blackish); }
+.tier-card .tier-price span { font-size:14px; font-weight:500; color:var(--text-light); }
+.tier-card .tier-term { font-size:13px; color:var(--text-light); margin-bottom:20px; }
+.tier-card .tier-features { text-align:left; font-size:13px; line-height:2.2; }
+.tier-card .tier-features li { list-style:none; color:var(--text); }
+.tier-card .tier-features li::before { content:"→ "; color:var(--purple3); font-weight:700; }
+.tier-card .rec-badge { position:absolute; top:-11px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,var(--purple2),var(--blue)); color:white; padding:4px 16px; border-radius:20px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; }
+
+/* ── SCALE/KILL GRID ── */
+.sk-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:0; border:1px solid var(--border-light); border-radius:var(--radius-sm); overflow:hidden; margin:14px 0; font-size:13px; }
+.sk-grid .sk-header { background:var(--light-bg); padding:10px 14px; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.8px; border-bottom:1px solid var(--border); color:var(--text-light); }
+.sk-grid .sk-cell { padding:10px 14px; border-bottom:1px solid var(--border-light); border-right:1px solid var(--border-light); color:var(--blackish); }
+.sk-grid .sk-cell:nth-child(4n) { border-right:none; }
+.sk-grid .sk-cell.scale { background:rgba(44,182,125,.03); }
+.sk-grid .sk-cell.continue { background:rgba(245,166,35,.03); }
+.sk-grid .sk-cell.kill { background:rgba(229,72,77,.03); }
+
+/* ── QUICK ACTIONS ── */
+.quick-actions { display:flex; gap:8px; flex-wrap:wrap; margin:20px 0; }
+.qa-btn { padding:10px 18px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--white); color:var(--blackish); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; display:flex; align-items:center; gap:8px; font-family:'Archivo',sans-serif; }
+.qa-btn:hover { border-color:var(--purple3); color:var(--purple3); box-shadow:0 2px 8px rgba(183,72,255,.08); }
+.qa-btn .qa-icon { font-size:15px; color:var(--purple3); }
+
+/* ── ROLE HINTS ── */
+.role-hint { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+.role-hint.bdr { background:rgba(123,159,255,.1); color:var(--blue); }
+.role-hint.ae { background:rgba(183,72,255,.08); color:var(--purple3); }
+.role-hint.lead { background:rgba(255,95,194,.08); color:var(--pink); }
+
+/* ── PROGRESS TRACK ── */
+.progress-track { display:flex; align-items:center; gap:0; margin:20px 0; }
+.pt-step { flex:1; text-align:center; padding:8px 4px; }
+.pt-step .pt-dot { width:32px; height:32px; border-radius:50%; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; margin:0 auto 8px; font-size:12px; font-weight:800; background:var(--white); }
+.pt-step.done .pt-dot { background:var(--green); border-color:var(--green); color:white; }
+.pt-step.current .pt-dot { background:var(--purple3); border-color:var(--purple3); color:white; }
+.pt-step .pt-label { font-size:11px; color:var(--text-light); font-weight:600; }
+.pt-step.done .pt-label { color:var(--green); }
+.pt-step.current .pt-label { color:var(--purple3); }
+.pt-line { flex:0 0 40px; height:2px; background:var(--border); }
+.pt-line.done { background:var(--green); }
+
+/* ── TOAST ── */
+.toast { position:fixed; bottom:24px; right:24px; background:var(--navy); color:white; padding:12px 24px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; z-index:999; transform:translateY(80px); opacity:0; transition:all .3s; box-shadow:0 8px 24px rgba(11,31,59,.2); }
+.toast.show { transform:translateY(0); opacity:1; }
+
+/* ── HERO SECTION (dashboard) ── */
+.hero { background:var(--navy); border-radius:var(--radius); padding:36px 32px; margin-bottom:24px; color:white; position:relative; overflow:hidden; }
+.hero::after { content:''; position:absolute; top:-50%; right:-10%; width:400px; height:400px; background:radial-gradient(circle,rgba(183,72,255,.15),transparent 70%); pointer-events:none; }
+.hero h1 { font-size:26px; font-weight:800; margin-bottom:6px; position:relative; z-index:1; }
+.hero p { font-size:14px; color:rgba(255,255,255,.6); max-width:520px; position:relative; z-index:1; }
+
+/* ── PROCESS COLORS ── */
+.process-pink { color:var(--pink); }
+.process-purple { color:var(--purple-soft); }
+.process-purple2 { color:var(--purple2); }
+.process-blue { color:var(--blue); }
+.process-yellow { color:var(--yellow); }
+
+/* ── SCENARIO PLANNER ── */
+.fin-table { width:100%; border-collapse:collapse; font-size:13px; }
+.fin-table th { padding:8px 6px; font-size:10px; text-transform:uppercase; letter-spacing:.8px; color:var(--text-light); border-bottom:2px solid var(--border); font-weight:700; text-align:right; }
+.fin-table th:first-child { text-align:left; }
+.fin-table td { padding:6px; border-bottom:1px solid var(--border-light); text-align:right; font-variant-numeric:tabular-nums; }
+.fin-table td:first-child { text-align:left; font-weight:600; color:var(--blackish); }
+.fin-table tr.total-row { background:var(--light-bg); font-weight:700; }
+.fin-table tr.total-row td { border-top:2px solid var(--border); color:var(--blackish); }
+.fin-table input[type="number"] { width:68px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:13px; font-family:'Archivo',sans-serif; text-align:right; background:rgba(255,242,204,.4); color:var(--blackish); font-variant-numeric:tabular-nums; }
+.fin-table input[type="number"]:focus { outline:none; border-color:var(--purple3); background:rgba(183,72,255,.04); }
+.fin-total { font-size:36px; font-weight:800; color:var(--blackish); }
+.fin-total.on-track { color:var(--green); }
+.fin-total.behind { color:var(--red); }
+.progress-bar-wrap { background:var(--light-bg); border-radius:6px; height:14px; overflow:hidden; margin:8px 0; border:1px solid var(--border-light); }
+.progress-bar-fill { height:100%; border-radius:5px; transition:width .3s; background:linear-gradient(90deg,var(--purple3),var(--blue)); }
+.scenario-kpi { display:flex; gap:16px; margin:16px 0; }
+.scenario-kpi .kpi { flex:1; background:var(--white); border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:16px; text-align:center; }
+.scenario-kpi .kpi .kv { font-size:24px; font-weight:800; }
+.scenario-kpi .kpi .kl { font-size:11px; color:var(--text-light); margin-top:2px; }
+
+/* ── DEAL SCORECARD ── */
+.score-ring { width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-direction:column; margin:0 auto 12px; border:6px solid var(--border); }
+.score-ring.green { border-color:var(--green); }
+.score-ring.orange { border-color:var(--orange); }
+.score-ring.red { border-color:var(--red); }
+.score-ring .sr-num { font-size:36px; font-weight:800; }
+.score-ring .sr-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+.deal-check { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border-light); cursor:pointer; transition:background .1s; }
+.deal-check:hover { background:var(--light-bg); }
+.deal-check:last-child { border:none; }
+.deal-check input[type="checkbox"] { width:18px; height:18px; accent-color:var(--purple3); cursor:pointer; }
+.deal-check .dc-label { flex:1; font-size:14px; color:var(--blackish); }
+.deal-check .dc-weight { font-size:12px; font-weight:700; color:var(--text-light); min-width:40px; text-align:right; }
+.deal-check .dc-cat { font-size:10px; padding:2px 8px; border-radius:4px; background:rgba(183,72,255,.06); color:var(--purple3); font-weight:600; }
+.deal-list-item { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border-light); cursor:pointer; transition:background .1s; }
+.deal-list-item:hover { background:var(--light-bg); }
+.deal-list-item .dli-score { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; color:white; flex-shrink:0; }
+.deal-list-item .dli-score.green { background:var(--green); }
+.deal-list-item .dli-score.orange { background:var(--orange); }
+.deal-list-item .dli-score.red { background:var(--red); }
+.deal-list-item .dli-info { flex:1; }
+.deal-list-item .dli-name { font-weight:600; color:var(--blackish); font-size:14px; }
+.deal-list-item .dli-meta { font-size:12px; color:var(--text-light); }
+.deal-list-item .dli-del { color:var(--text-light); font-size:16px; padding:4px 8px; border-radius:4px; border:none; background:none; cursor:pointer; }
+.deal-list-item .dli-del:hover { background:rgba(229,72,77,.08); color:var(--red); }
+
+/* ── ROI CALCULATOR ── */
+.roi-cols { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin:16px 0; }
+.roi-col { padding:20px; border-radius:var(--radius); }
+.roi-col.waste { background:rgba(229,72,77,.04); border:1px solid rgba(229,72,77,.12); }
+.roi-col.cost { background:rgba(183,72,255,.04); border:1px solid rgba(183,72,255,.12); }
+.roi-col.compound { background:rgba(44,182,125,.04); border:1px solid rgba(44,182,125,.12); }
+.roi-col h4 { font-size:12px; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px; font-weight:800; }
+.roi-col.waste h4 { color:var(--red); }
+.roi-col.cost h4 { color:var(--purple3); }
+.roi-col.compound h4 { color:var(--green); }
+.roi-row { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(0,0,0,.04); font-size:14px; }
+.roi-row:last-child { border:none; }
+.roi-row .rr-label { color:var(--text); }
+.roi-row .rr-value { font-weight:700; color:var(--blackish); font-variant-numeric:tabular-nums; }
+.roi-summary { background:var(--navy); color:white; padding:20px 24px; border-radius:var(--radius); margin:16px 0; font-size:15px; line-height:1.7; }
+.roi-summary strong { color:var(--purple-soft); }
+.roi-input-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0; }
+.roi-field { display:flex; flex-direction:column; gap:4px; }
+.roi-field label { font-size:12px; font-weight:600; color:var(--text-light); text-transform:uppercase; letter-spacing:.5px; }
+.roi-field input { padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:'Archivo',sans-serif; color:var(--blackish); background:var(--white); }
+.roi-field input:focus { outline:none; border-color:var(--purple3); box-shadow:0 0 0 3px rgba(183,72,255,.08); }
+
+/* ── DISCOVERY ENGINE ── */
+.disc-controls { display:flex; gap:12px; margin:16px 0; flex-wrap:wrap; }
+.disc-controls select { padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:'Archivo',sans-serif; color:var(--blackish); background:var(--white); min-width:180px; cursor:pointer; }
+.disc-controls select:focus { outline:none; border-color:var(--purple3); }
+.disc-question { padding:16px 20px; border-left:3px solid var(--purple3); background:var(--light-bg); border-radius:0 var(--radius-sm) var(--radius-sm) 0; margin:10px 0; }
+.disc-question .dq-main { font-size:15px; color:var(--blackish); font-weight:500; line-height:1.6; }
+.disc-question .dq-follow { font-size:13px; color:var(--text); margin-top:6px; font-style:italic; }
+.disc-question .dq-tag { font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; background:rgba(183,72,255,.08); color:var(--purple3); margin-top:8px; display:inline-block; }
+
+@media(max-width:900px) {
+  .sidebar { display:none; }
+  .stat-grid,.scenario-kpi { grid-template-columns:1fr 1fr; }
+  .tier-cards,.do-dont,.grid-2,.grid-3,.roi-cols,.roi-input-grid { grid-template-columns:1fr; }
+  .pipeline { flex-wrap:wrap; }
+  .content { padding:16px; }
+  .topbar { padding:12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-header">
+      <svg class="sb-logo" viewBox="0 0 1338 204" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M55.9393 204L0 12H51.3402L80.3423 137.812H81.9379L115.07 12H156.93L190.062 138.094H191.658L220.754 12H272L216.155 204H171.384L136.751 87.5625H135.249L100.616 204H55.9393Z" fill="#B748FF"/>
+        <path d="M292 204V12H371.313C385.688 12 398.094 14.8125 408.531 20.4375C419.031 26 427.125 33.7812 432.813 43.7812C438.5 53.7188 442 65.3125 442 78.5C442 91.75 438.438 103.312 432.625 113.25C426.875 123.125 418.656 130.781 407.969 136.219C397.281 141.656 384.594 144.375 369.906 144.375H320.969V107.812H361.281C368.281 107.812 374.125 106.594 378.812 104.156C383.562 101.719 387.156 98.3125 389.594 93.9375C392.031 89.5 393.25 84.3437 393.25 78.4687C393.25 72.5312 392.031 67.4062 389.594 63.0938C387.156 58.7188 383.562 55.3438 378.812 52.9688C374.062 50.5938 368.219 49.4063 361.281 49.4063H338.406V204H292Z" fill="#B748FF"/>
+        <path d="M517.547 195C528.733 200.676 542.872 204 561.036 204C579.2 204 594.22 201.275 606.097 195.824C618.148 190.374 627.142 183.165 633.081 174.198C639.194 165.055 642.25 155.121 642.25 144.396C642.25 134.725 640.329 126.725 636.486 120.396C632.819 113.89 627.928 108.703 621.816 104.835C615.703 100.791 608.891 97.6264 601.381 95.3407C594.046 92.8791 586.623 90.8571 579.113 89.2747C571.777 87.6923 564.966 86.1978 558.678 84.7912C552.565 83.2088 547.588 81.2747 543.745 78.989C540.078 76.5275 538.244 73.2747 538.244 69.2308C538.244 66.0659 539.204 63.2528 541.126 60.7912C543.047 58.3297 546.191 56.5714 550.557 54.989C554.923 53.4066 561.481 52.6154 567.848 52.6154C576.523 52.6154 581.036 53.5643 586.355 56.3021C592.568 59.5 597.08 64.5 599.748 69.2308L633.081 48.5974C617.758 19.4753 587.273 12 568.11 12C548.947 12 535.1 14.7253 523.049 20.1758C510.998 25.6264 501.916 32.8352 495.803 41.8022C489.865 50.7692 486.896 60.7912 486.896 71.8681C486.896 81.7143 488.817 89.8901 492.659 96.3956C496.502 102.725 501.479 107.912 507.592 111.956C513.705 115.824 520.429 118.989 527.765 121.451C535.275 123.912 542.697 125.934 550.033 127.517C557.543 129.099 564.354 130.681 570.467 132.264C576.58 133.846 581.558 135.868 585.4 138.33C589.243 140.791 591.164 144.132 591.164 148.352C591.164 151.341 590.116 153.978 588.02 156.264C586.099 158.374 582.955 160.132 578.589 161.538C574.222 162.769 567.678 163.385 561.298 163.385C549.448 163.385 539.42 159 532.781 154.537C525.121 149.388 521.96 141.054 517.25 132.264L478.25 154.537C483.033 167.057 501.21 186.71 517.547 195Z" fill="white"/>
+        <path d="M715.504 162.034V126.926H800.25V86.3314H715.504V53.9657H804.25V12H662.25V204H804.25V162.034H715.504Z" fill="white"/>
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M966.779 12.9358C949.213 22.8822 937.725 50.1214 934.705 63.5596L906.062 66.1008L895.184 98.6935L910.579 87.3298L919.161 87.4334L915.21 98.9354L935.95 119.398L947.428 116.649L947.32 125.702L939.513 140.615L965.387 130.341L969.567 99.592C980.409 96.8355 1005.76 87.3245 1020.45 71.3323C1035.14 55.3401 1034.76 17.9275 1032.73 1.2202C1001.49 -2.23709 975.745 7.59007 966.779 12.9358ZM988.115 63.6342C998.122 63.755 1006.33 55.6668 1006.45 45.5686C1006.57 35.4704 998.555 27.1862 988.548 27.0653C978.542 26.9445 970.332 35.0327 970.213 45.1309C970.093 55.2291 978.108 63.5133 988.115 63.6342Z" fill="#B748FF"/>
+        <path d="M906.422 116.154C903.306 121.506 901.157 131.169 900.472 135.332C903.972 135.053 912.147 132.008 916.752 129.754C921.357 127.499 926.368 123.132 928.31 120.268L914.165 106.623C912.882 107.57 909.537 110.802 906.422 116.154Z" fill="#B748FF"/>
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M975.202 107.91C975.202 107.963 975.203 108.015 975.203 108.068C975.203 115.975 973.897 123.178 971.285 129.679C968.848 136.18 965.365 141.802 960.839 146.546C956.486 151.115 951.263 154.629 945.169 157.088C939.249 159.548 932.807 160.778 925.843 160.778C918.878 160.778 912.349 159.548 906.255 157.088C900.336 154.629 895.112 151.115 890.586 146.546C886.233 141.802 882.751 136.18 880.139 129.679C877.702 123.178 876.483 115.975 876.483 108.068C876.483 99.986 877.702 92.7823 880.139 86.4571C882.751 79.9563 886.233 74.4217 890.586 69.8535C895.112 65.1096 900.336 61.5078 906.255 59.048C912.349 56.5882 918.878 55.3583 925.843 55.3583C926.599 55.3583 927.349 55.3728 928.093 55.4018C928.798 53.5999 929.527 51.6844 930.285 49.6917C934.723 38.0257 941.76 23.7216 949.431 14.0611C942.451 12.7822 933.527 12.1363 925.843 12.1363C911.217 12.1363 897.724 14.5082 885.362 19.2521C873.001 23.996 862.206 30.7604 852.978 39.5454C843.924 48.1546 836.873 58.2574 831.824 69.8535C826.775 81.4497 824.25 94.1879 824.25 108.068C824.25 121.948 826.775 134.687 831.824 146.283C836.873 157.879 843.924 168.07 852.978 176.855C862.206 185.464 873.001 192.14 885.362 196.884C897.724 201.628 911.217 204 925.843 204C940.642 204 954.135 201.628 966.323 196.884C978.685 192.14 989.392 185.464 998.446 176.855C1007.5 168.245 1014.55 158.143 1019.6 146.546C1024.82 134.774 1027.44 121.948 1027.44 108.068C1027.44 98.5281 1026.2 89.5276 1023.73 81.0665C1014.68 91.0389 995.827 99.077 982.135 104.916C979.619 105.988 977.277 106.987 975.202 107.91Z" fill="white"/>
+        <path d="M1125.68 204H1070L1132.73 12H1203.27L1266 204H1210.32L1168.74 64.875H1167.26L1125.68 204ZM1115.29 128.25H1219.97V167.25H1115.29V128.25Z" fill="#B748FF"/>
+        <path d="M1338 12V204H1286V12H1338Z" fill="#B748FF"/>
+      </svg>
+      <div class="sb-title">Mid-market Sales OS</div>
+    </div>
+    <div class="sb-nav" id="sidebarNav"></div>
+    <div class="sb-footer">
+      <div class="role-selector">
+        <button class="role-btn active" data-role="ae" onclick="setRole('ae')">AE</button>
+        <button class="role-btn" data-role="bdr" onclick="setRole('bdr')">BDR</button>
+        <button class="role-btn" data-role="lead" onclick="setRole('lead')">Lead</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="breadcrumb">Sales OS <span id="pageTitle">/ Dashboard</span></div>
+      <div class="search-box">
+        <span class="search-icon">&#x2315;</span>
+        <input type="text" id="searchInput" placeholder="Search the OS... (&#x2318;K)" oninput="handleSearch(this.value)" onfocus="handleSearch(this.value)" onblur="setTimeout(()=>document.getElementById('searchResults').classList.remove('show'),200)">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+    </div>
+    <div class="content"><div class="content-inner" id="content"></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──
+let currentRole = 'ae';
+let currentPage = 'dashboard';
+
+// ── DATA ──
+const OS = {
+  stages: [
+    {id:'s0',num:'0',name:'BDR Qualification',owner:'BDR',goal:'Protect AE time — only Green/near-Green accounts reach AEs.',artifacts:['Deal Hypothesis: ICP fit, trigger/pain signal, what to validate, one disqualifier'],exit:['Hypothesis logged in CRM','AE accepts or rejects within 24h'],kills:['Hypothesis incomplete — AE may reject'],multiThread:'N/A',tips:'Tell the prospect: "I\'m connecting you with [AE] who leads our strategic accounts. They\'ll spend the first call understanding your situation — no pitch, no demo."'},
+    {id:'s1',num:'1',name:'Problem Framing',owner:'AE',goal:'Decide fast if this account deserves further investment. No demo. No pitch. No features.',artifacts:['Problem Statement — one paragraph, in buyer language exactly as they describe it'],exit:['Buyer agrees a structural problem exists','Buyer rejects "more content / better agency" as solution','AE restates problem in buyer language','At least one additional stakeholder role named'],kills:['Wants tactics immediately','Asks for rankings / guarantees','Frames us as a tool or agency','Curiosity without pain'],multiThread:'Ask: "Who else internally would immediately recognize this problem?"',tips:'This is a disqualification stage, not a pitch stage. Killing bad deals here is a success outcome.'},
+    {id:'s2',num:'2',name:'Current State Deconstruction',owner:'AE',goal:'Expose waste, friction, and decision latency. Test where WP SEO AI wins unfairly.',artifacts:['Current State Map: owners, tools, bottlenecks, what happens to non-performing content, how decisions are made'],exit:['Buyer acknowledges content/effort waste','Buyer sees value in learning before scaling','Clear internal owner identified','Second stakeholder function identified','Validation Demo scheduled (or reason logged)'],kills:['No demo scheduled within 7 days → auto-park'],multiThread:'Ask: "This usually breaks between teams — who would challenge or validate this internally?"',tips:'Get the inputs for the business case here: content production volume, tooling costs, agency spend, performing content %.'},
+    {id:'s25',num:'2.5',name:'Validation Demo',owner:'AE + Solutioning',goal:'Create internal belief. This is a validation gate, not a sales demo.',artifacts:['Demo Recap (shareable): problem recap, what was validated, open questions, next steps','Stakeholder Map v1'],exit:['Buyer states this is different from current approach','WP SEO AI understood as a system, not a tool','Internal champion identified + their internal job defined','Buyer comfortable involving additional stakeholders'],kills:['CCs, recordings, or "they\'ll watch later" do NOT count as stakeholder engagement'],multiThread:'At least one new stakeholder attends live OR is explicitly committed to next step.',tips:'Required attendees: original buyer + at least one operational/technical stakeholder. From WP SEO AI: AE + one expert (Product/CS/SEO), not sales.'},
+    {id:'s3',num:'3',name:'Economic Framing',owner:'AE',goal:'Decide whether a proposal is worth producing at all.',artifacts:['Decision Map: who decides, who blocks, who influences, decision date, evaluation criteria'],exit:['Buyer articulates value in business terms','Decision plan has names and dates','Economic buyer identified or meeting booked','WP SEO AI positioned as performance infrastructure'],kills:['No proposal without a completed Decision Map'],multiThread:'Minimum 3 stakeholder functions identified. Economic buyer identified or access path defined.',tips:'Translate waste into business impact. Frame cost of inaction. This is where the TRG business case format gets built.'},
+    {id:'s4',num:'4',name:'Proposal & Commitment',owner:'AE',goal:'Confirm commitment — not explain slides.',artifacts:['Mutual Action Plan: steps, owners, dates, attached to proposal'],exit:['Decision date agreed','Procurement/legal path acknowledged','Final decision meeting scheduled with right people'],kills:['Never send proposal without Decision Map'],multiThread:'All decision-makers engaged.',tips:'Ask for commitment early: "If this reflects what we agreed, are you comfortable moving forward?" Surface objections explicitly.'},
+    {id:'s5',num:'5',name:'Close or Clean Loss',owner:'AE',goal:'Close cleanly or learn cleanly. No zombie deals.',artifacts:['Win/Loss Postmortem: 5 bullets — required before deal is marked closed'],exit:['Deal marked closed-won or closed-lost with complete postmortem'],kills:['Incomplete postmortem — deal cannot be marked closed'],multiThread:'N/A',tips:'Closed-won → document why we won. Closed-lost → document where it broke. Both feed the Learning System.'}
+  ],
+  offers: [
+    {tier:'Small — Pilot',price:'€15K',priceNote:'6-month term',term:'6 months',scope:'1 domain, 1-2 markets, SEO+GEO',volume:'40-60 articles/month (GSC-scoped clusters)',kpis:'Unbranded visibility + LLM citations',reporting:'Monthly check-ins',conversion:'→ Medium at month 4 review',featured:false},
+    {tier:'Medium',price:'€50K',priceNote:'ARR',term:'12 months',scope:'1-3 domains, 2-3 markets, SEO+GEO+SEA',volume:'Full authority build',kpis:'Above + traffic + SEA CPC reduction',reporting:'Monthly + quarterly business review',conversion:'→ Large at annual review',featured:true},
+    {tier:'Large',price:'€100K',priceNote:'ARR',term:'12-24 months',scope:'Multi-domain, multi-market, full stack',volume:'Enterprise authority program',kpis:'Above + revenue attribution',reporting:'Monthly + QBR + exec sponsor review',conversion:'→ Multi-year at renewal',featured:false}
+  ],
+  scaleKill: [
+    {signal:'Organic clicks from pilot content',scale:'>2,000/mo',cont:'500–2,000/mo with upward trend',kill:'<500/mo, flat or declining'},
+    {signal:'Unbranded keywords in top 10',scale:'>10,000',cont:'3,000–10,000 with growth',kill:'<3,000, no growth'},
+    {signal:'AI search citations',scale:'Present on 2+ platforms',cont:'Present on 1 platform',kill:'No measurable presence'},
+    {signal:'Content indexation rate',scale:'>80% indexed within 30d',cont:'50–80% indexed',kill:'<50% indexed'},
+    {signal:'Stakeholder engagement',scale:'Champion + exec sponsor engaged',cont:'Champion engaged, no exec yet',kill:'Champion disengaged/departed'},
+    {signal:'Internal resource compliance',scale:'<2 hrs/month from team',cont:'Moderate friction, manageable',kill:'Blockers unresolved, unresponsive'}
+  ],
+  templates: {
+    briefing:`DEAL BRIEF — [Company Name] — [Date]\n──────────────────────────────────────\nAccount context:    [Industry, size, current setup, deal stage]\nStakeholders:       [Name / Title / Role in decision / Engagement level]\nHypothesis:         [What we believe their problem is and why we win]\nThis meeting goal:  [One sentence: what must be true after this meeting]\nAsk for solutioning: [Specific request — what to demo, what to address]\nOpen risks:         [What could kill this deal]`,
+    debrief:`DEBRIEF — [Company Name] — [Date]\n──────────────────────────────────\nWhat happened:      [2-3 sentences, buyer behavior not AE narration]\nHypothesis status:  [Confirmed / Adjusted / Rejected — and why]\nStakeholder update: [New contacts, power shifts, champion strength]\nNext step:          [Specific action + owner + date]\nPattern captured:   [Anything reusable for other deals]\nKill signal check:  [Any kill signals observed? Y/N + detail]`,
+    handoffBdrAe:`BDR → AE HANDOFF\n─────────────────\nDeal Hypothesis:    [Why this account fits Green/Yellow ICP]\nTrigger/Pain:       [What signal did we see?]\nValidate in Call 1: [What must be confirmed?]\nFast disqualifier:  [One thing that kills this immediately]\nProspect told:      "I'm connecting you with [AE] who leads strategic accounts.\n                     First call is understanding your situation — no pitch, no demo."`,
+    handoffAeCs:`AE → CS HANDOFF — [Company] — [Close Date]\n───────────────────────────────────────────\nWhat they bought:       [Tier, scope, term]\nWhy they bought:        [Problem statement in their words]\nWhat was promised:      [Specific KPIs and deliverables — nothing more]\nKey stakeholders:       [Name / Role / Engagement / Communication pref]\nChampion:               [Name, motivation, how they sold internally]\nKnown risks:            [What could cause churn]\nWhat NOT to promise:    [Anything excluded from scope]\nFirst 30-day priority:  [What CS should focus on first]`,
+    winLoss:`WIN/LOSS — [Company] — [Date Closed]\n─────────────────────────────────────\nOutcome:            Won / Lost / Parked\nStage at death:     [Stage where it died or was won]\nPrimary reason:     [One line — the real reason, not the stated one]\nStated objection:   [What they said]\nActual blocker:     [What we believe really happened]\nWas it winnable:    [Yes / No / Maybe — with one line why]\nWhat we'd change:   [One specific change]\nPattern tag:        [e.g., "single-threaded", "no champion", "pricing"]`,
+    stakeholderMap:`STAKEHOLDER MAP — [Company] — [Date] — Stage [X]\n──────────────────────────────────────────────────\n┌──────────────┬────────────┬──────────┬───────────┬────────────┐\n│ Name         │ Title      │ Role     │ Stance    │ Engagement │\n├──────────────┼────────────┼──────────┼───────────┼────────────┤\n│              │            │ Champion │ For       │ Active     │\n│              │            │ Econ     │ Neutral   │ Passive    │\n│              │            │ Blocker  │ Against   │ Unknown    │\n│              │            │ User     │ Unknown   │            │\n│              │            │ Influencer│          │            │\n└──────────────┴────────────┴──────────┴───────────┴────────────┘\n\nChampion Strength Score:\n  □ Articulated the problem in their own words\n  □ Shared internal information we didn't ask for\n  □ Completed homework (shared data, scheduled internal meeting)\n  □ Introduced us to another stakeholder\n  □ Can describe our value proposition without our help\n  Score: ___/5`,
+    expansionReview:`EXPANSION REVIEW — [Company] — Month 4\n───────────────────────────────────────\nKPI performance:    [vs. pilot targets]\nContent status:     [published, performing %, authority trajectory]\nStakeholder health: [champion, new stakeholders, exec awareness]\nExpansion case:     [Which tier? Additional scope? Business case?]\nDecision:           [Expand now / At renewal / Need time / At risk]\nNext step:          [Specific action + date]`
+  },
+  championTests: [
+    {test:'Homework',action:'Ask them to pull a specific data point (content volume, GA4 export)',strong:'Delivers within 48h',weak:'"I\'ll try to get to it"'},
+    {test:'Internal meeting',action:'Ask them to schedule an internal meeting before next call',strong:'Schedules, shares who\'s invited',weak:'Delays or makes excuses'},
+    {test:'Reframe',action:'Ask them to explain the problem as they\'d tell their CFO',strong:'Clear, business-language summary',weak:'Repeats your words back'},
+    {test:'Challenge',action:'Gently challenge one of their assumptions',strong:'Engages, refines thinking',weak:'Defers, goes quiet'},
+    {test:'Access',action:'Ask for direct intro to economic buyer',strong:'Makes the intro',weak:'"Let me handle that internally"'}
+  ],
+  dataPoints: [
+    {stat:'94%',label:'of B2B buyers use AI in buying process',source:'Forrester, Jan 2026'},
+    {stat:'92%',label:'enter with vendor already in mind',source:'Forrester'},
+    {stat:'71%',label:'Google\'s share of search (was 89% in 2023)',source:'Graphite/Similarweb'},
+    {stat:'20%',label:'ChatGPT share of search worldwide',source:'Graphite/Similarweb'},
+    {stat:'26%',label:'combined search + AI growth',source:'Graphite/Similarweb'},
+    {stat:'96.55%',label:'of published content never gets traffic',source:'Ahrefs'},
+    {stat:'23x',label:'better conversion from AI-referred visitors',source:'Ahrefs'},
+    {stat:'+32%',label:'our organic growth (market down 30-40%)',source:'WP SEO AI internal'},
+    {stat:'30-60%',label:'lower CPC when SEA paired with rankings',source:'WP SEO AI internal'},
+    {stat:'€16-42',label:'per article vs. €250-375 agency rate',source:'WP SEO AI internal'}
+  ],
+  icpCriteria: [
+    {dim:'Annual revenue',mm:'>€10M',smb:'<€10M'},
+    {dim:'Content team',mm:'Exists (even 1 person)',smb:'No dedicated resource'},
+    {dim:'Organic traffic',mm:'>10K monthly visits',smb:'<10K'},
+    {dim:'Decision complexity',mm:'2+ stakeholders',smb:'Single decision-maker'},
+    {dim:'Contract potential',mm:'≥€15K pilot / ≥€50K annual',smb:'<€15K annual'},
+    {dim:'Platform',mm:'WordPress (CMS-agnostic when MCP ships)',smb:'Any'},
+    {dim:'Market',mm:'NL, DE, UK, BE, FR, FI, SE',smb:'Any'}
+  ],
+  governance: [
+    {cadence:'Weekly',meeting:'Pipeline review',who:'Martijn + MM AEs',agenda:'Top 3 deals per AE, 1 at-risk, stage compliance',dur:'30 min'},
+    {cadence:'Bi-weekly',meeting:'MM sync',who:'Martijn + AEs + Solutioning',agenda:'2 call reviews, pattern capture, asset gaps',dur:'60 min'},
+    {cadence:'Monthly',meeting:'Forecast walk',who:'Martijn + Noy',agenda:'Full pipeline, forecast vs target, ACV trend',dur:'45 min'},
+    {cadence:'Quarterly',meeting:'Motion retro',who:'Full MM team + CS',agenda:'Win/loss analysis, process, narrative refresh',dur:'90 min'}
+  ]
+};
+
+// ── NAVIGATION ──
+const NAV = {
+  ae:[{section:'Your workflow',items:[{id:'dashboard',icon:'◉',label:'Dashboard'},{id:'process',icon:'▹',label:'Sales process'},{id:'stage-detail',icon:'⊞',label:'Stage deep-dive'},{id:'templates',icon:'◫',label:'Templates'}]},{section:'Tools',items:[{id:'deal-scorecard',icon:'◎',label:'Deal health scorecard'},{id:'roi-calculator',icon:'◰',label:'ROI calculator'},{id:'discovery',icon:'◈',label:'Discovery engine'}]},{section:'Sell',items:[{id:'narrative',icon:'◈',label:'Narrative & data'},{id:'offers',icon:'◰',label:'Offer architecture'},{id:'objections',icon:'⊘',label:'Objection handling'},{id:'competitive',icon:'⚔',label:'Competitive intel'}]},{section:'Deal management',items:[{id:'stakeholders',icon:'◎',label:'Stakeholder mapping'},{id:'champion',icon:'★',label:'Champion building'},{id:'expansion',icon:'↗',label:'Expansion playbook'},{id:'handoffs',icon:'⇄',label:'Handoff protocols'}]},{section:'Reference',items:[{id:'ae-standard',icon:'◆',label:'What good looks like'},{id:'icp',icon:'⊛',label:'ICP & qualification'},{id:'learnings',icon:'◇',label:'Learnings & patterns'}]}],
+  bdr:[{section:'Your workflow',items:[{id:'dashboard',icon:'◉',label:'Dashboard'},{id:'bdr-qualify',icon:'▹',label:'Qualification checklist'},{id:'icp',icon:'⊛',label:'ICP — who qualifies?'},{id:'templates',icon:'◫',label:'Handoff template'}]},{section:'Tools',items:[{id:'discovery',icon:'◈',label:'Discovery questions'}]},{section:'Know the story',items:[{id:'narrative',icon:'◈',label:'Key data points'},{id:'offers',icon:'◰',label:'What we sell'},{id:'objections',icon:'⊘',label:'Early objection handling'}]},{section:'Reference',items:[{id:'process',icon:'▹',label:'Full sales process'},{id:'learnings',icon:'◇',label:'Learnings & patterns'}]}],
+  lead:[{section:'Overview',items:[{id:'dashboard',icon:'◉',label:'Dashboard'},{id:'os-status',icon:'◰',label:'OS component status'},{id:'governance',icon:'◈',label:'Governance & cadence'}]},{section:'Tools',items:[{id:'scenarios',icon:'◇',label:'Scenario planner'},{id:'deal-scorecard',icon:'◎',label:'Deal health scorecard'}]},{section:'Motion design',items:[{id:'process',icon:'▹',label:'Sales process'},{id:'offers',icon:'◰',label:'Offer architecture'},{id:'deal-team',icon:'⊞',label:'Deal team model'},{id:'compensation',icon:'◆',label:'Compensation design'}]},{section:'Intelligence',items:[{id:'pipeline',icon:'◎',label:'Pipeline & forecasting'},{id:'ae-standard',icon:'◆',label:'AE performance standard'},{id:'expansion',icon:'↗',label:'Expansion architecture'},{id:'learnings',icon:'◇',label:'Learnings & patterns'}]}]
+};
+
+// ── SEARCH INDEX ──
+const SEARCH_INDEX=[{title:'Sales process overview',page:'process',tags:'stages pipeline deal flow'},{title:'Stage 0 — BDR Qualification',page:'stage-detail',tags:'bdr qualify hypothesis handoff',ctx:'How BDRs qualify MM accounts'},{title:'Stage 1 — Problem framing',page:'stage-detail',tags:'discovery problem disqualification first call',ctx:'First AE call'},{title:'Stage 2 — Current state deconstruction',page:'stage-detail',tags:'waste mapping workflow',ctx:'Map workflow, expose waste'},{title:'Stage 2.5 — Validation demo',page:'stage-detail',tags:'demo validation solutioning',ctx:'System proof gate'},{title:'Stage 3 — Economic framing',page:'stage-detail',tags:'economics business case decision map',ctx:'Decision Map before proposal'},{title:'Stage 4 — Proposal & commitment',page:'stage-detail',tags:'proposal MAP close',ctx:'Confirm commitment'},{title:'Stage 5 — Close or clean loss',page:'stage-detail',tags:'close win loss postmortem',ctx:'Clean outcome'},{title:'Deal briefing template',page:'templates',tags:'briefing template meeting prep'},{title:'Debrief template',page:'templates',tags:'debrief post-meeting capture'},{title:'BDR → AE handoff',page:'templates',tags:'bdr ae handoff warm intro'},{title:'AE → CS handoff',page:'templates',tags:'ae cs onboarding post-close'},{title:'Win/Loss postmortem',page:'templates',tags:'win loss postmortem'},{title:'Stakeholder map',page:'templates',tags:'stakeholder map org chart'},{title:'Offer architecture',page:'offers',tags:'pricing pilot 15k 50k 100k tier'},{title:'Scale / kill criteria',page:'offers',tags:'scale kill continue pilot decision'},{title:'ICP & account scoring',page:'icp',tags:'icp qualification criteria scoring'},{title:'Narrative & data points',page:'narrative',tags:'data stats forrester AI search'},{title:'Champion testing plays',page:'champion',tags:'champion test homework access'},{title:'Multi-threading by stage',page:'stakeholders',tags:'multi-thread stakeholder'},{title:'Expansion playbook',page:'expansion',tags:'expand pilot conversion month 4'},{title:'AE standard',page:'ae-standard',tags:'ae good great merit'},{title:'Governance cadence',page:'governance',tags:'governance weekly monthly quarterly'},{title:'Compensation',page:'compensation',tags:'commission accelerator bonus'},{title:'Deal team model',page:'deal-team',tags:'deal team roles Max Pontus'},{title:'Scenario planning',page:'scenarios',tags:'scenario scale kill pivot MCP'},{title:'Objection handling',page:'objections',tags:'objection agency tool ROI timing'},{title:'Competitive intel',page:'competitive',tags:'competitive Profound agency'},{title:'Deal health scorecard',page:'deal-scorecard',tags:'deal health score checklist risk',ctx:'Score deals against MM process'},{title:'ROI calculator',page:'roi-calculator',tags:'roi calculator business case TRG waste compound',ctx:'TRG business case model for calls'},{title:'Discovery engine',page:'discovery',tags:'discovery questions persona CMO CTO CFO',ctx:'Questions by persona and stage'},{title:'Scenario planner',page:'scenarios',tags:'scenario revenue model 2M target FTE cost',ctx:'Interactive revenue and FTE model'}];
+
+// ── RENDER ENGINE ──
+function setRole(r){currentRole=r;document.querySelectorAll('.role-btn').forEach(b=>b.classList.toggle('active',b.dataset.role===r));renderSidebar();navigateTo('dashboard');}
+function renderSidebar(){const nav=NAV[currentRole];let h='';nav.forEach(s=>{h+=`<div class="sb-section"><div class="sb-section-title">${s.section}</div>`;s.items.forEach(i=>{h+=`<div class="sb-item${currentPage===i.id?' active':''}" onclick="navigateTo('${i.id}')"><span class="sb-icon">${i.icon}</span><span class="sb-label">${i.label}</span></div>`;});h+='</div>';});document.getElementById('sidebarNav').innerHTML=h;}
+function navigateTo(p){currentPage=p;renderSidebar();const el=document.getElementById('content');el.parentElement.scrollTop=0;const r=PAGE_RENDERERS[p];if(r)r(el);else el.innerHTML=`<div class="page-header"><h1>${p}</h1><p>Coming soon.</p></div>`;document.getElementById('pageTitle').textContent='/ '+getPageTitle(p);}
+function getPageTitle(p){const t={dashboard:'Dashboard',process:'Sales process',templates:'Templates','stage-detail':'Stage deep-dive',narrative:'Narrative & data',offers:'Offer architecture',objections:'Objection handling',competitive:'Competitive intel',stakeholders:'Stakeholder mapping',champion:'Champion building',expansion:'Expansion playbook',handoffs:'Handoff protocols','ae-standard':'What good looks like',icp:'ICP & qualification',learnings:'Learnings & patterns','bdr-qualify':'BDR qualification','os-status':'OS component status',governance:'Governance & cadence','deal-team':'Deal team model',compensation:'Compensation',pipeline:'Pipeline & forecasting',scenarios:'Scenario planner','deal-scorecard':'Deal health scorecard','roi-calculator':'ROI calculator',discovery:'Discovery engine'};return t[p]||p;}
+function handleSearch(q){const box=document.getElementById('searchResults');if(!q||q.length<2){box.classList.remove('show');return;}const l=q.toLowerCase();const res=SEARCH_INDEX.filter(s=>s.title.toLowerCase().includes(l)||s.tags.includes(l)||(s.ctx&&s.ctx.toLowerCase().includes(l)));if(!res.length){box.classList.remove('show');return;}box.innerHTML=res.slice(0,8).map(r=>`<div class="sr-item" onmousedown="navigateTo('${r.page}');document.getElementById('searchInput').value='';document.getElementById('searchResults').classList.remove('show')"><div class="sr-title">${r.title}</div>${r.ctx?`<div class="sr-context">${r.ctx}</div>`:''}<span class="sr-tag">${r.page}</span></div>`).join('');box.classList.add('show');}
+function copyTemplate(k){navigator.clipboard.writeText(OS.templates[k]).then(()=>showToast('Copied to clipboard'));}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+function toggleAcc(h){h.classList.toggle('open');h.nextElementSibling.classList.toggle('open');}
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let activeStage='s1';
+function showStageDetail(id){activeStage=id;navigateTo('stage-detail');}
+
+// ── PAGE RENDERERS ──
+const PAGE_RENDERERS={};
+
+PAGE_RENDERERS.dashboard=(el)=>{
+  if(currentRole==='bdr'){el.innerHTML=`<div class="hero"><h1>BDR command center</h1><p>Qualify fast. Hand off clean. Protect AE time.</p></div><div class="stat-grid"><div class="stat-box purple"><div class="sv">6</div><div class="sl">Sales stages</div></div><div class="stat-box green"><div class="sv">€15K</div><div class="sl">Pilot entry point</div></div><div class="stat-box blue"><div class="sv">3</div><div class="sl">Offer tiers</div></div><div class="stat-box orange"><div class="sv">7</div><div class="sl">ICP dimensions</div></div></div><div class="quick-actions"><button class="qa-btn" onclick="navigateTo('bdr-qualify')"><span class="qa-icon">▹</span> Qualification checklist</button><button class="qa-btn" onclick="navigateTo('templates')"><span class="qa-icon">◫</span> Handoff template</button><button class="qa-btn" onclick="navigateTo('icp')"><span class="qa-icon">⊛</span> ICP criteria</button><button class="qa-btn" onclick="navigateTo('narrative')"><span class="qa-icon">◈</span> Key data points</button></div><div class="callout info"><strong>Your job:</strong> Only Green/near-Green MM accounts reach AEs. Every handoff needs a Deal Hypothesis — ICP fit, trigger/pain signal, what must be validated, one fast disqualifier.</div><div class="card"><h3>The 30-second MM pitch</h3><p>94% of B2B buyers now use AI in their buying process. 92% already have a vendor in mind before they talk to sales. If your brand isn't the one being cited when someone asks a question your category should own — you're not in that conversation.</p><p style="margin-top:8px">We're the only company that runs the full loop — research, produce, publish, measure, optimize — across Google, ChatGPT, and AI search as a managed service. Less than 2 hours a month from your team.</p></div>`;}
+  else if(currentRole==='lead'){el.innerHTML=`<div class="hero"><h1>MM motion — command view</h1><p>Build, run, and scale the mid-market operating system.</p></div><div class="stat-grid"><div class="stat-box purple"><div class="sv">19</div><div class="sl">OS components</div></div><div class="stat-box green"><div class="sv">5</div><div class="sl">Live</div></div><div class="stat-box orange"><div class="sv">8</div><div class="sl">Designed / draft</div></div><div class="stat-box blue"><div class="sv">6</div><div class="sl">To build</div></div></div><div class="quick-actions"><button class="qa-btn" onclick="navigateTo('os-status')"><span class="qa-icon">◰</span> Component status</button><button class="qa-btn" onclick="navigateTo('governance')"><span class="qa-icon">◈</span> Governance</button><button class="qa-btn" onclick="navigateTo('pipeline')"><span class="qa-icon">◎</span> Pipeline</button><button class="qa-btn" onclick="navigateTo('scenarios')"><span class="qa-icon">◇</span> Scenarios</button></div><div class="grid-2"><div class="card"><h3>Blockers</h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li><span class="badge red">Blocked</span> Compensation rates — Noy margin validation</li><li><span class="badge orange">Pending</span> ICP scoring — manual spreadsheet first</li><li><span class="badge orange">Pending</span> Deal team templates — deploy to HubSpot/Notion</li><li><span class="badge orange">Pending</span> Competitive battlecard — to build</li></ul></div><div class="card"><h3>Decision calendar</h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li><span class="badge purple">Q2</span> Scale or adjust MM motion?</li><li><span class="badge purple">Q2</span> Finalize compensation rates</li><li><span class="badge blue">Q2-Q3</span> MCP/CMS-agnostic go/no-go</li><li><span class="badge blue">Q3</span> Hire MM AE #2?</li><li><span class="badge navy">Q4</span> Head of GTM scope</li></ul></div></div>`;}
+  else{const deals=LS.get('DEALS')||[];const dealHtml=deals.length?`<div class="card"><h3>Your deals</h3>${deals.slice(0,5).map((d,i)=>`<div class="deal-list-item" onclick="navigateTo('deal-scorecard')"><div class="dli-score ${d.score>=71?'green':d.score>=41?'orange':'red'}">${d.score}</div><div class="dli-info"><div class="dli-name">${d.name||'Unnamed'}</div><div class="dli-meta">Stage ${d.stage} · ${d.score>=71?'Healthy':d.score>=41?'Needs work':'At risk'}</div></div></div>`).join('')}</div>`:'';el.innerHTML=`<div class="hero"><h1>AE command center</h1><p>Run MM deals with process discipline. Every stage has artifacts, exit criteria, and kill signals.</p></div><div class="stat-grid"><div class="stat-box purple"><div class="sv">6</div><div class="sl">Deal stages</div></div><div class="stat-box green"><div class="sv">€15K</div><div class="sl">Pilot entry</div></div><div class="stat-box orange"><div class="sv">€50K</div><div class="sl">Medium tier</div></div><div class="stat-box blue"><div class="sv">€100K</div><div class="sl">Large tier</div></div></div><div class="quick-actions"><button class="qa-btn" onclick="navigateTo('deal-scorecard')"><span class="qa-icon">◎</span> Deal scorecard</button><button class="qa-btn" onclick="navigateTo('roi-calculator')"><span class="qa-icon">◰</span> ROI calculator</button><button class="qa-btn" onclick="navigateTo('discovery')"><span class="qa-icon">◈</span> Discovery engine</button><button class="qa-btn" onclick="navigateTo('process')"><span class="qa-icon">▹</span> Sales process</button><button class="qa-btn" onclick="navigateTo('templates')"><span class="qa-icon">◫</span> Templates</button><button class="qa-btn" onclick="navigateTo('narrative')"><span class="qa-icon">◈</span> Narrative & data</button></div>${dealHtml}<div class="callout warn"><strong>The anchor:</strong> "If the organization hasn't changed shape, the deal hasn't progressed." — Single-threaded deals cannot progress beyond Stage 2.</div><div class="card"><h3>Pipeline stages</h3><div class="pipeline">${OS.stages.map((s,i)=>`<div class="pipe-stage" onclick="showStageDetail('${s.id}')"><div class="ps-num">Stage ${s.num}</div><div class="ps-name">${s.name}</div>${i<OS.stages.length-1?'<div class="ps-arrow">›</div>':''}</div>`).join('')}</div></div><div class="grid-2"><div class="card"><h3>Non-negotiable rules</h3><ul style="font-size:14px;line-height:2.2;list-style:none;color:var(--blackish)"><li>✕ Single-threaded deals cannot pass Stage 2</li><li>✕ No artifacts → no stage advancement</li><li>✕ No demo → no economics discussion</li><li>✕ No decision map → no proposal</li><li>✕ No stakeholder expansion → no progression</li></ul></div><div class="card"><h3>Stakeholder minimums</h3><table class="os-table"><tr><th>Stage</th><th>Minimum</th></tr><tr><td>End Stage 1</td><td>1 additional role named</td></tr><tr><td>End Stage 2</td><td>2 functions identified</td></tr><tr><td>End Stage 2.5</td><td>3 functions engaged</td></tr><tr><td>End Stage 3</td><td>Economic buyer identified</td></tr></table></div></div>`;}
+};
+
+PAGE_RENDERERS.process=(el)=>{el.innerHTML=`<div class="page-header"><h1>Mid-market sales process</h1><p>Stages represent buyer truth, not AE intent. Deals progress on observable buyer behavior only.</p></div><div class="pipeline">${OS.stages.map((s,i)=>`<div class="pipe-stage" onclick="showStageDetail('${s.id}')"><div class="ps-num">Stage ${s.num}</div><div class="ps-name">${s.name}</div>${i<OS.stages.length-1?'<div class="ps-arrow">›</div>':''}</div>`).join('')}</div><div style="margin-top:24px">${OS.stages.map(s=>`<div class="card" style="cursor:pointer" onclick="showStageDetail('${s.id}')"><h3><span class="badge purple">Stage ${s.num}</span> ${s.name} <span class="role-hint ${s.owner==='BDR'?'bdr':'ae'}">${s.owner}</span></h3><p>${s.goal}</p><div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap"><span style="font-size:12px;color:var(--green);font-weight:600">✓ ${s.exit.length} exit criteria</span><span style="font-size:12px;color:var(--red);font-weight:600">✕ ${s.kills.length} kill signal${s.kills.length>1?'s':''}</span><span style="font-size:12px;color:var(--blue);font-weight:600">◫ ${s.artifacts.length} artifact${s.artifacts.length>1?'s':''}</span></div></div>`).join('')}</div>`;};
+
+PAGE_RENDERERS['stage-detail']=(el)=>{const s=OS.stages.find(x=>x.id===activeStage)||OS.stages[1];el.innerHTML=`<div class="page-header"><div class="pipeline" style="margin-bottom:20px">${OS.stages.map((st,i)=>`<div class="pipe-stage${st.id===s.id?' active':''}" onclick="showStageDetail('${st.id}')"><div class="ps-num">Stage ${st.num}</div><div class="ps-name">${st.name}</div>${i<OS.stages.length-1?'<div class="ps-arrow">›</div>':''}</div>`).join('')}</div><h1>Stage ${s.num} — ${s.name}</h1><p>${s.goal}</p></div><div class="grid-2"><div><div class="card"><h3><span style="color:var(--blue)">◫</span> Mandatory artifacts</h3><ul class="checklist">${s.artifacts.map(a=>`<li><span class="cl-icon required">!</span> ${a}</li>`).join('')}</ul></div><div class="card"><h3><span style="color:var(--green)">✓</span> Exit criteria (all required)</h3><ul class="checklist">${s.exit.map(e=>`<li><span class="cl-icon done">✓</span> ${e}</li>`).join('')}</ul></div></div><div><div class="card"><h3><span style="color:var(--red)">✕</span> Kill signals</h3><ul class="checklist">${s.kills.map(k=>`<li><span class="cl-icon" style="border-color:var(--red);color:var(--red);background:rgba(229,72,77,.06)">✕</span> ${k}</li>`).join('')}</ul></div><div class="card"><h3><span style="color:var(--purple3)">◎</span> Multi-threading</h3><p>${s.multiThread}</p></div><div class="callout info"><strong>Tip:</strong> ${s.tips}</div></div></div>`;};
+
+PAGE_RENDERERS.templates=(el)=>{const ts=[{key:'briefing',title:'Pre-meeting briefing',desc:'One-pager required before every deal team meeting.',role:'ae'},{key:'debrief',title:'Post-meeting debrief',desc:'Structured capture within 24h.',role:'ae'},{key:'stakeholderMap',title:'Stakeholder map',desc:'Map stakeholders, roles, power, and champion score.',role:'ae'},{key:'handoffBdrAe',title:'BDR → AE handoff',desc:'Deal hypothesis + warm intro format.',role:'bdr'},{key:'handoffAeCs',title:'AE → CS handoff',desc:'Post-close transfer. Due within 48h.',role:'ae'},{key:'winLoss',title:'Win/Loss postmortem',desc:'Required before deal marked closed.',role:'ae'},{key:'expansionReview',title:'Month 4 expansion review',desc:'Pilot KPI review and expansion decision.',role:'ae'}];const f=currentRole==='bdr'?ts.filter(t=>t.role==='bdr'):ts;el.innerHTML=`<div class="page-header"><h1>Templates</h1><p>Copy, fill, use. Every template ties to a deal stage.</p></div>${f.map(t=>`<div class="card"><h3>${t.title} <span class="role-hint ${t.role}">${t.role.toUpperCase()}</span></h3><p>${t.desc}</p><div class="template-box"><button class="copy-btn" onclick="copyTemplate('${t.key}')">Copy</button>${escapeHtml(OS.templates[t.key])}</div></div>`).join('')}`;};
+
+PAGE_RENDERERS.narrative=(el)=>{el.innerHTML=`<div class="page-header"><h1>Narrative & data points</h1><p>The numbers that open conversations. Know these so you can pull them naturally.</p></div><div class="grid-2" style="margin-bottom:24px">${OS.dataPoints.map(d=>`<div class="card" style="display:flex;align-items:center;gap:16px"><div style="font-size:32px;font-weight:800;color:var(--purple3);min-width:80px;text-align:right;line-height:1">${d.stat}</div><div><div style="font-size:14px;color:var(--blackish)">${d.label}</div><div style="font-size:12px;color:var(--text-light);margin-top:2px">${d.source}</div></div></div>`).join('')}</div><div class="card"><h3>The story arc (7 acts)</h3><p style="margin-bottom:14px">Two-phase motion: Discovery (Acts 1-3) → Demo/Proposal (Acts 4-6). You don't need every act every call.</p><div class="accordion"><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Opening:</strong>&nbsp;The decision has already been made</div><div class="acc-body">"92% of buyers enter with a vendor already in mind. The shortlist is formed in AI — in ChatGPT, in Copilot, in Gemini — before your sales team is ever involved." Let that land. Then: "That is the starting point for everything I'm about to show you."</div></div><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Act 1:</strong>&nbsp;The market has structurally shifted</div><div class="acc-body">Google's share dropped from 89% to 71%. ChatGPT holds 20%. But search isn't shrinking — the pie grew 26%. AI added a new layer on top. Almost nobody has a systematic way to capture it.</div></div><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Act 2:</strong>&nbsp;Three channels, one search result</div><div class="acc-body">SEA (sponsored) + GEO (AI Overviews) + SEO (organic) — three channels on one page, one buyer session. Most companies manage them separately. No shared intelligence. Everything resets.</div></div><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Act 3:</strong>&nbsp;Why everything they've tried hits a ceiling</div><div class="acc-body">Agencies: €250-375/article, quarterly cycles, no freshness tracking. Internal hires: 10-15 pieces/month before reporting eats capacity. DIY automation: volume without signal is waste. None close the learning loop.</div></div><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Act 4:</strong>&nbsp;What WP SEO AI actually is</div><div class="acc-body">Search Visibility Platform. Closed-loop learning system: Research → Produce → Publish → Measure → Optimize. We run it on your behalf. Not a platform you log into. We do the work. Plus long-tail SEA at 30-60% lower CPCs.</div></div><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Act 5:</strong>&nbsp;Why this is not a channel bet</div><div class="acc-body">RAG is architecturally permanent. OpenAI crawler requests grew 2,800% in 2025. AI platforms need authoritative content. Build topical authority = become structurally embedded in how AI answers questions.</div></div><div class="acc-item"><div class="acc-header" onclick="toggleAcc(this)"><span class="acc-arrow">›</span> <strong>Act 6:</strong>&nbsp;The close</div><div class="acc-body">In Europe, the window is still open (~6 months behind US). 18-24 month lead. Offer: visibility audit on top 5 category queries — ranking in Google, cited in ChatGPT, gaps. One day. No cost.</div></div></div></div>`;};
+
+PAGE_RENDERERS.offers=(el)=>{el.innerHTML=`<div class="page-header"><h1>Offer architecture</h1><p>Three tiers. No bespoke deals. No exception pricing without approval.</p></div><div class="tier-cards">${OS.offers.map(o=>`<div class="tier-card${o.featured?' featured':''}">${o.featured?'<div class="rec-badge">Most common</div>':''}<div class="tier-label">${o.tier}</div><div class="tier-price">${o.price} <span>/ ${o.priceNote}</span></div><div class="tier-term">${o.term}</div><ul class="tier-features"><li>${o.scope}</li><li>${o.volume}</li><li>KPIs: ${o.kpis}</li><li>${o.reporting}</li><li>${o.conversion}</li></ul></div>`).join('')}</div><div class="callout warn"><strong>Pricing wall:</strong> MM buyers must not see SMB pricing. Pilot pricing only visible after MM qualification confirmed.</div><div class="card"><h3>Pilot scale / kill criteria</h3><p style="margin-bottom:14px">Decision rules at end of month 6. No ambiguity.</p><div class="sk-grid"><div class="sk-header">Signal</div><div class="sk-header" style="color:var(--green)">→ Scale</div><div class="sk-header" style="color:var(--orange)">→ Continue</div><div class="sk-header" style="color:var(--red)">→ Kill</div>${OS.scaleKill.map(sk=>`<div class="sk-cell">${sk.signal}</div><div class="sk-cell scale">${sk.scale}</div><div class="sk-cell continue">${sk.cont}</div><div class="sk-cell kill">${sk.kill}</div>`).join('')}</div><div style="margin-top:16px;font-size:14px;line-height:2"><p><span class="badge green">Scale</span> 4+ of 6 in Scale → recommend expansion at month 4</p><p><span class="badge orange">Continue</span> Majority in Continue, none in Kill → extend 3 months (one extension max)</p><p><span class="badge red">Kill</span> 2+ in Kill → honest conversation at month 4, close cleanly at month 6</p></div></div>`;};
+
+PAGE_RENDERERS.icp=(el)=>{el.innerHTML=`<div class="page-header"><h1>ICP & qualification</h1><p>Not every account deserves the MM motion.</p></div><div class="card"><h3>MM vs. SMB routing</h3><table class="os-table"><tr><th>Dimension</th><th style="color:var(--purple3)">→ MM</th><th style="color:var(--text-light)">→ SMB</th></tr>${OS.icpCriteria.map(c=>`<tr><td><strong>${c.dim}</strong></td><td>${c.mm}</td><td>${c.smb}</td></tr>`).join('')}</table></div><div class="grid-2"><div class="card"><h3 style="color:var(--green)">Intent signals → route to MM</h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li>→ Inbound from VP/Director+ title</li><li>→ Company in competitive loss analysis</li><li>→ Active SEO/GEO RFP or agency review</li><li>→ Event-sourced from MM-targeted events</li><li>→ SMB customer hitting content ceiling</li></ul></div><div class="card"><h3 style="color:var(--red)">Disqualification signals</h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li>✕ Wants tactical SEO fixes only</li><li>✕ No budget authority after 2 calls</li><li>✕ Single-threaded after Stage 2</li><li>✕ Frames us as tool/agency only</li></ul></div></div>`;};
+
+PAGE_RENDERERS['bdr-qualify']=(el)=>{el.innerHTML=`<div class="page-header"><h1>BDR qualification checklist</h1><p>Complete before every handoff. AEs can reject incomplete handoffs.</p></div><div class="card"><h3>Step 1: Does this account qualify?</h3><table class="os-table"><tr><th>Check</th><th>MM qualifier</th></tr>${OS.icpCriteria.map(c=>`<tr><td><strong>${c.dim}</strong></td><td>${c.mm}</td></tr>`).join('')}</table><div class="callout warn" style="margin-top:12px"><strong>All criteria must be true.</strong> If any fail → route to SMB.</div></div><div class="card"><h3>Step 2: Build the deal hypothesis</h3><div class="template-box"><button class="copy-btn" onclick="copyTemplate('handoffBdrAe')">Copy</button>${escapeHtml(OS.templates.handoffBdrAe)}</div></div><div class="card"><h3>Step 3: Set the prospect's expectation</h3><div class="callout info">Tell them: <strong>"I'm connecting you with [AE name] who leads our strategic accounts. They'll spend the first call understanding your situation — no pitch, no demo."</strong></div></div>`;};
+
+PAGE_RENDERERS.champion=(el)=>{el.innerHTML=`<div class="page-header"><h1>Champion building</h1><p>A champion sells internally when you're not in the room. Test them before you trust them.</p></div><div class="card"><h3>Champion strength score (0-5)</h3><ul class="checklist"><li><span class="cl-icon">□</span> Articulated the problem in their own words</li><li><span class="cl-icon">□</span> Shared internal info we didn't ask for</li><li><span class="cl-icon">□</span> Completed homework (data, internal meeting)</li><li><span class="cl-icon">□</span> Introduced us to another stakeholder</li><li><span class="cl-icon">□</span> Can describe our value prop without help</li></ul><div class="callout warn" style="margin-top:10px"><strong>Score ≤ 2?</strong> You have a contact, not a champion.</div></div><div class="card"><h3>5 champion tests</h3><table class="os-table"><tr><th>Test</th><th>Action</th><th style="color:var(--green)">Strong</th><th style="color:var(--red)">Weak</th></tr>${OS.championTests.map(t=>`<tr><td><strong>${t.test}</strong></td><td>${t.action}</td><td>${t.strong}</td><td>${t.weak}</td></tr>`).join('')}</table></div>`;};
+
+PAGE_RENDERERS.stakeholders=(el)=>{el.innerHTML=`<div class="page-header"><h1>Stakeholder mapping</h1><p>Multi-threading is non-negotiable.</p></div><div class="card"><h3>Stakeholder map template</h3><div class="template-box"><button class="copy-btn" onclick="copyTemplate('stakeholderMap')">Copy</button>${escapeHtml(OS.templates.stakeholderMap)}</div></div><div class="card"><h3>Multi-threading plays by stage</h3><table class="os-table"><tr><th>Stage</th><th>Minimum</th><th>The play</th></tr><tr><td><span class="badge purple">1</span></td><td>1 role named</td><td>"Who else would immediately recognize this problem?"</td></tr><tr><td><span class="badge purple">2</span></td><td>2 functions</td><td>"This usually breaks between teams — who would challenge this?"</td></tr><tr><td><span class="badge purple">2.5</span></td><td>3 functions</td><td>New stakeholder in the demo room (live only)</td></tr><tr><td><span class="badge purple">3</span></td><td>Econ buyer</td><td>"Who decides, who blocks, who influences?"</td></tr><tr><td><span class="badge purple">4</span></td><td>All decision-makers</td><td>All names in the MAP</td></tr></table></div>`;};
+
+PAGE_RENDERERS.expansion=(el)=>{el.innerHTML=`<div class="page-header"><h1>Expansion playbook</h1><p>The pilot is the land. This is the expand.</p></div><div class="progress-track"><div class="pt-step done"><div class="pt-dot">✓</div><div class="pt-label">Pilot close</div></div><div class="pt-line done"></div><div class="pt-step current"><div class="pt-dot">4</div><div class="pt-label">Month 4 review</div></div><div class="pt-line"></div><div class="pt-step"><div class="pt-dot">6</div><div class="pt-label">Pilot end</div></div><div class="pt-line"></div><div class="pt-step"><div class="pt-dot">→</div><div class="pt-label">Medium / Large</div></div></div><div class="card"><h3>Month 4 review template</h3><div class="template-box"><button class="copy-btn" onclick="copyTemplate('expansionReview')">Copy</button>${escapeHtml(OS.templates.expansionReview)}</div></div><div class="card"><h3>Expansion triggers</h3><table class="os-table"><tr><th>Trigger</th><th>Timing</th><th>Action</th></tr><tr><td>Month 4 review</td><td>Mandatory</td><td>AE + CS review KPIs, prepare expansion proposal</td></tr><tr><td>KPI overperformance</td><td>After M3</td><td>AE initiates expansion conversation early</td></tr><tr><td>Scope request</td><td>Any time</td><td>Route to AE for expansion pricing</td></tr><tr><td>Champion promoted</td><td>Any time</td><td>AE re-qualifies opportunity</td></tr></table></div><div class="card"><h3>Ownership by phase</h3><table class="os-table"><tr><th>Phase</th><th>Primary</th><th>Support</th></tr><tr><td>Pilot (M1-6)</td><td>AE</td><td>CS (delivery)</td></tr><tr><td>Expansion conversation</td><td>AE</td><td>CS (data)</td></tr><tr><td>Expansion delivery</td><td>CS</td><td>AE (relationship)</td></tr><tr><td>Renewal (Y2+)</td><td>CS</td><td>AE (strategic)</td></tr></table></div>`;};
+
+PAGE_RENDERERS.handoffs=(el)=>{el.innerHTML=`<div class="page-header"><h1>Handoff protocols</h1><p>Bad handoffs destroy momentum and set up churn.</p></div><div class="grid-2"><div class="card"><h3>BDR → AE <span class="role-hint bdr">BDR</span></h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li>→ Deal hypothesis logged in CRM</li><li>→ Prospect told: first call = understanding, no pitch</li><li>→ AE reviews within 24h, accepts or rejects</li><li>→ Warm intro email with 2-line context</li></ul><div class="template-box" style="margin-top:12px"><button class="copy-btn" onclick="copyTemplate('handoffBdrAe')">Copy</button>${escapeHtml(OS.templates.handoffBdrAe)}</div></div><div class="card"><h3>AE → CS <span class="role-hint ae">AE</span></h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li>→ Handoff document within 48h of close</li><li>→ AE joins first CS kickoff call</li><li>→ AE available for 30 days, then CS owns</li><li>→ Onboarding expectations set in Stage 4</li></ul><div class="template-box" style="margin-top:12px"><button class="copy-btn" onclick="copyTemplate('handoffAeCs')">Copy</button>${escapeHtml(OS.templates.handoffAeCs)}</div></div></div>`;};
+
+PAGE_RENDERERS['ae-standard']=(el)=>{el.innerHTML=`<div class="page-header"><h1>What good looks like</h1><p>The operating standard for MM AEs.</p></div><div class="callout info"><strong>Key difference:</strong> A MM AE is not an SMB AE with bigger deals. Multi-stage (60-90 days), 3-5 stakeholders, transformation selling.</div><div class="do-dont"><div class="do-col do"><h4>What great looks like</h4><ul><li>Kills bad deals fast (Stage 1 = disqualification)</li><li>Problem statements in buyer language</li><li>Multi-threads proactively</li><li>Requests solutioning with clear briefing</li><li>Business cases from discovery data</li><li>Pilot as wedge to larger deal</li><li>Captures and shares patterns</li><li>Never sends proposal without Decision Map</li></ul></div><div class="do-col dont"><h4>What to avoid</h4><ul><li>Running MM like long SMB deals</li><li>Skipping stages ("they seem interested")</li><li>Demo-led selling</li><li>Deals >21 days without activity</li><li>Custom pricing without approval</li><li>Meetings without a hypothesis</li><li>"It went well" debriefs</li><li>Single-threaded past Stage 2</li></ul></div></div><div class="card"><h3>Daily rhythm</h3><table class="os-table"><tr><th>Block</th><th>Activity</th></tr><tr><td><strong>Morning</strong></td><td>Pipeline review: next steps due, call prep</td></tr><tr><td><strong>Pre-call</strong></td><td>Briefing one-pager (even solo calls)</td></tr><tr><td><strong>Post-call</strong></td><td>Debrief within 2h, CRM update, flag patterns</td></tr><tr><td><strong>Weekly</strong></td><td>Top 3 + 1 at-risk in pipeline review</td></tr><tr><td><strong>Bi-weekly</strong></td><td>MM sync, share learnings</td></tr></table></div><div class="card"><h3>Merit score (4 dimensions)</h3><table class="os-table"><tr><th>Dimension</th><th>Weight</th><th>Measure</th></tr><tr><td>Meeting-to-Opportunity</td><td>25%</td><td>Stage 1 → Stage 2 rate</td></tr><tr><td>Opportunity-to-Close</td><td>25%</td><td>Win rate</td></tr><tr><td>Deal velocity</td><td>25%</td><td>Average days to close</td></tr><tr><td>ACV vs. target</td><td>25%</td><td>Avg deal size vs. target</td></tr></table><div class="callout warn" style="margin-top:12px"><strong>MM eligibility = Tier 1 only.</strong> 90-day rolling. Below median → SMB only + coaching plan.</div></div>`;};
+
+PAGE_RENDERERS.objections=(el)=>{const obs=[{o:'"We already have an agency."',r:'That means you have a point of comparison. What we hear is the agency delivers content but doesn\'t close the learning loop. When AI search changes, you wait for the quarterly review. What happens to content that doesn\'t perform?',s:'1-2'},{o:'"We can do this in-house with AI tools."',r:'You can — that solves volume. But volume without signal is waste at scale. If you don\'t know which 5% drives 80% of authority, you\'re producing cost, not return.',s:'1-3'},{o:'"What if AI search changes?"',r:'RAG is architecturally permanent — it solves knowledge cutoff and hallucination. OpenAI crawler requests grew 2,800% in 2025. You don\'t invest at that scale in something you plan to replace.',s:'2-3'},{o:'"The timing isn\'t right."',r:'What changes in 3-6 months? Authority positions are being claimed now. Every quarter of delay is compounding advantage given to someone else. 18-24 months to close the gap.',s:'3-4'},{o:'"€15K for a pilot is a lot."',r:'It\'s less than two months of agency content that doesn\'t compound. You get 240-360 articles, visibility growth, AI citations, and a data-backed go/no-go at month 6. What\'s the residual value of your last €15K in ad spend?',s:'3-4'},{o:'"We need procurement / legal."',r:'Good — that means it\'s being taken seriously. Let\'s map the process: who, what timeline, what they need. We\'ll build that into the Mutual Action Plan.',s:'4'},{o:'"Can you guarantee results?"',r:'We don\'t guarantee rankings. We guarantee execution: volume, the loop, measurement, optimization. The pilot has clear KPIs we control. You\'ll see trajectory in 90 days.',s:'2-4'}];el.innerHTML=`<div class="page-header"><h1>Objection handling</h1><p>Common objections with stage context and response frameworks.</p></div>${obs.map(o=>`<div class="card"><h3>${o.o} <span class="badge purple">Stage ${o.s}</span></h3><p>${o.r}</p></div>`).join('')}`;};
+
+PAGE_RENDERERS.competitive=(el)=>{el.innerHTML=`<div class="page-header"><h1>Competitive positioning</h1><p>How we differ from the alternatives.</p></div><div class="card"><table class="os-table"><tr><th>Alternative</th><th>What they do</th><th>Where they fall short</th><th>Our angle</th></tr><tr><td><strong>Profound / Peec</strong></td><td>AI citation measurement</td><td>Measurement without execution. No content production, no loop.</td><td>"We don't just measure — we run the loop."</td></tr><tr><td><strong>SEO Agencies</strong></td><td>Content + strategy</td><td>Quarterly cycles. No freshness tracking. No pruning. €250-375/article.</td><td>"€16-42/article, continuous, all three channels."</td></tr><tr><td><strong>In-house team</strong></td><td>Ownership + quality</td><td>10-15 pieces/month ceiling. Can't scale across markets.</td><td>"Scale without headcount. <2 hrs/month."</td></tr><tr><td><strong>DIY AI tools</strong></td><td>Volume at low cost</td><td>Volume without signal. No learning loop. No authority building.</td><td>"Anyone can produce. We compound."</td></tr></table></div><div class="callout info"><strong>Positioning:</strong> The only closed-loop learning system for topical authority across SEO, GEO, and SEA — run as a managed service.</div>`;};
+
+PAGE_RENDERERS['os-status']=(el)=>{const cs=[{n:1,nm:'Market thesis & narrative',l:'Foundation',st:'Live (V3)',b:'green'},{n:2,nm:'ICP & account scoring',l:'Foundation',st:'Designed',b:'orange'},{n:3,nm:'Sales process',l:'Execution',st:'Live (V1)',b:'green'},{n:4,nm:'Deal team model',l:'Execution',st:'Designed',b:'orange'},{n:5,nm:'Enablement & content',l:'Execution',st:'Partial',b:'orange'},{n:6,nm:'Proposal creation',l:'Execution',st:'Live — Foodora ref',b:'green'},{n:7,nm:'Offer architecture',l:'Execution',st:'Designed, pricing TBD',b:'orange'},{n:8,nm:'Call/deal analysis',l:'Intelligence',st:'Infra live',b:'orange'},{n:9,nm:'Pipeline & forecasting',l:'Intelligence',st:'Basic tracking',b:'orange'},{n:10,nm:'Learning capture',l:'Intelligence',st:'Framework designed',b:'orange'},{n:11,nm:'Loss analysis',l:'Intelligence',st:'No aggregation',b:'red'},{n:12,nm:'AE standard',l:'Scale',st:'Designed',b:'orange'},{n:13,nm:'Compensation',l:'Scale',st:'Blocked on Noy',b:'red'},{n:14,nm:'Expansion architecture',l:'Scale',st:'Concept only',b:'red'},{n:15,nm:'Handoff protocols',l:'Scale',st:'Partial',b:'orange'},{n:16,nm:'Stakeholder mapping',l:'Scale',st:'No methodology',b:'red'},{n:17,nm:'Dashboard & metrics',l:'Scale',st:'Spreadsheet',b:'red'},{n:18,nm:'Governance cadence',l:'Scale',st:'Sync live',b:'orange'},{n:19,nm:'Scenario planning',l:'Scale',st:'Identified',b:'red'}];el.innerHTML=`<div class="page-header"><h1>OS component status</h1><p>19 components across 4 layers.</p></div><div class="stat-grid"><div class="stat-box green"><div class="sv">${cs.filter(c=>c.b==='green').length}</div><div class="sl">Live</div></div><div class="stat-box orange"><div class="sv">${cs.filter(c=>c.b==='orange').length}</div><div class="sl">Designed / draft</div></div><div class="stat-box" style=""><div class="sv" style="color:var(--red)">${cs.filter(c=>c.b==='red').length}</div><div class="sl">To build</div></div><div class="stat-box purple"><div class="sv">${cs.length}</div><div class="sl">Total</div></div></div><div class="card"><table class="os-table"><tr><th>#</th><th>Component</th><th>Layer</th><th>Status</th></tr>${cs.map(c=>`<tr><td>${c.n}</td><td><strong>${c.nm}</strong></td><td>${c.l}</td><td><span class="badge ${c.b}">${c.st}</span></td></tr>`).join('')}</table></div>`;};
+
+PAGE_RENDERERS.governance=(el)=>{el.innerHTML=`<div class="page-header"><h1>Governance & cadence</h1><p>Who reviews what, when.</p></div><div class="card"><table class="os-table"><tr><th>Cadence</th><th>Meeting</th><th>Who</th><th>Agenda</th><th>Duration</th></tr>${OS.governance.map(g=>`<tr><td><strong>${g.cadence}</strong></td><td>${g.meeting}</td><td>${g.who}</td><td>${g.agenda}</td><td>${g.dur}</td></tr>`).join('')}</table></div>`;};
+
+PAGE_RENDERERS['deal-team']=(el)=>{el.innerHTML=`<div class="page-header"><h1>Deal team operating model</h1><p>MM deals are team sports.</p></div><div class="card"><h3>Role definitions</h3><table class="os-table"><tr><th>Role</th><th>Responsibility</th><th>Accountability</th></tr><tr><td><strong>AE</strong></td><td>Owns deal end-to-end</td><td>Revenue outcome</td></tr><tr><td><strong>BDR</strong></td><td>Pipeline creation, qualification</td><td>Meeting quality</td></tr><tr><td><strong>Solutioning</strong></td><td>Demo delivery, technical validation</td><td>System fit belief</td></tr><tr><td><strong>Martijn</strong></td><td>Deal strategy, pricing decisions</td><td>Motion learning</td></tr></table></div><div class="card"><h3>Engagement triggers</h3><table class="os-table"><tr><th>Stage</th><th>Who</th><th>Lead time</th><th>Trigger</th></tr><tr><td>0 → 1</td><td>AE</td><td>24h</td><td>BDR completes hypothesis</td></tr><tr><td>2 → 2.5</td><td>Solutioning</td><td>48h min</td><td>Current State Map done, demo scheduled</td></tr><tr><td>3</td><td>Martijn (>€50K)</td><td>48h</td><td>Economic framing, pricing decision</td></tr><tr><td>4</td><td>Martijn</td><td>24h</td><td>Proposal review before send</td></tr><tr><td>Any</td><td>Martijn</td><td>Same day</td><td>Deal at risk, escalation</td></tr></table></div><div class="grid-2"><div class="card"><h3>Pre-meeting briefing</h3><div class="template-box"><button class="copy-btn" onclick="copyTemplate('briefing')">Copy</button>${escapeHtml(OS.templates.briefing)}</div></div><div class="card"><h3>Post-meeting debrief</h3><div class="template-box"><button class="copy-btn" onclick="copyTemplate('debrief')">Copy</button>${escapeHtml(OS.templates.debrief)}</div></div></div>`;};
+
+PAGE_RENDERERS.compensation=(el)=>{el.innerHTML=`<div class="page-header"><h1>Compensation & performance</h1><p>Structure designed. Rates pending Noy validation.</p></div><div class="callout warn"><strong>Status:</strong> All rates TBD — blocked on margin validation.</div><div class="card"><h3>Commission structure</h3><table class="os-table"><tr><th>Component</th><th>Trigger</th><th>Rate</th></tr><tr><td>Pilot close</td><td>Signed pilot contract</td><td><span class="badge orange">TBD</span></td></tr><tr><td>Pilot → conversion</td><td>Converts to annual</td><td><span class="badge orange">TBD</span></td></tr><tr><td>BDR sourcing fee</td><td>BDR-sourced deal closes</td><td><span class="badge orange">TBD</span></td></tr><tr><td>Deal team pool</td><td>Deal closes</td><td><span class="badge orange">TBD</span></td></tr><tr><td>ACV accelerator</td><td>>€50K / >€100K</td><td><span class="badge orange">TBD</span></td></tr><tr><td>Speed bonus</td><td>Close within target cycle</td><td><span class="badge orange">TBD</span></td></tr><tr><td>Multi-year kicker</td><td>2+ year contract</td><td><span class="badge orange">TBD</span></td></tr></table></div><div class="callout success"><strong>No clawback on pilot commission.</strong> Prevents AEs from avoiding pilots.</div><div class="card"><h3>Performance tiers</h3><table class="os-table"><tr><th>Tier</th><th>Criteria</th><th>Privileges</th></tr><tr><td><span class="badge green">Tier 1</span></td><td>Top quartile (90-day)</td><td>MM eligible, priority routing</td></tr><tr><td><span class="badge orange">Tier 2</span></td><td>Above median</td><td>MM eligible (limited)</td></tr><tr><td><span class="badge red">Tier 3</span></td><td>Below median</td><td>SMB only, coaching plan</td></tr></table></div>`;};
+
+PAGE_RENDERERS.pipeline=(el)=>{el.innerHTML=`<div class="page-header"><h1>Pipeline & forecasting</h1><p>Pipeline is a leading indicator.</p></div><div class="card"><h3>Pipeline categories</h3><table class="os-table"><tr><th>Category</th><th>Definition</th><th>Weight</th></tr><tr><td><span class="badge green">Committed</span></td><td>Verbal yes, MAP in place, close date confirmed</td><td>90%</td></tr><tr><td><span class="badge blue">Best case</span></td><td>Strong signal, decision-maker engaged, proposal sent</td><td>50%</td></tr><tr><td><span class="badge orange">Upside</span></td><td>Real opportunity, missing key element</td><td>20%</td></tr><tr><td><span class="badge purple">Pipeline</span></td><td>Early stage, qualified</td><td>10%</td></tr></table></div><div class="card"><h3>Weekly hygiene rules</h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li>→ Every deal: current stage + next step + date + activity <14 days</li><li>→ No activity >21 days → flagged for park/kill</li><li>→ Stage 2 + no demo within 7 days → auto-parked</li><li>→ Every AE: top 3 + 1 at-risk in weekly review</li><li>→ Pipeline coverage: 3x quarterly target</li></ul></div>`;};
+
+PAGE_RENDERERS.scenarios=(el)=>{const sc=[{s:'Pilot conversion >50%',t:'3+ pilots convert',r:'Scale: hire AE #2, expand solutioning, increase BDR routing',b:'green'},{s:'Pilot conversion <25%',t:'<1 in 4 convert',r:'Diagnose: review KPIs, onboarding, scope. Adjust first.',b:'red'},{s:'ACV consistently >€50K',t:'Avg exceeds medium',r:'Upmarket signal: enterprise tier, dedicated CS',b:'green'},{s:'ACV consistently <€30K',t:'Stays near pilot',r:'Conversion problem: review expansion triggers',b:'orange'},{s:'MCP enables CMS-agnostic',t:'Architecture confirms',r:'TAM expansion: update ICP, revise narrative',b:'blue'},{s:'MCP blocked',t:'Technical constraints',r:'Stay WordPress-native, position as feature',b:'orange'},{s:'Key AE departure',t:'Top AE leaves',r:'Redistribute, activate Tier 2, review comp',b:'red'},{s:'Competitive pressure',t:'Head-to-head loss',r:'Diagnose stage, update battlecard',b:'orange'},{s:'Market contraction',t:'European recession',r:'Cost efficiency narrative, pilot as default',b:'red'}];el.innerHTML=`<div class="page-header"><h1>Scenario planning</h1><p>Key decision forks and responses.</p></div>${sc.map(s=>`<div class="card"><h3><span class="badge ${s.b}">${s.s}</span></h3><p><strong>Trigger:</strong> ${s.t}</p><p><strong>Response:</strong> ${s.r}</p></div>`).join('')}`;};
+
+PAGE_RENDERERS.learnings=(el)=>{el.innerHTML=`<div class="page-header"><h1>Learnings & patterns</h1><p>Every deal teaches something. Patterns compound when shared.</p></div><div class="card"><h3>Three-loop framework</h3><div class="progress-track"><div class="pt-step done"><div class="pt-dot">1</div><div class="pt-label">Execute</div></div><div class="pt-line done"></div><div class="pt-step current"><div class="pt-dot">2</div><div class="pt-label">Learn</div></div><div class="pt-line"></div><div class="pt-step"><div class="pt-dot">3</div><div class="pt-label">Systematize</div></div></div><div class="callout warn" style="margin-top:16px"><strong>Rule:</strong> A pattern is anecdotal until it appears in 3+ independent deals.</div></div><div class="card"><h3>Initial learnings (March 2026)</h3><ul style="font-size:14px;line-height:2.2;list-style:none"><li><span class="badge blue">Discovery</span> Deeper discovery broadens topics discussed</li><li><span class="badge orange">Cycle</span> 2+ months with more stakeholders than expected</li><li><span class="badge red">Pricing</span> Volume-based approach limits ACV growth</li><li><span class="badge orange">Packaging</span> Need to define value-add services</li><li><span class="badge purple">Knowledge</span> Max is the oracle but doesn't have all answers</li><li><span class="badge blue">Interest</span> Standalone features requested (brand tracking)</li><li><span class="badge green">Problem</span> MM is aware of the shift but doesn't know how to act</li><li><span class="badge purple">Content</span> Content lifecycle and Pages Under Management key</li><li><span class="badge red">Risk</span> High effort per deal = high cost of loss</li></ul></div>`;};
+
+// ── LOCALSTORAGE ──
+const LS={get(k){try{return JSON.parse(localStorage.getItem('SALES_OS_'+k))}catch{return null}},set(k,v){localStorage.setItem('SALES_OS_'+k,JSON.stringify(v))},del(k){localStorage.removeItem('SALES_OS_'+k)}};
+function fmt(n){return n>=1000?'€'+(n/1000).toFixed(n%1000===0?0:1)+'k':'€'+n;}
+function fmtM(n){return '€'+(n/1000000).toFixed(2)+'M';}
+
+// ── SCENARIO PLANNER ──
+const SCENARIO_DEFAULTS={
+  smb:[4500,30000,75000,75000,75000,75000,90000,115000,130000],
+  med:[0,0,50000,0,0,0,0,0,0],
+  big:[0,100000,0,100000,100000,200000,100000,300000,400000],
+  fte:[0.6,0.6,1.6,2.5,3.5,4.5,5.5,5.5,5.5]
+};
+const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TARGET=2000000;
+
+PAGE_RENDERERS.scenarios=(el)=>{
+  const saved=LS.get('SCENARIO')||{};
+  const smb=saved.smb||[...SCENARIO_DEFAULTS.smb];
+  const med=saved.med||[...SCENARIO_DEFAULTS.med];
+  const big=saved.big||[...SCENARIO_DEFAULTS.big];
+  const fte=saved.fte||[...SCENARIO_DEFAULTS.fte];
+
+  function sum(a){return a.reduce((s,v)=>s+(parseFloat(v)||0),0);}
+  function render(){
+    const total=sum(smb)+sum(med)+sum(big);
+    const pct=Math.min(100,Math.round(total/TARGET*100));
+    const gap=TARGET-total;
+    const fteCost=sum(fte)*240000/9*4; // quarterly * ~4 quarters approx scaled
+    const totalFteCost=fte.reduce((s,v)=>s+(parseFloat(v)||0)*((2*15000)+(100000/12)+(50000/12)),0);
+
+    el.innerHTML=`<div class="page-header"><h1>Scenario planner</h1><p>Interactive revenue model — €2M MM target. Edit any yellow cell. Auto-saves.</p></div>
+    <div class="scenario-kpi">
+      <div class="kpi"><div class="kv ${total>=TARGET?'on-track':'behind'}" style="color:${total>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(total)}</div><div class="kl">Total projected ARR</div></div>
+      <div class="kpi"><div class="kv" style="color:var(--purple3)">${pct}%</div><div class="kl">of €2M target</div></div>
+      <div class="kpi"><div class="kv" style="color:${gap>0?'var(--red)':'var(--green)'}">${gap>0?fmtM(gap):'On target'}</div><div class="kl">${gap>0?'Gap to close':'Target met'}</div></div>
+      <div class="kpi"><div class="kv">${fte[fte.length-1]}</div><div class="kl">Peak FTE (Dec)</div></div>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+    <div class="card"><h3>Revenue by tier</h3>
+    <div style="overflow-x:auto"><table class="fin-table"><tr><th style="min-width:100px">Tier</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
+    <tr><td>SMB / Small<br><span style="font-size:11px;color:var(--text-light);font-weight:400">€15K ARR</span></td>${smb.map((v,i)=>`<td><input type="number" value="${v}" step="5000" min="0" onchange="updateScenario('smb',${i},this.value)"></td>`).join('')}<td style="font-weight:700;color:var(--blackish)">${fmtM(sum(smb))}</td></tr>
+    <tr><td>MM / Med<br><span style="font-size:11px;color:var(--text-light);font-weight:400">€50K ARR</span></td>${med.map((v,i)=>`<td><input type="number" value="${v}" step="10000" min="0" onchange="updateScenario('med',${i},this.value)"></td>`).join('')}<td style="font-weight:700;color:var(--blackish)">${fmtM(sum(med))}</td></tr>
+    <tr><td>MM / Big<br><span style="font-size:11px;color:var(--text-light);font-weight:400">€100K+ ARR</span></td>${big.map((v,i)=>`<td><input type="number" value="${v}" step="50000" min="0" onchange="updateScenario('big',${i},this.value)"></td>`).join('')}<td style="font-weight:700;color:var(--blackish)">${fmtM(sum(big))}</td></tr>
+    <tr class="total-row"><td>Monthly total</td>${MONTHS.map((_,i)=>`<td>${fmt(smb[i]+med[i]+big[i])}</td>`).join('')}<td style="color:var(--purple3)">${fmtM(total)}</td></tr>
+    </table></div></div>
+    <div class="card"><h3>FTE ramp & cost model</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">1 FTE = 2x €15K/mo + 1x €100K/yr + 1x €50K/yr. Quarterly budget: €240K.</p>
+    <div style="overflow-x:auto"><table class="fin-table"><tr><th>Metric</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
+    <tr><td>Total FTE<br><span style="font-size:11px;color:var(--text-light);font-weight:400">Sales, CS, LS, Testing</span></td>${fte.map((v,i)=>`<td><input type="number" value="${v}" step="0.5" min="0" style="width:56px" onchange="updateScenario('fte',${i},this.value)"></td>`).join('')}<td style="font-weight:700">${Math.max(...fte)}</td></tr>
+    <tr><td>Monthly cost</td>${fte.map(v=>`<td>€${Math.round(v*((2*15000)+(100000/12)+(50000/12)))/1000}k</td>`).join('')}<td></td></tr>
+    </table></div></div>
+    <div class="callout info"><strong>Tier definitions:</strong> Big = €100K+ ARR (multi-year). Med = €50K ARR (12 months). Small = Pilot €15K (6-month term). Revenue numbers show new ARR added per month.</div>`;
+  }
+  window.updateScenario=function(tier,idx,val){
+    const v=parseFloat(val)||0;
+    const saved=LS.get('SCENARIO')||{smb:[...SCENARIO_DEFAULTS.smb],med:[...SCENARIO_DEFAULTS.med],big:[...SCENARIO_DEFAULTS.big],fte:[...SCENARIO_DEFAULTS.fte]};
+    saved[tier][idx]=v;
+    if(tier==='smb')smb[idx]=v;if(tier==='med')med[idx]=v;if(tier==='big')big[idx]=v;if(tier==='fte')fte[idx]=v;
+    LS.set('SCENARIO',saved);
+    render();
+  };
+  render();
+};
+
+// ── DEAL HEALTH SCORECARD ──
+const DEAL_CHECKS=[
+  {id:'problem',label:'Problem statement in buyer language',weight:10,cat:'Discovery'},
+  {id:'multithread',label:'Multi-threaded (2+ stakeholders engaged)',weight:15,cat:'Access'},
+  {id:'champion',label:'Champion identified and tested (score 3+/5)',weight:15,cat:'Champion'},
+  {id:'csmap',label:'Current State Map completed',weight:10,cat:'Discovery'},
+  {id:'econbuyer',label:'Economic buyer identified',weight:15,cat:'Access'},
+  {id:'decmap',label:'Decision Map completed',weight:10,cat:'Process'},
+  {id:'nextstep',label:'Next step has specific date and owner',weight:5,cat:'Momentum'},
+  {id:'activity',label:'Activity in last 14 days',weight:10,cat:'Momentum'},
+  {id:'competitive',label:'Competitive position clear',weight:5,cat:'Intel'},
+  {id:'solutioning',label:'Internal resource/solutioning aligned',weight:5,cat:'Team'}
+];
+
+PAGE_RENDERERS['deal-scorecard']=(el)=>{
+  const deals=LS.get('DEALS')||[];
+  let editing=LS.get('EDITING_DEAL')||null;
+
+  function scoreColor(s){return s>=71?'green':s>=41?'orange':'red';}
+  function scoreLabel(s){return s>=71?'Healthy':s>=41?'Needs work':'At risk';}
+
+  function renderList(){
+    el.innerHTML=`<div class="page-header"><h1>Deal health scorecard</h1><p>Score your deals against the MM process. Fix the highest-weight gaps first.</p></div>
+    <button class="qa-btn" onclick="startNewDeal()" style="margin-bottom:20px"><span class="qa-icon">+</span> New deal scorecard</button>
+    ${deals.length?`<div class="card"><h3>Saved deals</h3>${deals.map((d,i)=>`<div class="deal-list-item" onclick="editDeal(${i})">
+      <div class="dli-score ${scoreColor(d.score)}">${d.score}</div>
+      <div class="dli-info"><div class="dli-name">${d.name||'Unnamed'}</div><div class="dli-meta">Stage ${d.stage} · ${d.value?'€'+d.value:'No value'} · ${scoreLabel(d.score)}</div></div>
+      <button class="dli-del" onclick="event.stopPropagation();deleteDeal(${i})">✕</button>
+    </div>`).join('')}</div>`:'<div class="callout info">No deals scored yet. Create your first scorecard above.</div>'}`;
+  }
+
+  function renderEditor(deal,idx){
+    const score=DEAL_CHECKS.reduce((s,c)=>s+(deal.checks[c.id]?c.weight:0),0);
+    const unchecked=DEAL_CHECKS.filter(c=>!deal.checks[c.id]).sort((a,b)=>b.weight-a.weight);
+    el.innerHTML=`<div class="page-header"><h1>${deal.name||'New deal'}</h1><p>Score: ${score}/100</p></div>
+    <div class="grid-2"><div>
+    <div class="card" style="text-align:center">
+      <div class="score-ring ${scoreColor(score)}"><div class="sr-num" style="color:var(--${scoreColor(score)})">${score}</div><div class="sr-label">${scoreLabel(score)}</div></div>
+    </div>
+    <div class="card"><h3>Deal info</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input placeholder="Deal name" value="${deal.name||''}" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:'Archivo',sans-serif" onchange="updateDealField(${idx},'name',this.value)">
+        <select style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:'Archivo',sans-serif" onchange="updateDealField(${idx},'stage',this.value)">
+          ${['0','1','2','2.5','3','4','5'].map(s=>`<option value="${s}"${deal.stage===s?' selected':''}>Stage ${s}</option>`).join('')}
+        </select>
+        <input type="number" placeholder="Deal value (€)" value="${deal.value||''}" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:'Archivo',sans-serif" onchange="updateDealField(${idx},'value',this.value)">
+      </div>
+    </div>
+    ${unchecked.length?`<div class="card"><h3 style="color:var(--red)">Fix these first</h3><ul style="font-size:14px;line-height:2;list-style:none">${unchecked.slice(0,5).map(c=>`<li><span class="badge ${c.weight>=15?'red':c.weight>=10?'orange':'blue'}">${c.weight}pts</span> ${c.label}</li>`).join('')}</ul></div>`:''}</div>
+    <div><div class="card"><h3>Health checklist</h3>
+      ${DEAL_CHECKS.map(c=>`<div class="deal-check"><input type="checkbox" ${deal.checks[c.id]?'checked':''} onchange="toggleDealCheck(${idx},'${c.id}',this.checked)"><div class="dc-label">${c.label}</div><div class="dc-weight">${c.weight}pts</div><div class="dc-cat">${c.cat}</div></div>`).join('')}
+    </div></div></div>
+    <button class="qa-btn" onclick="backToDeals()" style="margin-top:12px"><span class="qa-icon">←</span> Back to all deals</button>`;
+  }
+
+  window.startNewDeal=function(){const d={name:'',stage:'1',value:'',checks:{},score:0};deals.push(d);LS.set('DEALS',deals);renderEditor(d,deals.length-1);};
+  window.editDeal=function(i){renderEditor(deals[i],i);};
+  window.deleteDeal=function(i){deals.splice(i,1);LS.set('DEALS',deals);renderList();};
+  window.backToDeals=function(){renderList();};
+  window.updateDealField=function(i,f,v){deals[i][f]=v;LS.set('DEALS',deals);renderEditor(deals[i],i);};
+  window.toggleDealCheck=function(i,id,v){deals[i].checks[id]=v;deals[i].score=DEAL_CHECKS.reduce((s,c)=>s+(deals[i].checks[c.id]?c.weight:0),0);LS.set('DEALS',deals);renderEditor(deals[i],i);};
+
+  renderList();
+};
+
+// ── ROI CALCULATOR ──
+PAGE_RENDERERS['roi-calculator']=(el)=>{
+  const saved=LS.get('ROI')||{contentCost:150000,agencySpend:120000,articlesMonth:15,performPct:3.45,seaCpc:2.5,seaSpend:10000};
+  function render(){
+    const d=saved;
+    const totalArticles=d.articlesMonth*12;
+    const performingNow=Math.round(totalArticles*d.performPct/100);
+    const costPerPerforming=performingNow>0?Math.round((d.contentCost+d.agencySpend)/performingNow):0;
+    const wasteSpend=Math.round((d.contentCost+d.agencySpend)*(1-d.performPct/100));
+    const weArticles=totalArticles*3;
+    const weCostLow=weArticles*16;
+    const weCostHigh=weArticles*42;
+    const wePerforming=Math.round(weArticles*0.2);
+    const cpcReductionLow=Math.round(d.seaCpc*0.3*100)/100;
+    const cpcReductionHigh=Math.round(d.seaCpc*0.6*100)/100;
+    const seaSavingsLow=Math.round(d.seaSpend*12*0.3);
+    const seaSavingsHigh=Math.round(d.seaSpend*12*0.6);
+
+    el.innerHTML=`<div class="page-header"><h1>ROI calculator</h1><p>The TRG business case model. Use on calls — output is screenshot-ready.</p></div>
+    <div class="card"><h3>Prospect inputs</h3><p style="margin-bottom:12px">Enter the prospect's current numbers from discovery.</p>
+    <div class="roi-input-grid">
+      <div class="roi-field"><label>Content production cost (€/year)</label><input type="number" value="${d.contentCost}" step="5000" onchange="updateROI('contentCost',this.value)"></div>
+      <div class="roi-field"><label>Agency spend (€/year)</label><input type="number" value="${d.agencySpend}" step="5000" onchange="updateROI('agencySpend',this.value)"></div>
+      <div class="roi-field"><label>Articles produced per month</label><input type="number" value="${d.articlesMonth}" step="1" onchange="updateROI('articlesMonth',this.value)"></div>
+      <div class="roi-field"><label>% of content performing</label><input type="number" value="${d.performPct}" step="0.5" onchange="updateROI('performPct',this.value)"></div>
+      <div class="roi-field"><label>Current SEA CPC (€)</label><input type="number" value="${d.seaCpc}" step="0.1" onchange="updateROI('seaCpc',this.value)"></div>
+      <div class="roi-field"><label>SEA monthly spend (€)</label><input type="number" value="${d.seaSpend}" step="1000" onchange="updateROI('seaSpend',this.value)"></div>
+    </div></div>
+    <div class="roi-cols">
+      <div class="roi-col waste"><h4>What you waste</h4>
+        <div class="roi-row"><span class="rr-label">Total content spend</span><span class="rr-value">€${Math.round((d.contentCost+d.agencySpend)/1000)}k/yr</span></div>
+        <div class="roi-row"><span class="rr-label">Articles per year</span><span class="rr-value">${totalArticles}</span></div>
+        <div class="roi-row"><span class="rr-label">Performing articles</span><span class="rr-value">${performingNow} (${d.performPct}%)</span></div>
+        <div class="roi-row"><span class="rr-label">Cost per performing article</span><span class="rr-value" style="color:var(--red)">€${costPerPerforming.toLocaleString()}</span></div>
+        <div class="roi-row"><span class="rr-label">Waste on non-performing</span><span class="rr-value" style="color:var(--red)">€${Math.round(wasteSpend/1000)}k</span></div>
+        <div class="roi-row"><span class="rr-label">SEA spend (no organic subsidy)</span><span class="rr-value">€${(d.seaSpend*12/1000).toFixed(0)}k/yr</span></div>
+      </div>
+      <div class="roi-col cost"><h4>What we cost</h4>
+        <div class="roi-row"><span class="rr-label">Pilot (6 months)</span><span class="rr-value">€15,000</span></div>
+        <div class="roi-row"><span class="rr-label">Annual (medium tier)</span><span class="rr-value">€50,000</span></div>
+        <div class="roi-row"><span class="rr-label">Per article cost</span><span class="rr-value">€16–42</span></div>
+        <div class="roi-row"><span class="rr-label">Articles (3x your volume)</span><span class="rr-value">${weArticles}/yr</span></div>
+        <div class="roi-row"><span class="rr-label">Your time required</span><span class="rr-value">&lt;2 hrs/mo</span></div>
+        <div class="roi-row"><span class="rr-label">Content cost range</span><span class="rr-value">€${Math.round(weCostLow/1000)}k–€${Math.round(weCostHigh/1000)}k</span></div>
+      </div>
+      <div class="roi-col compound"><h4>What compounds</h4>
+        <div class="roi-row"><span class="rr-label">Target performing %</span><span class="rr-value" style="color:var(--green)">20%+ (vs ${d.performPct}%)</span></div>
+        <div class="roi-row"><span class="rr-label">Performing articles</span><span class="rr-value" style="color:var(--green)">${wePerforming}</span></div>
+        <div class="roi-row"><span class="rr-label">CPC reduction</span><span class="rr-value">€${cpcReductionLow}–€${cpcReductionHigh}</span></div>
+        <div class="roi-row"><span class="rr-label">Annual SEA savings</span><span class="rr-value" style="color:var(--green)">€${Math.round(seaSavingsLow/1000)}k–€${Math.round(seaSavingsHigh/1000)}k</span></div>
+        <div class="roi-row"><span class="rr-label">Year 3 organic cost/visit</span><span class="rr-value">Fraction of paid</span></div>
+        <div class="roi-row"><span class="rr-label">Asset residual value</span><span class="rr-value" style="color:var(--green)">Compounds forever</span></div>
+      </div>
+    </div>
+    <div class="roi-summary">You're spending <strong>€${Math.round((d.contentCost+d.agencySpend)/1000)}k/year</strong> to get <strong>${performingNow} performing articles</strong> out of ${totalArticles}. We deliver <strong>${weArticles} articles at €16–42 each</strong> with a target of <strong>20%+ performing</strong> — that's <strong>${wePerforming} performing articles</strong>, ${wePerforming>0&&performingNow>0?Math.round(wePerforming/performingNow)+'x':'significantly'} more than today. And unlike paid, it compounds when you stop spending.</div>`;
+  }
+  window.updateROI=function(f,v){saved[f]=parseFloat(v)||0;LS.set('ROI',saved);render();};
+  render();
+};
+
+// ── DISCOVERY ENGINE ──
+const DISC_QUESTIONS={
+  'CMO-1':[{q:'How do you currently measure the ROI of your organic content investment?',f:'If they say traffic: "Traffic is an input, not an outcome. What percentage of that traffic converts?"',t:'ROI'},{q:'When you think about where your brand appears in AI-generated answers, how confident are you in that visibility?',f:'If confident: "How are you tracking it? 83% of AI usage is in mobile apps — GA4 can\'t see it."',t:'AI Search'},{q:'What happens internally when a content piece doesn\'t generate traffic after 90 days?',f:'If nothing: "That\'s where 96.55% of content ends up. The question is whether you have a system to catch and fix that."',t:'Waste'}],
+  'CMO-2':[{q:'Walk me through your content production workflow — from idea to published, who touches it?',f:'Look for bottlenecks, handoff delays, and approval loops that kill velocity.',t:'Process'},{q:'How much are you spending annually on content production and SEO — agency, tools, and internal time combined?',f:'Need this number for the business case. If they don\'t know, that\'s a data point in itself.',t:'Business case'},{q:'What percentage of your published content is actually driving measurable results?',f:'Industry benchmark is 3.45%. Most are shocked when they do the math.',t:'Waste'}],
+  'CMO-3':[{q:'If you could quantify the cost of your current non-performing content, what would that number look like?',f:'Help them calculate: articles × cost per article × (1 - performing %). The waste number sells itself.',t:'Economics'},{q:'What would it mean for your team if organic and AI search became a predictable, compounding channel rather than a project-based effort?',f:'Listen for language about "predictability" and "scalability" — these are buying signals.',t:'Vision'},{q:'How are you thinking about the budget allocation between paid and organic for the next 12 months?',f:'If mostly paid: "Every euro in paid stops the moment budget stops. Organic compounds."',t:'Budget'}],
+  'VP Marketing-1':[{q:'What\'s the biggest gap between your content strategy and your actual execution capacity?',f:'This surfaces the "Fourth Trap" — having strategy but not the team to run it continuously.',t:'Capacity'},{q:'How are you approaching the shift to AI search — ChatGPT, Gemini, AI Overviews?',f:'If "we\'re watching it": "94% of B2B buyers are already using AI. Watching is falling behind."',t:'Urgency'},{q:'When was the last time you pruned or removed underperforming content from your site?',f:'If never: "That content is actively diluting your domain authority and confusing AI crawlers."',t:'Waste'}],
+  'VP Marketing-2':[{q:'How many different tools are in your current SEO and content stack?',f:'Most have 5-8. "Each one solves a slice. None of them close the loop between measurement and action."',t:'Tool sprawl'},{q:'Who internally is responsible for connecting SEO performance data to content production decisions?',f:'If nobody: "That\'s the synthesis layer that doesn\'t exist in the market. That\'s what we do."',t:'Gap'},{q:'What does your reporting cadence look like — how often do you review what\'s working and what\'s not?',f:'If quarterly: "AI search changes every few weeks. Quarterly review cycles can\'t keep pace."',t:'Speed'}],
+  'VP Marketing-3':[{q:'If I showed you that you could get 3x the content output at 30% of the cost with 20%+ performing — what would that free up for your team?',f:'Don\'t wait for the answer — let them paint the picture. Their words become the business case.',t:'Vision'},{q:'What does the internal approval process look like for a €15K pilot investment?',f:'Map the decision: who signs, what timeline, what they need. This builds your Decision Map.',t:'Process'}],
+  'Head of Content-1':[{q:'How many content pieces are you producing per month, and how much of that is new vs. refreshing existing?',f:'If all new: "You\'re adding to the pile without optimizing what you have. That\'s how 96% of content dies."',t:'Volume'},{q:'What does your process look like when a piece isn\'t ranking after 60 days?',f:'If no process: "The learning loop is missing. Publish → measure → optimize → repeat."',t:'Loop'},{q:'How are you structuring content around topical clusters vs. individual keywords?',f:'If keywords: "Keyword-first is legacy SEO. Topical authority is how you win in both Google and AI search."',t:'Strategy'}],
+  'Head of Content-2':[{q:'If you had unlimited production capacity, what would you build first?',f:'This reveals their strategic priority without the constraint of capacity. Gold for scoping.',t:'Priority'},{q:'How do you currently decide what to write next — what\'s the decision framework?',f:'If gut feel or keyword volume: "We map every question the market asks across Google, ChatGPT, and Gemini."',t:'Research'}],
+  'CTO-2':[{q:'Walk me through your CMS architecture — WordPress, headless, custom?',f:'If WordPress: "We\'re native. Plugin installed by us, content archive set up by us, zero engineering."',t:'Technical'},{q:'What does the content publishing pipeline look like from a technical standpoint?',f:'Look for manual steps, staging environments, approval queues — all friction we eliminate.',t:'Process'},{q:'How comfortable is your team with a third-party plugin having publish access to your WordPress instance?',f:'Address security directly: "Read-only dashboard access. Content goes through your existing approval."',t:'Security'}],
+  'CTO-3':[{q:'What are your requirements around data handling, GDPR compliance, and third-party access?',f:'We\'re European-first, GDPR-compliant, data stays in EU. Get specifics for the proposal.',t:'Compliance'},{q:'If we needed to integrate with your existing analytics and reporting stack, what would that look like?',f:'GSC + GA4 are standard. Ask about custom dashboards, Looker, Tableau — scoping info.',t:'Integration'}],
+  'CFO-3':[{q:'How do you currently evaluate the ROI of your marketing technology spend?',f:'If they don\'t have a framework: "We measure two things you control: visibility growth and AI citations."',t:'ROI'},{q:'What\'s the total cost of your current content and SEO operation — internal headcount, agency, tools combined?',f:'Build the waste calculation live: total spend × (1 - performing %). The number is always shocking.',t:'Business case'},{q:'How do you think about the difference between an expense that stops when budget stops versus an asset that compounds?',f:'This reframes the pilot from "cost" to "investment with residual value."',t:'Framing'}],
+  'CFO-4':[{q:'What does your procurement process look like for a €15K pilot — who needs to sign off?',f:'Map it: procurement, legal, budget holder. Build into the MAP.',t:'Process'},{q:'If the pilot delivers measurable visibility growth and AI citations at month 4, what would the expansion decision process look like?',f:'Pre-sell the expansion: "We want to set expectations now so there are no surprises at the review."',t:'Expansion'}],
+  'Procurement-4':[{q:'What are your standard vendor evaluation criteria for a managed service engagement?',f:'Get their scorecard. We can pre-fill most of it in the proposal.',t:'Process'},{q:'What\'s the typical timeline from proposal received to contract signed for this deal size?',f:'Anchor the MAP timeline against their norm. If 6 weeks, build backwards from close date.',t:'Timeline'},{q:'Are there specific compliance, security, or data residency requirements we should address upfront?',f:'EU-based, GDPR-compliant, data in EU. Get any additional requirements documented.',t:'Compliance'}]
+};
+
+PAGE_RENDERERS.discovery=(el)=>{
+  let persona='CMO',stage='1';
+  function render(){
+    const key=persona+'-'+stage;
+    const qs=DISC_QUESTIONS[key]||[];
+    const personas=['CMO','VP Marketing','Head of Content','CTO','CFO','Procurement'];
+    const stages=['1','2','3','4'];
+    el.innerHTML=`<div class="page-header"><h1>Discovery engine</h1><p>Select persona and stage. Get ranked questions with follow-up prompts.</p></div>
+    <div class="disc-controls">
+      <select onchange="updateDisc('persona',this.value)">${personas.map(p=>`<option${p===persona?' selected':''}>${p}</option>`).join('')}</select>
+      <select onchange="updateDisc('stage',this.value)">${stages.map(s=>`<option value="${s}"${s===stage?' selected':''}>Stage ${s}</option>`).join('')}</select>
+    </div>
+    ${qs.length?qs.map(q=>`<div class="disc-question"><div class="dq-main">"${q.q}"</div><div class="dq-follow">Follow-up: ${q.f}</div><div class="dq-tag">${q.t}</div></div>`).join(''):'<div class="callout warn">No questions mapped for <strong>${persona} at Stage ${stage}</strong> yet. Primary discovery personas: CMO, VP Marketing, Head of Content (Stages 1-3). Technical/financial: CTO, CFO, Procurement (Stages 2-4).</div>'}`;
+  }
+  window.updateDisc=function(f,v){if(f==='persona')persona=v;else stage=v;render();};
+  render();
+};
+
+// ── KEYBOARD ──
+document.addEventListener('keydown',(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.getElementById('searchInput').focus();}if(e.key==='Escape'){document.getElementById('searchResults').classList.remove('show');document.getElementById('searchInput').blur();}});
+
+// ── INIT ──
+const savedRole=LS.get('ROLE');
+if(savedRole)currentRole=savedRole;
+document.querySelectorAll('.role-btn').forEach(b=>b.classList.toggle('active',b.dataset.role===currentRole));
+renderSidebar();
+navigateTo('dashboard');
+// Save role on switch
+const origSetRole=setRole;
+setRole=function(r){LS.set('ROLE',r);origSetRole(r);};
+</script>
+</body>
+</html>
