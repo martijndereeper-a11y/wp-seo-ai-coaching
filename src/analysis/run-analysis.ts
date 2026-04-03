@@ -223,7 +223,7 @@ async function buildCoachingProfiles() {
   while (true) {
     const { data: page, error } = await supabase
       .from('ae_call_analysis')
-      .select('*')
+      .select('recorder_name, outcome, patterns, call_quality_score, talk_ratio, question_count, script_adherence, prospect_engagement, highlights, duration_seconds, longest_monologue')
       .range(from, from + 999);
     if (error) { console.error('Failed to fetch analyses:', error); return; }
     if (!page || page.length === 0) break;

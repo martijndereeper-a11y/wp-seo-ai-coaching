@@ -77,7 +77,7 @@ function computeCallQualityScore(analysis: Record<string, any>): number {
 app.get('/api/team', async (c) => {
   const { data, error } = await supabase
     .from('ae_coaching_profiles')
-    .select('*')
+    .select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence, top_strengths, top_weaknesses, coaching_recs, avg_patterns_all')
     .order('avg_call_quality', { ascending: false });
   if (error) return c.json({ error: error.message }, 500);
   return c.json(data);
@@ -87,7 +87,7 @@ app.get('/api/team', async (c) => {
 app.get('/api/team/benchmarks', async (c) => {
   const { data, error } = await supabase
     .from('ae_coaching_profiles')
-    .select('*');
+    .select('avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence');
   if (error) return c.json({ error: error.message }, 500);
   if (!data || data.length === 0) return c.json({});
 
@@ -130,7 +130,7 @@ app.get('/api/ae/:name/calls', async (c) => {
 
   const { data, error } = await supabase
     .from('ae_call_analysis')
-    .select('*')
+    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict')
     .eq('recorder_name', name)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -391,7 +391,7 @@ app.post('/api/analyze-call', async (c) => {
     const analysis = analyzeCall(parsed.turns, recorderName, rec.url);
 
     // Get team benchmarks for comparison
-    const { data: teamProfiles } = await supabase.from('ae_coaching_profiles').select('*');
+    const { data: teamProfiles } = await supabase.from('ae_coaching_profiles').select('recorder_name, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, total_calls');
     const { data: teamCalls } = await supabase.from('ae_call_analysis').select('talk_ratio, question_count, script_adherence, patterns, outcome');
 
     const teamAvg = {
@@ -516,7 +516,7 @@ app.get('/api/team/coaching-agenda', async (c) => {
       .select('recording_id, recorder_name, outcome, title, deal_name, created_at, script_adherence, talk_ratio, question_count, longest_monologue, patterns, highlights, recording_url, sections_hit, sections_missed, call_quality_score')
       .order('created_at', { ascending: false }),
     supabase.from('ae_coaching_profiles')
-      .select('*'),
+      .select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, coaching_recs'),
   ]);
   if (callsErr) return c.json({ error: callsErr.message }, 500);
   if (profilesErr) return c.json({ error: profilesErr.message }, 500);
@@ -852,7 +852,7 @@ app.post('/api/ae/:name/deep-analysis', requireRole('lead'), async (c) => {
   // Check cache first
   const { data: profile } = await supabase
     .from('ae_coaching_profiles')
-    .select('*')
+    .select('total_calls, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, top_strengths, top_weaknesses')
     .eq('recorder_name', name)
     .single();
 
@@ -1173,12 +1173,18 @@ function groupCallsIntoDeals(calls: any[]): Map<string, { name: string; calls: a
 
 // GET /api/deals — Deal Board Data
 app.get('/api/deals', async (c) => {
-  const { data, error } = await supabase
-    .from('ae_call_analysis')
-    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, patterns, highlights, call_verdict, prospect_engagement, call_quality_score, narrative_review')
-    .order('created_at', { ascending: false });
+  // Fetch calls without heavy JSONB columns; check narrative existence separately
+  const [{ data, error }, { data: narrativeIds }] = await Promise.all([
+    supabase.from('ae_call_analysis')
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, patterns, highlights, call_verdict, prospect_engagement, call_quality_score')
+      .order('created_at', { ascending: false }),
+    supabase.from('ae_call_analysis')
+      .select('recording_id')
+      .not('narrative_review', 'is', null),
+  ]);
   if (error) return c.json({ error: error.message }, 500);
   if (!data) return c.json([]);
+  const narrativeSet = new Set((narrativeIds || []).map((r: any) => r.recording_id));
 
   const deals = groupCallsIntoDeals(data);
   const result: any[] = [];
@@ -1233,7 +1239,7 @@ app.get('/api/deals', async (c) => {
         title: call.title,
         date: call.created_at,
         quality: call.call_quality_score || 0,
-        hasNarrative: !!(call.narrative_review && Object.keys(call.narrative_review).length > 0),
+        hasNarrative: narrativeSet.has(call.recording_id),
       })),
     });
   }
@@ -1247,12 +1253,18 @@ app.get('/api/deals', async (c) => {
 app.get('/api/deal/:name', async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
 
-  const { data, error } = await supabase
-    .from('ae_call_analysis')
-    .select('*')
-    .order('created_at', { ascending: true });
+  // Fetch without heavy JSONB columns (smart_review, pattern_evidence, narrative_review)
+  const [{ data, error }, { data: narrativeIds }] = await Promise.all([
+    supabase.from('ae_call_analysis')
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict')
+      .order('created_at', { ascending: true }),
+    supabase.from('ae_call_analysis')
+      .select('recording_id')
+      .not('narrative_review', 'is', null),
+  ]);
   if (error) return c.json({ error: error.message }, 500);
   if (!data) return c.json([]);
+  const narrativeSet = new Set((narrativeIds || []).map((r: any) => r.recording_id));
 
   // Find matching calls: by deal_name, by grouping logic, or by title containing the name
   const nameLower = name.toLowerCase();
@@ -1269,7 +1281,7 @@ app.get('/api/deal/:name', async (c) => {
 
   const result = matchingCalls.map((call: any) => ({
     ...call,
-    hasNarrative: !!(call.narrative_review && Object.keys(call.narrative_review).length > 0),
+    hasNarrative: narrativeSet.has(call.recording_id),
   }));
 
   return c.json(result);
@@ -1278,7 +1290,7 @@ app.get('/api/deal/:name', async (c) => {
 // GET /api/reps — Rep Coaching Cards
 app.get('/api/reps', async (c) => {
   const [{ data: profiles, error: profilesErr }, { data: allCalls, error: callsErr }] = await Promise.all([
-    supabase.from('ae_coaching_profiles').select('*'),
+    supabase.from('ae_coaching_profiles').select('recorder_name, total_calls, avg_call_quality, top_weaknesses'),
     supabase.from('ae_call_analysis')
       .select('recorder_name, created_at, call_quality_score, talk_ratio, question_count, patterns')
       .order('created_at', { ascending: false }),
@@ -1363,7 +1375,7 @@ app.get('/api/rep/:name/coaching-brief', async (c) => {
   const [{ data: profile, error: profileErr }, { data: calls, error: callsErr }] = await Promise.all([
     supabase.from('ae_coaching_profiles').select('*').eq('recorder_name', name).single(),
     supabase.from('ae_call_analysis')
-      .select('recording_id, recorder_name, title, created_at, call_quality_score, call_verdict, talk_ratio, question_count, patterns, highlights, recording_url, narrative_review')
+      .select('recording_id, recorder_name, title, created_at, call_quality_score, call_verdict, talk_ratio, question_count, patterns, highlights, recording_url')
       .eq('recorder_name', name)
       .order('created_at', { ascending: false })
       .limit(10),
