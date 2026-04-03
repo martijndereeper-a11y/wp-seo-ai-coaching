@@ -285,16 +285,29 @@ function detectObjections(
       const aeResponse = aeTurns.map(a => a.text).join(' ');
       const aeTimestamp = aeTurns[0].timestampDisplay;
 
-      // Classify handling
+      // Classify handling with graded quality — not just presence of ? but quality of response
       let handling: ObjectionExchange['handling'];
-      if (aeResponse.includes('?') && aeResponse.length < 200) {
-        handling = 'explored';
-      } else if (/snap ik|begrijp ik|klopt|herkenbaar|logisch/i.test(aeResponse)) {
-        handling = 'acknowledged';
-      } else if (/maar dat is maar|heel eenvoudig|maakt niet uit|valt mee/i.test(aeResponse)) {
+      const responseWords = aeResponse.split(/\s+/).length;
+      const hasQuestion = aeResponse.includes('?');
+      const hasAcknowledge = /snap ik|begrijp ik|klopt|herkenbaar|logisch|goed punt|terecht/i.test(aeResponse);
+      const hasMinimize = /maar dat is maar|heel eenvoudig|maakt niet uit|valt mee|hoeft niet|geen probleem/i.test(aeResponse);
+      const hasProbe = /waarom|wat.*houdt|wat.*weerhoudt|welke|hoe.*bedoel|kun.*je.*uitleggen|vertel.*meer/i.test(aeResponse);
+      const hasReframe = /investering|bespaart|vergelijk|als.*je.*kijkt|in verhouding|terugverdien/i.test(aeResponse);
+
+      if (hasMinimize) {
         handling = 'minimized';
-      } else if (aeResponse.split(/\s+/).length > 50 && !aeResponse.includes('?')) {
+      } else if (responseWords > 60 && !hasQuestion && !hasAcknowledge) {
+        // Long response without engaging = talked over
         handling = 'talked over';
+      } else if (hasProbe || (hasQuestion && hasAcknowledge)) {
+        // Probing deeper OR acknowledging + asking = explored (high quality)
+        handling = 'explored';
+      } else if (hasAcknowledge || hasReframe) {
+        // Acknowledged the concern or reframed it
+        handling = 'acknowledged';
+      } else if (hasQuestion && responseWords < 200) {
+        // Has a question but didn't acknowledge first — partial exploration
+        handling = 'acknowledged';
       } else {
         // Check if AE changed topic entirely (no keywords from the objection type)
         const objectText = t.text.toLowerCase();
@@ -303,13 +316,25 @@ function detectObjections(
         handling = sharedWords.length < 2 ? 'ignored' : 'acknowledged';
       }
 
+      // Build contextual shouldHaveDone based on what actually happened
+      let contextualAdvice = obj.shouldHaveDone;
+      if (handling === 'explored') {
+        contextualAdvice = `Good instinct to explore. You asked a follow-up question, which is the right move. To go further: ${obj.shouldHaveDone}`;
+      } else if (handling === 'minimized') {
+        contextualAdvice = `You minimized the concern with: "${aeResponse.slice(0, 80)}". The prospect's worry is real to them — dismissing it erodes trust. Instead: ${obj.shouldHaveDone}`;
+      } else if (handling === 'talked over') {
+        contextualAdvice = `You responded with ${responseWords} words without pausing to understand their concern ("${aeResponse.slice(0, 80)}..."). Stop. Acknowledge first. Then: ${obj.shouldHaveDone}`;
+      } else if (handling === 'ignored') {
+        contextualAdvice = `You changed the topic entirely after the prospect said: "${t.text.slice(0, 80)}". This tells them you don't care about their concerns. Instead: ${obj.shouldHaveDone}`;
+      }
+
       results.push({
         prospectTimestamp: t.timestampDisplay,
         prospectSaid: t.text.slice(0, 200),
         aeTimestamp,
         aeSaid: aeResponse.slice(0, 300),
         handling,
-        shouldHaveDone: obj.shouldHaveDone,
+        shouldHaveDone: contextualAdvice,
       });
 
       break; // One objection type per turn
@@ -365,6 +390,14 @@ function detectBuyingSignals(
       const didAdvance = ADVANCE_PATTERNS.test(aeResponse.text);
       const signalLabel = sig.type.charAt(0).toUpperCase() + sig.type.slice(1);
 
+      // Contextual advice based on whether they advanced or not
+      let advice: string;
+      if (didAdvance) {
+        advice = `Good — the prospect asked about ${sig.type} ("${t.text.slice(0, 60)}") and you moved forward ("${aeResponse.text.slice(0, 60)}"). This is exactly right.`;
+      } else {
+        advice = `The prospect asked: "${t.text.slice(0, 80)}". You responded with: "${aeResponse.text.slice(0, 80)}". They're mentally evaluating — but you answered and kept pitching instead of advancing. After answering briefly, say: "Goed dat je dat vraagt. Zullen we even kijken welk pakket het beste past?"`;
+      }
+
       results.push({
         prospectTimestamp: t.timestampDisplay,
         prospectSaid: t.text.slice(0, 200),
@@ -372,7 +405,7 @@ function detectBuyingSignals(
         aeTimestamp: aeResponse.timestampDisplay,
         aeSaid: aeResponse.text.slice(0, 300),
         didAdvance,
-        shouldHaveDone: `The prospect asked about ${sig.type}. This means they're mentally evaluating. Answer briefly, then advance: 'Goed dat je dat vraagt. [brief answer]. Zullen we even kijken welk pakket het beste past?'`,
+        shouldHaveDone: advice,
       });
 
       break; // One signal type per turn
@@ -516,11 +549,19 @@ function findCriticalMoment(
 function pickOneThingToChange(
   analysis: CallAnalysis,
   phases: CallPhase[],
+  benchmarks?: { teamAvgTalkRatio?: number; teamAvgQuestions?: number; aeAvgTalkRatio?: number; aeAvgQuestions?: number },
 ): string {
   const { patterns, talkRatio, questionCount } = analysis;
+  const bm = benchmarks || {};
+  const teamTalk = bm.teamAvgTalkRatio;
+  const teamQ = bm.teamAvgQuestions;
+  const aeTalk = bm.aeAvgTalkRatio;
+  const aeQ = bm.aeAvgQuestions;
 
   if (talkRatio > 70) {
-    return `Talk less. At ${talkRatio}%, you're lecturing. The prospect needs space to think out loud. Aim for 55%. Every minute you talk past 55% is a minute the prospect disengages.`;
+    const comparison = teamTalk ? ` (team average: ${teamTalk}%)` : '';
+    const trend = aeTalk ? (talkRatio > aeTalk + 5 ? ' — worse than your own average' : aeTalk > 65 ? ' — this is a recurring pattern for you' : '') : '';
+    return `Talk less. At ${talkRatio}%${comparison}, you're lecturing${trend}. The prospect needs space to think out loud. Aim for 55%. Every minute you talk past 55% is a minute the prospect disengages.`;
   }
 
   const hasClose = patterns.assumptiveClose > 0 || patterns.contract > 0;
@@ -529,7 +570,9 @@ function pickOneThingToChange(
   }
 
   if (questionCount < 12) {
-    return `Ask more questions before pitching. You asked ${questionCount} — top performers ask 22+. Prepare 5 discovery questions about their current situation before every call.`;
+    const comparison = teamQ ? ` (team average: ${Math.round(teamQ)})` : '';
+    const trend = aeQ ? (questionCount < aeQ - 3 ? ` — below your own average of ${Math.round(aeQ)}` : '') : '';
+    return `Ask more questions before pitching. You asked ${questionCount}${comparison} — top performers ask 22+${trend}. Prepare 5 discovery questions about their current situation before every call.`;
   }
 
   if (patterns.contentEngine < 3) {
@@ -560,22 +603,26 @@ function buildSummary(
   convictionTrend: string,
   objections: ObjectionExchange[],
   buyingSignals: BuyingSignalExchange[],
+  benchmarks?: { teamAvgTalkRatio?: number; teamAvgQuestions?: number; aeAvgTalkRatio?: number; aeAvgQuestions?: number },
 ): string {
   const durationMin = Math.round(callDurationSeconds / 60);
+  const bm = benchmarks || {};
 
-  // Who controlled
+  // Who controlled — with relative context
   const overallAERatio = analysis.talkRatio;
+  const talkComparison = bm.teamAvgTalkRatio ? ` (team avg: ${bm.teamAvgTalkRatio}%)` : '';
   let controlDesc: string;
-  if (overallAERatio > 70) controlDesc = `The AE dominated at ${overallAERatio}% talk time`;
-  else if (overallAERatio > 60) controlDesc = `The AE talked more than ideal at ${overallAERatio}%`;
+  if (overallAERatio > 70) controlDesc = `The AE dominated at ${overallAERatio}%${talkComparison} talk time`;
+  else if (overallAERatio > 60) controlDesc = `The AE talked more than ideal at ${overallAERatio}%${talkComparison}`;
   else if (overallAERatio < 40) controlDesc = 'The prospect led most of the conversation';
-  else controlDesc = `Talk balance was reasonable at ${overallAERatio}%`;
+  else controlDesc = `Talk balance was reasonable at ${overallAERatio}%${talkComparison}`;
 
-  // Discovery quality
+  // Discovery quality — with relative context
+  const qComparison = bm.teamAvgQuestions ? ` (team avg: ${Math.round(bm.teamAvgQuestions)})` : '';
   let discoveryDesc: string;
-  if (analysis.questionCount >= 20) discoveryDesc = `Strong discovery with ${analysis.questionCount} questions`;
-  else if (analysis.questionCount >= 12) discoveryDesc = `Adequate discovery (${analysis.questionCount} questions)`;
-  else discoveryDesc = `Shallow discovery — only ${analysis.questionCount} questions asked`;
+  if (analysis.questionCount >= 20) discoveryDesc = `Strong discovery with ${analysis.questionCount} questions${qComparison}`;
+  else if (analysis.questionCount >= 12) discoveryDesc = `Adequate discovery (${analysis.questionCount} questions${qComparison})`;
+  else discoveryDesc = `Shallow discovery — only ${analysis.questionCount} questions asked${qComparison}`;
 
   // Prospect engagement
   let engagementDesc: string;
@@ -584,15 +631,18 @@ function buildSummary(
   else if (convictionTrend === 'declined') engagementDesc = 'Prospect engagement faded toward the end';
   else engagementDesc = 'Prospect disengaged midway and never recovered';
 
-  // How it ended
+  // How it ended — with specifics from objections/signals
   let endDesc: string;
   const hasClose = analysis.patterns.assumptiveClose > 0 || analysis.patterns.contract > 0;
   if (hasClose && buyingSignals.length > 0) {
-    endDesc = 'Call ended with a close attempt and buying signals were present.';
+    const advancedCount = buyingSignals.filter(b => b.didAdvance).length;
+    endDesc = `Call ended with a close attempt. ${advancedCount} of ${buyingSignals.length} buying signal(s) were advanced.`;
   } else if (hasClose) {
     endDesc = 'Close was attempted.';
   } else if (objections.length > 0) {
-    endDesc = `Call ended with ${objections.length} unresolved objection(s) and no close.`;
+    const handlings = objections.map(o => o.handling);
+    const explored = handlings.filter(h => h === 'explored' || h === 'acknowledged').length;
+    endDesc = `Call ended with ${objections.length} objection(s) (${explored} handled, ${objections.length - explored} missed) and no close.`;
   } else {
     endDesc = 'No clear close was attempted.';
   }
@@ -602,11 +652,19 @@ function buildSummary(
 
 // ─── Main Export ─────────────────────────────────────────────────────────────
 
+export interface SmartReviewBenchmarks {
+  teamAvgTalkRatio?: number;
+  teamAvgQuestions?: number;
+  aeAvgTalkRatio?: number;
+  aeAvgQuestions?: number;
+}
+
 export function generateSmartReview(
   turns: TranscriptTurn[],
   recorderName: string,
   analysis: CallAnalysis,
   callDurationSeconds: number,
+  benchmarks?: SmartReviewBenchmarks,
 ): SmartReview {
   const phases = buildPhases(turns, recorderName);
   const { arc, trend, peakMoment } = buildConvictionArc(turns, recorderName);
@@ -614,7 +672,7 @@ export function generateSmartReview(
   const buyingSignals = detectBuyingSignals(turns, recorderName);
   const scriptReview = buildScriptReview(turns, recorderName);
   const criticalMoment = findCriticalMoment(analysis);
-  const oneThingToChange = pickOneThingToChange(analysis, phases);
+  const oneThingToChange = pickOneThingToChange(analysis, phases, benchmarks);
   const summary = buildSummary(
     turns,
     recorderName,
@@ -624,6 +682,7 @@ export function generateSmartReview(
     trend,
     objections,
     buyingSignals,
+    benchmarks,
   );
 
   return {

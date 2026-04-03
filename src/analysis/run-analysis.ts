@@ -15,7 +15,7 @@ import { analyzeCall } from './pattern-detector.ts';
 import { SCRIPT_SECTIONS } from './script-sections.ts';
 import { loadCoachingGuides, matchRulesToCall } from './coaching-guides-loader.ts';
 import { scoreCallPillars } from './coaching-pillars.ts';
-import { generateSmartReview } from './smart-review.ts';
+import { generateSmartReview, type SmartReviewBenchmarks } from './smart-review.ts';
 
 const supabase = createSupabaseClient();
 const isFullMode = process.argv.includes('--full');
@@ -177,6 +177,24 @@ async function main() {
   const toAnalyze = recordings.filter(r => !analyzedIds.has(r.id));
   console.log(`Analyzing ${toAnalyze.length} recordings (${recordings.length - toAnalyze.length} already done)\n`);
 
+  // Pre-compute team benchmarks for relative coaching context
+  let teamBenchmarks: SmartReviewBenchmarks = {};
+  const aeAverages = new Map<string, { avgTalkRatio: number; avgQuestions: number }>();
+  {
+    const { data: profiles } = await supabase
+      .from('ae_coaching_profiles')
+      .select('recorder_name, avg_talk_ratio, avg_question_count');
+    if (profiles && profiles.length > 0) {
+      const avgArr = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+      teamBenchmarks.teamAvgTalkRatio = avgArr(profiles.map(p => p.avg_talk_ratio || 0));
+      teamBenchmarks.teamAvgQuestions = avgArr(profiles.map(p => p.avg_question_count || 0));
+      for (const p of profiles) {
+        aeAverages.set(p.recorder_name, { avgTalkRatio: p.avg_talk_ratio || 0, avgQuestions: p.avg_question_count || 0 });
+      }
+      console.log(`Team benchmarks: talk ${teamBenchmarks.teamAvgTalkRatio}%, questions ${teamBenchmarks.teamAvgQuestions}/call (from ${profiles.length} AEs)\n`);
+    }
+  }
+
   // Analyze each recording
   const allResults: Record<string, unknown>[] = [];
   let processed = 0;
@@ -189,11 +207,18 @@ async function main() {
     if (rec.channel_name === 'Closed Won Analysis') outcome = 'won';
     else if (rec.channel_name === 'Closed Lost Analysis') outcome = 'lost';
     else if (/\b(starter|basic|pro|12m|12p|24m|12 month|24 month)\b/i.test(rec.deal_name || '')) outcome = 'won';
+    // Merge team + AE-specific benchmarks for relative coaching
+    const aeBm = aeAverages.get(rec.recorder_name);
+    const callBenchmarks: SmartReviewBenchmarks = {
+      ...teamBenchmarks,
+      ...(aeBm ? { aeAvgTalkRatio: aeBm.avgTalkRatio, aeAvgQuestions: aeBm.avgQuestions } : {}),
+    };
     const smartReview = generateSmartReview(
       parsed.turns,
       rec.recorder_name,
       analysis,
       Math.round(rec.duration_seconds || 0),
+      callBenchmarks,
     );
 
     const row = {

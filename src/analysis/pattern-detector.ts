@@ -132,9 +132,16 @@ function getContext(turns: TranscriptTurn[], turnIndex: number, triggerTurn: Tra
   };
 }
 
+// Pre-compiled regex copies — avoids creating new RegExp on every call
+const COMPILED_PATTERNS: Record<string, RegExp> = {};
+for (const [key, regex] of Object.entries(PATTERN_DEFS)) {
+  COMPILED_PATTERNS[key] = new RegExp(regex.source, regex.flags);
+}
+
 function countMatches(text: string, regex: RegExp): number {
-  const copy = new RegExp(regex.source, regex.flags);
-  const m = text.match(copy);
+  // Reset lastIndex for global regexes before matching
+  regex.lastIndex = 0;
+  const m = text.match(regex);
   return m ? m.length : 0;
 }
 
@@ -150,7 +157,7 @@ export function analyzeCall(
   const totalWords = turns.reduce((s, t) => s + t.wordCount, 0);
   const aeWords = aeTurns.reduce((s, t) => s + t.wordCount, 0);
 
-  // Pattern scores + evidence tracking
+  // Pattern scores + evidence tracking (using pre-compiled regexes)
   const patterns: PatternScores = {} as PatternScores;
   const patternEvidence: Record<string, PatternEvidence[]> = {};
   for (const [key, regex] of Object.entries(PATTERN_DEFS)) {
@@ -159,8 +166,8 @@ export function analyzeCall(
     const evidence: PatternEvidence[] = [];
     for (const turn of aeTurns) {
       if (evidence.length >= 5) break;
-      const copy = new RegExp(regex.source, regex.flags);
-      const match = turn.text.toLowerCase().match(copy);
+      regex.lastIndex = 0;
+      const match = turn.text.toLowerCase().match(regex);
       if (match) {
         evidence.push({
           timestampSeconds: turn.timestampSeconds,
@@ -192,31 +199,42 @@ export function analyzeCall(
   const highlights: HighlightMoment[] = [];
 
   // Good moments: what the AE did well
-  const goodPatterns: [string, RegExp, string, string][] = [
+  // Guidance generators: receive the actual turn text + context for specific feedback
+  type GuidanceFn = (excerpt: string, context?: ReturnType<typeof getContext>) => string;
+  const goodPatterns: [string, RegExp, string, GuidanceFn][] = [
     ['ROI Reframe', /investering|verdien.*terug|roi|terugverdien/gi,
       'Reframes cost as investment',
-      'This is exactly right — keep using "investering" instead of "kosten" and tie it to a timeline (e.g. "ROI from month 6+")'],
+      (excerpt) => `Good — you said: "${excerpt.slice(0, 80)}". Keep using "investering" instead of "kosten" and tie it to a timeline (e.g. "ROI from month 6+").`],
     ['Humor', /haha|grap|lach|grappig/gi,
       'Uses humor to build rapport',
-      'Humor drops the prospect\'s guard and builds trust. Keep it natural — don\'t force it, but don\'t suppress it either'],
+      (excerpt, ctx) => {
+        const reaction = ctx?.after?.text ? ` The prospect responded: "${ctx.after.text.slice(0, 60)}" — it landed.` : '';
+        return `Humor drops the prospect's guard and builds trust.${reaction} Keep it natural — don't force it, but don't suppress it either.`;
+      }],
     ['Check-in', /gaat.*te snel|nog.*mee|duidelijk|alles.*helder/gi,
       'Checks if prospect is following along',
-      'Great pace control. These micro-moments prevent the prospect from zoning out during longer explanations'],
+      (excerpt, ctx) => {
+        const reaction = ctx?.after?.text ? ` Prospect replied: "${ctx.after.text.slice(0, 60)}"` : '';
+        return `Great pace control at "${excerpt.slice(0, 60)}".${reaction} These micro-moments prevent the prospect from zoning out during longer explanations.`;
+      }],
     ['Assumptive Close', /wanneer.*starten|welk.*pakket|als we.*beginnen|volgende stap.*is/gi,
       'Uses assumptive close language',
-      'Strong move — "wanneer starten we" is much more effective than "wat vind je ervan?" Keep doing this at the end of every call'],
+      (excerpt) => `Strong close: "${excerpt.slice(0, 80)}". "Wanneer starten we" is much more effective than "wat vind je ervan?" Keep doing this at the end of every call.`],
     ['Opinion Ask', /wat denk je|wat vind je|hoe klinkt|hoe.*kijk.*je/gi,
       'Asks the prospect for their opinion',
-      'Asking "hoe klinkt dat?" gives the prospect ownership and surfaces objections early. Do this after every key section'],
+      (excerpt, ctx) => {
+        const reaction = ctx?.after?.text ? ` Prospect opened up: "${ctx.after.text.slice(0, 80)}"` : '';
+        return `Good — "${excerpt.slice(0, 60)}" gives the prospect ownership and surfaces objections early.${reaction} Do this after every key section.`;
+      }],
     ['Social Proof', /\d+.*klanten|\d+.*bedrijven|2000|tweeduizend/gi,
       'Uses concrete social proof numbers',
-      'Specific numbers (2000+ klanten, 700 in NL) are more convincing than vague claims. Keep anchoring with data'],
+      (excerpt) => `You anchored with data: "${excerpt.slice(0, 80)}". Specific numbers are more convincing than vague claims. Keep doing this.`],
     ['Price Anchor', /bureau.*kost|normaal.*kost|vergelijk|wat.*je.*nu.*betaalt/gi,
       'Anchors price against a more expensive alternative',
-      'Comparing to bureau costs (€3-5K) before revealing your price (€625) makes it feel like a bargain. Use this every time before pricing'],
+      (excerpt) => `Good anchor: "${excerpt.slice(0, 80)}". Comparing to bureau costs before revealing your price makes it feel like a bargain. Use this every time before pricing.`],
     ['Their Business', /jullie.*klant|jullie.*markt|jullie.*concurrent/gi,
       'Focuses on the prospect\'s business context',
-      'Talking about their market, clients, and competitors shows you did your homework and builds trust'],
+      (excerpt) => `You referenced their world: "${excerpt.slice(0, 80)}". Talking about their market, clients, and competitors shows you did your homework and builds trust.`],
   ];
 
   // Confidence mapping for strength categories
@@ -226,24 +244,27 @@ export function analyzeCall(
     'Price Anchor': 'high', 'Their Business': 'medium',
   };
 
-  for (const turn of aeTurns) {
+  for (let ti = 0; ti < aeTurns.length; ti++) {
+    const turn = aeTurns[ti];
     const tLow = turn.text.toLowerCase();
-    for (const [category, regex, desc, guidance] of goodPatterns) {
-      const copy = new RegExp(regex.source, regex.flags);
-      if (copy.test(tLow)) {
-        // Check for multiple keyword matches in same turn for confidence boost
-        const allMatches = tLow.match(new RegExp(regex.source, regex.flags));
+    for (const [category, regex, desc, guidanceFn] of goodPatterns) {
+      // Single match call instead of test() + match()
+      regex.lastIndex = 0;
+      const allMatches = tLow.match(regex);
+      if (allMatches) {
         let conf = strengthConfidence[category] || 'medium';
-        if (allMatches && allMatches.length >= 2 && conf === 'medium') conf = 'high';
+        if (allMatches.length >= 2 && conf === 'medium') conf = 'high';
         const turnIdx = turns.indexOf(turn);
+        const ctx = getContext(turns, turnIdx, turn);
         highlights.push({
           timestampSeconds: turn.timestampSeconds,
           timestampDisplay: turn.timestampDisplay,
           type: 'strength',
-          category, description: desc, guidance,
+          category, description: desc,
+          guidance: guidanceFn(turn.text, ctx),
           excerpt: turn.text.slice(0, 200),
           confidence: conf,
-          context: getContext(turns, turnIdx, turn),
+          context: ctx,
         });
         break;
       }
@@ -253,25 +274,38 @@ export function analyzeCall(
   // ── Coachable moments with specific, contextual guidance ──
 
   // 1. Long monologues — but limit to worst 3 per call and vary guidance by WHAT they're talking about
-  const monologues: { start: TranscriptTurn; words: number; topic: string }[] = [];
+  const monologues: { start: TranscriptTurn; words: number; topic: string; excerpt: string }[] = [];
   let consecutiveWords = 0;
   let monoStart: TranscriptTurn | null = null;
   let monoText = '';
+  // Topic detection: scored approach — most keyword matches wins (no overlap issues)
+  const TOPIC_PATTERNS: [string, RegExp][] = [
+    ['product', /content|blog|artik|publicer|sitemap|pling|cluster|deurtje|pagina|publicatie/gi],
+    ['market', /zoekgedrag|chatgpt|google|ai overviews|perplexity|zoekmarkt|seo.*verandert|markt.*shift/gi],
+    ['pricing', /prijs|kosten|pakket|investering|€|euro|tarief|budget|offerte|bespaart/gi],
+    ['company', /wij zijn|opgericht|finland|medewerkers|ons team|kantoor|amsterdam|klanten.*wereld/gi],
+    ['competitors', /concurrent|bureau|agency|freelanc|extern.*inhuur|traditioneel|vergelijk.*met/gi],
+  ];
+  function detectMonologueTopic(text: string): string {
+    const t = text.toLowerCase();
+    let bestTopic = 'general';
+    let bestScore = 0;
+    for (const [topic, regex] of TOPIC_PATTERNS) {
+      regex.lastIndex = 0;
+      const matches = t.match(regex);
+      const score = matches ? matches.length : 0;
+      if (score > bestScore) { bestScore = score; bestTopic = topic; }
+    }
+    return bestScore >= 2 ? bestTopic : 'general'; // Require at least 2 matches to assign a topic
+  }
   for (const turn of aeTurns) {
     consecutiveWords += turn.wordCount;
     monoText += ' ' + turn.text;
     if (!monoStart) monoStart = turn;
     if (turn.isQuestion || consecutiveWords > 100) {
       if (consecutiveWords > 100 && !turn.isQuestion && monoStart) {
-        // Detect what they were monologuing ABOUT
-        const t = monoText.toLowerCase();
-        let topic = 'general';
-        if (/content|blog|artik|publicer|sitemap|pling/i.test(t)) topic = 'product';
-        else if (/ai|google|chatgpt|zoekgedrag|markt/i.test(t)) topic = 'market';
-        else if (/prijs|kosten|pakket|investering|€|euro/i.test(t)) topic = 'pricing';
-        else if (/wij zijn|opgericht|finland|medewerkers|ons team/i.test(t)) topic = 'company';
-        else if (/concurrent|bureau|agency|freelanc/i.test(t)) topic = 'competitors';
-        monologues.push({ start: monoStart, words: consecutiveWords, topic });
+        const topic = detectMonologueTopic(monoText);
+        monologues.push({ start: monoStart, words: consecutiveWords, topic, excerpt: monoText.trim().slice(0, 120) });
       }
       consecutiveWords = 0;
       monoStart = null;
@@ -288,13 +322,14 @@ export function analyzeCall(
     general: `${'{W}'} words without a question. After 30 seconds of talking, pause and check: "Gaat dit te snel?" or "Is dit relevant voor jullie situatie?" The prospect needs space to process.`,
   };
   for (const m of monologues.sort((a, b) => b.words - a.words).slice(0, 3)) {
+    const baseGuidance = (topicGuidance[m.topic] || topicGuidance.general).replace('{W}', String(m.words));
     highlights.push({
       timestampSeconds: m.start.timestampSeconds,
       timestampDisplay: m.start.timestampDisplay,
       type: 'coachable',
       category: 'Long Monologue',
       description: `${m.words} words on ${m.topic} without a question`,
-      guidance: (topicGuidance[m.topic] || topicGuidance.general).replace('{W}', String(m.words)),
+      guidance: `Starting with: "${m.excerpt}..." — ${baseGuidance}`,
       excerpt: m.start.text.slice(0, 150) + '...',
       confidence: 'high',
     });
@@ -304,33 +339,40 @@ export function analyzeCall(
   for (const turn of aeTurns) {
     const tLow = turn.text.toLowerCase();
     if (/vindbaar|zichtbaar/.test(tLow) && !/content|artik|blog|sitemap|deurtje|cluster/i.test(tLow)) {
+      const vaguePart = turn.text.slice(0, 120);
+      const turnIdx = turns.indexOf(turn);
+      const ctx = getContext(turns, turnIdx, turn);
+      const prospectContext = ctx.before?.text ? ` The prospect just said: "${ctx.before.text.slice(0, 80)}"` : '';
       highlights.push({
         timestampSeconds: turn.timestampSeconds,
         timestampDisplay: turn.timestampDisplay,
         type: 'coachable',
         category: 'Too Abstract',
         description: 'Uses vague "vindbaarheid" without making it concrete',
-        guidance: `Try: Replace "we maken je beter vindbaar" with something specific like "we publiceren 20 artikelen per maand die elk een deurtje zijn naar je website." Abstract benefits don't stick — concrete mechanisms do.`,
+        guidance: `You said: "${vaguePart}".${prospectContext} Replace this with something specific they can picture: "we publiceren 20 artikelen per maand die elk een deurtje zijn naar je website." Abstract benefits don't stick — concrete mechanisms do.`,
         excerpt: turn.text.slice(0, 200),
         confidence: 'medium',
+        context: ctx,
       });
     }
   }
 
   // 3. Missed opportunity: talking about AI without context
   let aiMentionsWithoutContext = 0;
+  let aiExamples: string[] = [];
   for (const turn of aeTurns) {
     const tLow = turn.text.toLowerCase();
     if (/\bai\b|ai.gedreven/i.test(tLow) && !/zoekgedrag|chatgpt|google|perplexity|overviews|zoekmarkt/i.test(tLow)) {
       aiMentionsWithoutContext++;
+      if (aiExamples.length < 2) aiExamples.push(turn.text.slice(0, 80));
       if (aiMentionsWithoutContext === 3) {
         highlights.push({
           timestampSeconds: turn.timestampSeconds,
           timestampDisplay: turn.timestampDisplay,
           type: 'coachable',
           category: 'AI Without Context',
-          description: 'Mentions AI repeatedly without connecting it to market shift',
-          guidance: `Try: Don't just say "AI" — connect it to why it matters for them: "17% van alle zoekopdrachten gaat nu via ChatGPT. Als jouw bedrijf daar niet in verschijnt, mis je die klanten." AI is the mechanism, market shift is the reason.`,
+          description: `Mentions AI ${aiMentionsWithoutContext}x without connecting it to market shift`,
+          guidance: `You said things like: "${aiExamples[0]}"${aiExamples[1] ? ` and "${aiExamples[1]}"` : ''}. "AI" alone is a buzzword — connect it to why it matters for THEM: "17% van alle zoekopdrachten gaat nu via ChatGPT. Als jouw bedrijf daar niet in verschijnt, mis je die klanten." AI is the mechanism, market shift is the reason.`,
           excerpt: turn.text.slice(0, 200),
           confidence: 'medium',
         });
@@ -347,15 +389,19 @@ export function analyzeCall(
     if (/€|euro.*per.*maand|pakket.*starter|pakket.*basic|pakket.*pro|vanaf.*625/i.test(tLow) && !mentionedPrice) {
       mentionedPrice = true;
       if (!anchoredFirst) {
+        const turnIdx = turns.indexOf(turn);
+        const ctx = getContext(turns, turnIdx, turn);
+        const prospectAsked = ctx.before && !ctx.before.speaker.includes(firstName) ? ` after the prospect asked: "${ctx.before.text.slice(0, 80)}"` : '';
         highlights.push({
           timestampSeconds: turn.timestampSeconds,
           timestampDisplay: turn.timestampDisplay,
           type: 'coachable',
           category: 'Price Without Anchor',
           description: 'Mentions pricing before anchoring against alternatives',
-          guidance: `Try: Before revealing your price, always compare first: "Een bureau kost €3-5K per maand, en dan moet je zelf nog de tools kopen voor €400-500. Bij ons is het vanaf €625, en wij doen alles." The contrast makes your price feel like a deal.`,
+          guidance: `You jumped to pricing ("${turn.text.slice(0, 80)}")${prospectAsked} without anchoring first. Before revealing your price, always compare: "Een bureau kost €3-5K per maand, en dan moet je zelf nog de tools kopen voor €400-500. Bij ons is het vanaf €625, en wij doen alles." The contrast makes your price feel like a deal.`,
           excerpt: turn.text.slice(0, 200),
           confidence: 'medium',
+          context: ctx,
         });
       }
     }
@@ -397,11 +443,18 @@ export function analyzeCall(
     const softs = (t.match(/\bmisschien\b|\beigenlijk\b|\been beetje\b|\bzeg maar\b|\bvolgens mij\b|\been soort van\b|\bik geloof\b|\bik denk\b|\bgewoon\b|\beven\b/g) || []);
     softeningCount += softs.length;
     if (softs.length >= 3) {
+      // Build a concrete rewrite suggestion from what they actually said
+      const original = turn.text.slice(0, 120);
+      const rewrite = original
+        .replace(/\bmisschien\b/gi, '').replace(/\beigenlijk\b/gi, '').replace(/\been beetje\b/gi, '')
+        .replace(/\bzeg maar\b/gi, '').replace(/\bvolgens mij\b/gi, '').replace(/\been soort van\b/gi, '')
+        .replace(/\bik geloof\b/gi, '').replace(/\bik denk\b/gi, '').replace(/\bgewoon\b/gi, '')
+        .replace(/\s{2,}/g, ' ').trim();
       highlights.push({
         timestampSeconds: turn.timestampSeconds, timestampDisplay: turn.timestampDisplay,
         type: 'coachable', category: 'Softening Words',
         description: `${softs.length} softening words in one turn (${softs.join(', ')})`,
-        guidance: `Koen's rule: Eliminate "misschien", "eigenlijk", "een beetje", "zeg maar". These erode your authority. Replace with direct statements: "Dit is relevant omdat..." instead of "Misschien is dit interessant..."`,
+        guidance: `You said: "${original}". That's ${softs.length} authority-eroding words (${softs.join(', ')}). Try instead: "${rewrite}". Koen's rule: eliminate "misschien", "eigenlijk", "een beetje", "zeg maar" — they make you sound unsure of your own product.`,
         excerpt: turn.text.slice(0, 200),
         confidence: 'high',
       });
@@ -441,13 +494,17 @@ export function analyzeCall(
   for (const turn of aeTurns) {
     const t = turn.text.toLowerCase();
     if (/dat is maar|kost maar|duurt maar|is maar|maar.*uur|maar.*minuut|heel eenvoudig|heel simpel|geen moeite/i.test(t)) {
+      const turnIdx = turns.indexOf(turn);
+      const ctx = getContext(turns, turnIdx, turn);
+      const prospectConcern = ctx.before && !ctx.before.speaker.includes(firstName) ? `The prospect raised: "${ctx.before.text.slice(0, 100)}". ` : '';
       highlights.push({
         timestampSeconds: turn.timestampSeconds, timestampDisplay: turn.timestampDisplay,
         type: 'coachable', category: 'Minimizing Concern',
         description: 'Minimizes prospect concern instead of exploring it',
-        guidance: `Koen's rule: Never minimize. Don't say "dat is maar 1 uur per maand." Instead explore: "Welke projecten hebben nu prioriteit?" / "Wie zou dit intern oppakken?" Acknowledge the concern, then solve it.`,
+        guidance: `${prospectConcern}You responded: "${turn.text.slice(0, 100)}". This dismisses their concern. Instead explore it: "Welke projecten hebben nu prioriteit?" / "Wie zou dit intern oppakken?" Acknowledge first, then solve.`,
         excerpt: turn.text.slice(0, 200),
         confidence: 'medium',
+        context: ctx,
       });
     }
   }
@@ -526,13 +583,21 @@ export function analyzeCall(
     if (/meer klanten|meer omzet|meer leads|meer bezoekers|groei|bespaar|tijd.*bespaar|geen.*zelf|wij doen.*alles|ontzorg/i.test(t)) outcomeCount++;
   }
   if (featureCount > 5 && outcomeCount < 2) {
+    // Collect actual feature-speak examples
+    const featureExamples: string[] = [];
+    for (const t of aeTurns) {
+      if (featureExamples.length >= 2) break;
+      if (/plugin|tool|platform|dashboard|functionalit|integratie|koppeling/i.test(t.text.toLowerCase())) {
+        featureExamples.push(t.text.slice(0, 80));
+      }
+    }
     const featureTurn = aeTurns.find(t => /plugin|tool|platform|dashboard|functionalit/i.test(t.text.toLowerCase()));
     if (featureTurn) {
       highlights.push({
         timestampSeconds: featureTurn.timestampSeconds, timestampDisplay: featureTurn.timestampDisplay,
         type: 'coachable', category: 'Feature-Speak',
         description: `${featureCount} feature mentions vs only ${outcomeCount} outcome mentions`,
-        guidance: `You're talking about what the product IS instead of what it DOES for them. Founders don't buy a "WordPress plugin met AI" — they buy "meer klanten zonder er zelf tijd aan te besteden." For every feature you mention, translate it: "Dat betekent voor jullie: [meer klanten / minder kosten / geen gedoe]."`,
+        guidance: `You said things like: "${featureExamples[0] || ''}"${featureExamples[1] ? ` and "${featureExamples[1]}"` : ''}. That's ${featureCount} feature mentions vs only ${outcomeCount} outcomes. Founders don't buy a "WordPress plugin met AI" — they buy "meer klanten zonder er zelf tijd aan te besteden." Translate every feature: "Dat betekent voor jullie: [meer klanten / minder kosten / geen gedoe]."`,
         excerpt: featureTurn.text.slice(0, 200),
         confidence: 'medium',
       });
@@ -569,13 +634,15 @@ export function analyzeCall(
 
   // 16. Dry monologue — high talk ratio + no humor
   if (patterns.humor === 0 && aeWords > 3000) {
+    // Find the longest dry stretch to point to
+    let longestDryStart = aeTurns[Math.floor(aeTurns.length / 3)];
     highlights.push({
-      timestampSeconds: aeTurns[Math.floor(aeTurns.length / 3)]?.timestampSeconds || 0,
-      timestampDisplay: aeTurns[Math.floor(aeTurns.length / 3)]?.timestampDisplay || '',
+      timestampSeconds: longestDryStart?.timestampSeconds || 0,
+      timestampDisplay: longestDryStart?.timestampDisplay || '',
       type: 'coachable', category: 'Dry Delivery',
-      description: 'Long call with zero humor or lightness',
-      guidance: `A ${Math.round(aeWords / 150)}-minute monologue with no humor is a lecture, not a sales call. You don't need to be a comedian — just be human. Try: "Ik zeg altijd tegen klanten: als je na drie maanden niet blij bent, mag je me bellen om te klagen. Maar eerlijk, dat telefoontje heb ik nog nooit gehad." One light moment breaks the tension and makes you memorable.`,
-      excerpt: '',
+      description: `${Math.round(aeWords / 150)} minutes of talking with zero humor or lightness`,
+      guidance: `You spoke ${aeWords} words across this call without a single light moment. Around ${longestDryStart?.timestampDisplay || 'mid-call'} would have been a natural place to break the tension. You don't need to be a comedian — just be human. Try: "Ik zeg altijd tegen klanten: als je na drie maanden niet blij bent, mag je me bellen om te klagen. Maar eerlijk, dat telefoontje heb ik nog nooit gehad."`,
+      excerpt: longestDryStart?.text.slice(0, 200) || '',
       confidence: 'low',
     });
   }
@@ -590,11 +657,17 @@ export function analyzeCall(
       const wasAdvanced = nextAE && /contract|starten|pakket|volgende stap|inplannen|afspreken|wanneer|welk/i.test(nextAE.text.toLowerCase());
 
       if (!wasAdvanced && nextAE && missedCount < 2) {
+        // Detect what type of buying signal to give specific advance language
+        const bsText = bs.text.toLowerCase();
+        let advanceScript = '"Zullen we even kijken welk pakket past?"';
+        if (/hoeveel.*kost|wat.*kost|prijs|tarief/i.test(bsText)) advanceScript = '"Goed dat je dat vraagt. [brief answer]. Zullen we even kijken welk pakket het beste past?"';
+        else if (/wanneer|hoe snel|planning/i.test(bsText)) advanceScript = '"We kunnen volgende week starten. Zal ik het contract klaarzetten?"';
+        else if (/hoe werkt|implementat|onboarding/i.test(bsText)) advanceScript = '"Ik leg het kort uit, en dan kijken we of het past. Welk pakket spreekt je het meest aan?"';
         highlights.push({
           timestampSeconds: bs.timestampSeconds, timestampDisplay: bs.timestampDisplay,
           type: 'coachable', category: 'Missed Buy Signal',
           description: 'Prospect showed buying interest but AE didn\'t advance',
-          guidance: `Don't just answer and keep pitching. Answer briefly, then advance: "Zullen we even kijken welk pakket past?"`,
+          guidance: `The prospect asked: "${bs.text.slice(0, 100)}". You answered with "${nextAE.text.slice(0, 80)}" and kept pitching. When a prospect asks about pricing/timing/implementation, they're mentally buying. Answer briefly, then advance: ${advanceScript}`,
           excerpt: `Prospect: "${bs.text.slice(0, 150)}"`,
           confidence: 'high',
           context: {
