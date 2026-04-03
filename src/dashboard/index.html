@@ -365,30 +365,33 @@ function confBadge(conf) {
 // ════════════════════════════════════════════════════════
 
 function renderSmartReview(sr, call, baseUrl, rid, dur) {
+  if (!sr) return '<div class="card" style="color:var(--text2);font-size:13px">No smart review data available.</div>';
   let h = '';
 
   // Summary + One Thing
   h += '<div class="card" style="border-left:3px solid var(--purple)">'+
-    '<div style="font-size:14px;line-height:1.7;margin-bottom:12px">'+sr.summary+'</div>'+
-    '<div style="padding:10px 14px;background:rgba(168,85,247,.08);border-radius:8px;font-size:13px;line-height:1.6">'+
+    '<div style="font-size:14px;line-height:1.7;margin-bottom:12px">'+(sr.summary || 'No summary available.')+'</div>'+
+    (sr.oneThingToChange ? '<div style="padding:10px 14px;background:rgba(168,85,247,.08);border-radius:8px;font-size:13px;line-height:1.6">'+
       '<strong style="color:var(--purple)">The one thing to change:</strong> '+sr.oneThingToChange+
-    '</div>'+
+    '</div>' : '')+
   '</div>';
 
   // Conversation Flow (phases)
   if (sr.phases?.length) {
     h += '<div class="card"><h3 style="font-size:14px;margin-bottom:10px">Conversation Flow</h3>';
     sr.phases.forEach(p => {
-      const engIcon = p.engagement === 'high' ? '🟢' : p.engagement === 'low' ? '🔴' : '🟡';
-      const ctrlClr = p.control === 'AE dominated' ? 'var(--red)' : p.control === 'Prospect led' ? 'var(--orange)' : 'var(--green)';
+      const pEngagement = p.engagement || 'medium';
+      const engIcon = pEngagement === 'high' ? '🟢' : pEngagement === 'low' ? '🔴' : '🟡';
+      const pControl = p.control || '';
+      const ctrlClr = pControl === 'AE dominated' ? 'var(--red)' : pControl === 'Prospect led' ? 'var(--orange)' : 'var(--green)';
       h += '<div style="padding:8px 0;border-bottom:1px solid var(--border)">'+
         '<div style="display:flex;align-items:center;gap:10px">'+
-          '<strong style="font-size:13px;width:120px">'+p.name+'</strong>'+
-          '<span style="font-size:11px;color:var(--text2)">'+p.timeRange+'</span>'+
-          '<span style="font-size:11px;color:'+ctrlClr+'">'+p.control+' ('+p.aeTalkRatio+'%)</span>'+
-          '<span style="font-size:11px">'+engIcon+' '+p.engagement+'</span>'+
+          '<strong style="font-size:13px;width:120px">'+(p.name||'')+'</strong>'+
+          '<span style="font-size:11px;color:var(--text2)">'+(p.timeRange||'')+'</span>'+
+          '<span style="font-size:11px;color:'+ctrlClr+'">'+pControl+(p.aeTalkRatio != null ? ' ('+p.aeTalkRatio+'%)' : '')+'</span>'+
+          '<span style="font-size:11px">'+engIcon+' '+pEngagement+'</span>'+
         '</div>'+
-        '<div style="font-size:11px;color:var(--text2);margin-top:2px">AE asked '+p.aeQuestions+' Qs · Prospect: '+p.prospectLongAnswers+' long, '+p.prospectShortAnswers+' short answers</div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-top:2px">AE asked '+(p.aeQuestions||0)+' Qs · Prospect: '+(p.prospectLongAnswers||0)+' long, '+(p.prospectShortAnswers||0)+' short answers</div>'+
       '</div>';
     });
     // Conviction arc
@@ -426,15 +429,16 @@ function renderSmartReview(sr, call, baseUrl, rid, dur) {
   if (sr.objections?.length) {
     h += '<div class="card" style="border-top:3px solid var(--red)"><h3 style="font-size:14px;margin-bottom:10px;color:var(--red)">Objections & Doubts ('+sr.objections.length+')</h3>';
     sr.objections.forEach(obj => {
-      const handlingClr = obj.handling === 'explored' || obj.handling === 'acknowledged' ? 'var(--green)' : 'var(--red)';
+      const handling = obj.handling || 'unknown';
+      const handlingClr = handling === 'explored' || handling === 'acknowledged' ? 'var(--green)' : 'var(--red)';
       h += '<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
         '<div style="padding:6px 10px;border-left:2px solid var(--red);background:var(--bg3);border-radius:0 6px 6px 0;margin-bottom:6px">'+
-          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+obj.prospectTimestamp+'</span> <span style="font-size:10px;color:var(--text2)">Prospect</span>'+
-          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+obj.prospectSaid+'"</div>'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+(obj.prospectTimestamp||'')+'</span> <span style="font-size:10px;color:var(--text2)">Prospect</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+(obj.prospectSaid||'')+'"</div>'+
         '</div>'+
         '<div style="padding:6px 10px;border-left:2px solid '+handlingClr+';background:var(--bg);border-radius:0 6px 6px 0;margin-bottom:6px">'+
-          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+obj.aeTimestamp+'</span> <span style="font-size:10px;color:'+handlingClr+'">AE — '+obj.handling.toUpperCase()+'</span>'+
-          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+obj.aeSaid+'"</div>'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+(obj.aeTimestamp||'')+'</span> <span style="font-size:10px;color:'+handlingClr+'">AE — '+handling.toUpperCase()+'</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+(obj.aeSaid||'')+'"</div>'+
         '</div>'+
         (obj.shouldHaveDone ? '<div class="guidance">'+obj.shouldHaveDone+'</div>' : '')+
       '</div>';
@@ -447,15 +451,15 @@ function renderSmartReview(sr, call, baseUrl, rid, dur) {
     h += '<div class="card" style="border-top:3px solid var(--green)"><h3 style="font-size:14px;margin-bottom:10px;color:var(--green)">Buying Signals ('+sr.buyingSignals.length+')</h3>';
     sr.buyingSignals.forEach(bs => {
       const advClr = bs.didAdvance ? 'var(--green)' : 'var(--orange)';
-      const advLabel = bs.didAdvance ? 'ADVANCED ✅' : 'DIDN\'T ADVANCE ⚠️';
+      const advLabel = bs.didAdvance ? 'ADVANCED' : 'DIDN\'T ADVANCE';
       h += '<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
         '<div style="padding:6px 10px;border-left:2px solid var(--green);background:var(--bg3);border-radius:0 6px 6px 0;margin-bottom:6px">'+
-          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+bs.prospectTimestamp+'</span> <span style="font-size:10px;color:var(--green)">'+bs.signalType+'</span>'+
-          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+bs.prospectSaid+'"</div>'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+(bs.prospectTimestamp||'')+'</span> <span style="font-size:10px;color:var(--green)">'+(bs.signalType||'Signal')+'</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+(bs.prospectSaid||'')+'"</div>'+
         '</div>'+
         '<div style="padding:6px 10px;border-left:2px solid '+advClr+';background:var(--bg);border-radius:0 6px 6px 0;margin-bottom:6px">'+
-          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+bs.aeTimestamp+'</span> <span style="font-size:10px;color:'+advClr+'">'+advLabel+'</span>'+
-          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+bs.aeSaid+'"</div>'+
+          '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+(bs.aeTimestamp||'')+'</span> <span style="font-size:10px;color:'+advClr+'">'+advLabel+'</span>'+
+          '<div style="font-size:13px;margin-top:2px;font-style:italic">"'+(bs.aeSaid||'')+'"</div>'+
         '</div>'+
         (!bs.didAdvance && bs.shouldHaveDone ? '<div class="guidance">'+bs.shouldHaveDone+'</div>' : '')+
       '</div>';
@@ -468,8 +472,8 @@ function renderSmartReview(sr, call, baseUrl, rid, dur) {
     const cm = sr.criticalMoment;
     h += '<div class="card" style="border-left:3px solid var(--orange)">'+
       '<h3 style="font-size:14px;margin-bottom:8px;color:var(--orange)">The Critical Moment</h3>'+
-      '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+cm.timestamp+' — '+cm.category+'</div>'+
-      '<div style="font-size:13px;line-height:1.6;margin-bottom:8px">'+cm.whatHappened+'</div>'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+(cm.timestamp||'')+' — '+(cm.category||'')+'</div>'+
+      '<div style="font-size:13px;line-height:1.6;margin-bottom:8px">'+(cm.whatHappened||'')+'</div>'+
       (cm.aeReaction ? '<div style="font-size:13px;line-height:1.6;margin-bottom:8px;color:var(--text2)"><strong>AE responded:</strong> "'+cm.aeReaction+'"</div>' : '')+
       (cm.shouldHaveDone ? '<div class="guidance">'+cm.shouldHaveDone+'</div>' : '')+
     '</div>';
@@ -479,20 +483,21 @@ function renderSmartReview(sr, call, baseUrl, rid, dur) {
 }
 
 function renderMoment(h, type, baseUrl, recordingId) {
+  if (!h) return '';
   const cls = type === 'good' ? 'good' : 'bad';
   const tagCls = type === 'good' ? 'w' : 'l';
-  const ctx = h.context;
-  const hasDetail = ctx && (ctx.before || ctx.after || ctx.shouldHaveDone);
-  const claapLink = baseUrl ? baseUrl + '?t=' + h.timestampSeconds : '#';
+  const ctx = h.context || {};
+  const hasDetail = ctx.before || ctx.after || ctx.shouldHaveDone;
+  const claapLink = baseUrl ? baseUrl + '?t=' + (h.timestampSeconds || 0) : '#';
 
   let s = '<div class="moment '+cls+'" style="cursor:'+(hasDetail?'pointer':'default')+'" '+(hasDetail?'onclick="this.querySelector(\'.mx\').classList.toggle(\'hidden\')"':'')+'>'+
     '<div class="mm">'+
-      '<a class="ts" href="'+claapLink+'" target="_blank" onclick="event.stopPropagation()">'+h.timestampDisplay+'</a>'+
-      '<span class="tag '+tagCls+'">'+h.category+'</span>'+
+      '<a class="ts" href="'+claapLink+'" target="_blank" onclick="event.stopPropagation()">'+(h.timestampDisplay||'0:00')+'</a>'+
+      '<span class="tag '+tagCls+'">'+(h.category||'')+'</span>'+
       confBadge(h.confidence)+
       (hasDetail?'<span style="font-size:10px;color:var(--text2)">details</span>':'')+
     '</div>'+
-    '<div class="mt">"'+h.excerpt+'"</div>';
+    '<div class="mt">"'+(h.excerpt||'')+'"</div>';
 
   if (hasDetail) {
     s += '<div class="mx hidden" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px" onclick="event.stopPropagation()">';
@@ -535,7 +540,7 @@ let currentCallId = '';
 
 async function loadFeedback(recordingId) {
   currentCallId = recordingId;
-  try { callFeedback = await api('/api/feedback/' + recordingId); } catch { callFeedback = {}; }
+  try { callFeedback = (await api('/api/feedback/' + recordingId)) || {}; } catch { callFeedback = {}; }
 }
 
 async function submitFeedback(recordingId, category, excerpt, vote) {
@@ -807,8 +812,8 @@ function callRowHTML(c, name) {
     '<td>'+(c.title||'Untitled')+'</td>'+
     '<td>'+(c.deal_name||'')+'</td>'+
     '<td><span style="color:'+qClr(cq)+';font-weight:700">'+cq+'</span></td>'+
-    '<td>'+(c.talk_ratio||'')+'%</td>'+
-    '<td>'+(c.question_count||'')+'</td>'+
+    '<td>'+(c.talk_ratio != null ? c.talk_ratio : '')+'%</td>'+
+    '<td>'+(c.question_count != null ? c.question_count : '')+'</td>'+
     '<td>'+dur+'</td></tr>';
 }
 
@@ -871,7 +876,7 @@ async function loadTeam() {
       renderTeamAE();
     } else {
       // Load heavy data only for lead view
-      insightsData = insightsData || await api('/api/team/insights');
+      insightsData = (insightsData && Object.keys(insightsData).length) ? insightsData : (await api('/api/team/insights') || {});
       renderTeamLead();
     }
   } catch (err) {
@@ -921,12 +926,16 @@ async function renderTeamLead() {
   // Fetch additional data
   let agendaData = [], consistencyData = {}, healthData = [];
   try {
-    [agendaData, consistencyData, healthData, wgllData] = await Promise.all([
+    const [_agenda, _consistency, _health, _wgll] = await Promise.all([
       api('/api/team/coaching-agenda'),
       api('/api/team/narrative-consistency'),
       api('/api/feedback/health'),
       api('/api/team/what-good-looks-like'),
     ]);
+    agendaData = Array.isArray(_agenda) ? _agenda : [];
+    consistencyData = _consistency || {};
+    healthData = Array.isArray(_health) ? _health : [];
+    wgllData = _wgll || null;
   } catch(e) {}
 
   // Stat boxes
@@ -967,12 +976,12 @@ async function renderTeamLead() {
 
     // Metrics comparison
     html += '<div class="wgll-compare">';
-    html += '<div class="wgll-col best"><h4>Best Calls ('+wg.highQualityCalls+')</h4>'+
+    html += '<div class="wgll-col best"><h4>Best Calls ('+(wg.highQualityCalls||0)+')</h4>'+
       '<div class="wgll-metric"><span>Talk Ratio</span><span class="wm-val">'+(mH.talkRatio||0)+'%</span></div>'+
       '<div class="wgll-metric"><span>Questions</span><span class="wm-val">'+(mH.questionCount||0)+'/call</span></div>'+
       '<div class="wgll-metric"><span>Script Adherence</span><span class="wm-val">'+(mH.scriptAdherence||0)+'%</span></div>'+
     '</div>';
-    html += '<div class="wgll-col worst"><h4>Weakest Calls ('+wg.lowQualityCalls+')</h4>'+
+    html += '<div class="wgll-col worst"><h4>Weakest Calls ('+(wg.lowQualityCalls||0)+')</h4>'+
       '<div class="wgll-metric"><span>Talk Ratio</span><span class="wm-val">'+(mL.talkRatio||0)+'%</span></div>'+
       '<div class="wgll-metric"><span>Questions</span><span class="wm-val">'+(mL.questionCount||0)+'/call</span></div>'+
       '<div class="wgll-metric"><span>Script Adherence</span><span class="wm-val">'+(mL.scriptAdherence||0)+'%</span></div>'+
@@ -1211,7 +1220,10 @@ async function loadAEDetail(name) {
       api('/api/ae/' + encodeURIComponent(name) + '/pillars'),
     ]);
 
-    await loadFeedback(calls[0]?.recording_id || '');
+    if (!ae) { showError('Failed to load AE profile for ' + name); return; }
+    const safeCalls = calls || [];
+    const safeTrend = trend || [];
+    await loadFeedback(safeCalls[0]?.recording_id || '');
 
     const q = ae.avg_call_quality || 0;
     const talk = ae.avg_talk_ratio || 0;
@@ -1239,7 +1251,7 @@ async function loadAEDetail(name) {
     '</div>';
 
     // Diagnostic
-    html += '<div class="diagnostic">'+generateDiagnostic(ae, calls)+'</div>';
+    html += '<div class="diagnostic">'+generateDiagnostic(ae, safeCalls)+'</div>';
 
     // Deep AE Analysis (LLM-powered cross-call review)
     html += '<div class="card" style="border-left:3px solid var(--purple);margin-bottom:16px">'+
@@ -1259,7 +1271,7 @@ async function loadAEDetail(name) {
 
     // Quality breakdown (using team average as a representative call)
     html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
-      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: ae.prospect_engagement || {}, highlights: [] })+
+      qualityBreakdownHTML({ talk_ratio: talk, question_count: qs, script_adherence: script, prospect_engagement: {}, highlights: [] })+
     '</div>';
 
     // MODE-SPECIFIC SECTIONS
@@ -1267,7 +1279,7 @@ async function loadAEDetail(name) {
       // ── AE MODE ──
 
       // What's Working / What To Change — based on pillars + concrete moments
-      const recentCalls = calls.slice(0, 10);
+      const recentCalls = safeCalls.slice(0, 10);
 
       // Find best pillar and worst pillar from recent calls
       const pillarAgg = {};
@@ -1362,13 +1374,13 @@ async function loadAEDetail(name) {
       html += '</div>';
 
       // Progression chart
-      if (trend.length >= 2) {
+      if (safeTrend.length >= 2) {
         html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Progression (Rolling 5-Call Average)</h3><div class="chart-container"><canvas id="chart-progression"></canvas></div></div>';
       }
 
       // Recent Calls — rich previews, not just a table
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Your Recent Calls</h3>';
-      calls.slice(0, 10).forEach(c => {
+      safeCalls.slice(0, 10).forEach(c => {
         const ps = c.pillar_scores || {};
         const sr = c.smart_review || {};
         const vd = Array.isArray(c.call_verdict) ? c.call_verdict : [];
@@ -1420,7 +1432,7 @@ async function loadAEDetail(name) {
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Performance Radar: AE vs Team Average</h3><div style="max-width:500px;margin:0 auto"><div class="chart-container" style="height:350px"><canvas id="chart-radar"></canvas></div></div></div>';
 
       // Progression charts
-      if (trend.length >= 2) {
+      if (safeTrend.length >= 2) {
         html += '<div class="grid-2">';
         html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality & Script Trend</h3><div class="chart-container"><canvas id="chart-trend-quality"></canvas></div></div>';
         html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Talk Ratio & Questions Trend</h3><div class="chart-container"><canvas id="chart-trend-talk"></canvas></div></div>';
@@ -1438,7 +1450,7 @@ async function loadAEDetail(name) {
       });
       // Add strength moments
       const strengthMoments = [];
-      calls.slice(0,5).forEach(c => { (c.highlights||[]).filter(h=>h.type==='strength').slice(0,1).forEach(h => { strengthMoments.push({h, url:c.recording_url, rid:c.recording_id}); }); });
+      safeCalls.slice(0,5).forEach(c => { (c.highlights||[]).filter(h=>h.type==='strength').slice(0,1).forEach(h => { strengthMoments.push({h, url:c.recording_url, rid:c.recording_id}); }); });
       strengthMoments.slice(0,2).forEach(m => { html += renderMoment(m.h, 'good', m.url, m.rid); });
       html += '</div>';
 
@@ -1447,7 +1459,7 @@ async function loadAEDetail(name) {
         html += '<div style="font-size:13px;margin-bottom:4px">'+(dimNames[g.dim]||g.dim)+': <strong style="color:var(--red)">'+g.val.toFixed(1)+'</strong> vs team '+g.teamAvg.toFixed(1)+' <span style="color:var(--red)">(-'+g.gap+')</span></div>';
       });
       const gapMoments = [];
-      calls.slice(0,5).forEach(c => { (c.highlights||[]).filter(h=>h.type==='coachable').slice(0,1).forEach(h => { gapMoments.push({h, url:c.recording_url, rid:c.recording_id}); }); });
+      safeCalls.slice(0,5).forEach(c => { (c.highlights||[]).filter(h=>h.type==='coachable').slice(0,1).forEach(h => { gapMoments.push({h, url:c.recording_url, rid:c.recording_id}); }); });
       gapMoments.slice(0,2).forEach(m => { html += renderMoment(m.h, 'coachable', m.url, m.rid); });
       html += '</div>';
       html += '</div>';
@@ -1455,13 +1467,13 @@ async function loadAEDetail(name) {
       // Full calls table
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">All Calls</h3>';
       html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
-      calls.forEach(c => { html += callRowHTML(c, name); });
+      safeCalls.forEach(c => { html += callRowHTML(c, name); });
       html += '</tbody></table></div>';
     }
 
     // ── SHARED: Engagement pills, Verdict, Script, Behavior scores ──
     // (These are computed from the most recent call for the AE-level view)
-    const latestCall = calls[0] || {};
+    const latestCall = safeCalls[0] || {};
     const pe = latestCall.prospect_engagement || {};
 
     // Engagement pills
@@ -1539,7 +1551,7 @@ async function loadAEDetail(name) {
 
     // Render charts after DOM is ready
     setTimeout(() => {
-      if (mode === 'ae' && trend.length >= 2) {
+      if (mode === 'ae' && safeTrend.length >= 2) {
         // Progression chart
         const ctx = document.getElementById('chart-progression');
         if (ctx) {
@@ -1547,10 +1559,10 @@ async function loadAEDetail(name) {
           chartInstances['progression'] = new Chart(ctx, {
             type: 'line',
             data: {
-              labels: trend.map(t => t.date || 'Call '+t.callIndex),
+              labels: safeTrend.map(t => t.date || 'Call '+t.callIndex),
               datasets: [
-                { label: 'Quality', data: trend.map(t => t.callQuality), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.1)', fill: true, tension: .3 },
-                { label: 'Script', data: trend.map(t => t.scriptAdherence), borderColor: '#22c55e', tension: .3 },
+                { label: 'Quality', data: safeTrend.map(t => t.callQuality), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.1)', fill: true, tension: .3 },
+                { label: 'Script', data: safeTrend.map(t => t.scriptAdherence), borderColor: '#22c55e', tension: .3 },
               ]
             },
             options: chartOpts('Score'),
@@ -1579,17 +1591,17 @@ async function loadAEDetail(name) {
         }
 
         // Trend charts
-        if (trend.length >= 2) {
+        if (safeTrend.length >= 2) {
           const tqCtx = document.getElementById('chart-trend-quality');
           if (tqCtx) {
             destroyChart('trend-quality');
             chartInstances['trend-quality'] = new Chart(tqCtx, {
               type: 'line',
               data: {
-                labels: trend.map(t => t.date || 'Call '+t.callIndex),
+                labels: safeTrend.map(t => t.date || 'Call '+t.callIndex),
                 datasets: [
-                  { label: 'Quality', data: trend.map(t => t.callQuality), borderColor: '#a855f7', tension: .3 },
-                  { label: 'Script', data: trend.map(t => t.scriptAdherence), borderColor: '#22c55e', tension: .3 },
+                  { label: 'Quality', data: safeTrend.map(t => t.callQuality), borderColor: '#a855f7', tension: .3 },
+                  { label: 'Script', data: safeTrend.map(t => t.scriptAdherence), borderColor: '#22c55e', tension: .3 },
                 ]
               },
               options: chartOpts('Score'),
@@ -1602,10 +1614,10 @@ async function loadAEDetail(name) {
             chartInstances['trend-talk'] = new Chart(ttCtx, {
               type: 'line',
               data: {
-                labels: trend.map(t => t.date || 'Call '+t.callIndex),
+                labels: safeTrend.map(t => t.date || 'Call '+t.callIndex),
                 datasets: [
-                  { label: 'Talk Ratio', data: trend.map(t => t.talkRatio), borderColor: '#f59e0b', tension: .3 },
-                  { label: 'Questions', data: trend.map(t => t.questionCount), borderColor: '#3b82f6', tension: .3, yAxisID: 'y1' },
+                  { label: 'Talk Ratio', data: safeTrend.map(t => t.talkRatio), borderColor: '#f59e0b', tension: .3 },
+                  { label: 'Questions', data: safeTrend.map(t => t.questionCount), borderColor: '#3b82f6', tension: .3, yAxisID: 'y1' },
                 ]
               },
               options: {
@@ -1636,6 +1648,7 @@ async function loadCallDetail(rid, aeName) {
   showLoading('Loading call...');
   try {
     const call = await api('/api/call/' + rid);
+    if (!call) { showError('Failed to load call data'); return; }
     await loadFeedback(rid);
 
     const cq = call.call_quality_score || 0;
@@ -1670,6 +1683,19 @@ async function loadCallDetail(rid, aeName) {
       '</div>';
     }
 
+    // Quality Score Stats
+    html += '<div class="grid-4" style="margin-bottom:16px">'+
+      '<div class="sbox"><div class="sv" style="color:'+qClr(cq)+'">'+cq+'</div><div class="sl">Quality</div></div>'+
+      '<div class="sbox"><div class="sv">'+(call.talk_ratio||0)+'%</div><div class="sl">Talk Ratio</div></div>'+
+      '<div class="sbox"><div class="sv">'+(call.question_count||0)+'</div><div class="sl">Questions</div></div>'+
+      '<div class="sbox"><div class="sv">'+dur+'m</div><div class="sl">Duration</div></div>'+
+    '</div>';
+
+    // Quality breakdown
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
+      qualityBreakdownHTML(call)+
+    '</div>';
+
     // Smart Review (primary call analysis)
     const sr = call.smart_review || {};
     if (sr.summary) {
@@ -1677,6 +1703,97 @@ async function loadCallDetail(rid, aeName) {
     } else {
       // Fallback: show basic stats if no smart review
       html += '<div class="card" style="padding:16px;color:var(--text2);font-size:13px">Smart review not yet generated. Run <code>npm run analyze -- --full</code> to generate.</div>';
+    }
+
+    // Engagement pills
+    const callPE = call.prospect_engagement || {};
+    const callPeEvidence = callPE.evidence || {};
+    const callEngTypes = [
+      { key: 'buyingSignals', label: 'Buying Signals', cls: 'g', count: callPE.buyingSignals || 0, evidenceKey: 'buying' },
+      { key: 'engagementIndicators', label: 'Engagement', cls: 'b', count: callPE.engagementIndicators || 0, evidenceKey: 'engagement' },
+      { key: 'redFlags', label: 'Red Flags', cls: 'r', count: callPE.redFlags || 0, evidenceKey: 'redFlags' },
+    ];
+    if (callPE.buyingSignals || callPE.engagementIndicators || callPE.redFlags) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Engagement Signals</h3>';
+      callEngTypes.forEach(e => {
+        const evidence = callPeEvidence[e.evidenceKey] || callPE[e.key + 'Evidence'] || callPE[e.key + 'List'] || [];
+        html += '<span class="pill '+e.cls+'" onclick="var el=document.getElementById(\'eng-'+e.key+'\');if(el)el.classList.toggle(\'hidden\')">'+e.label+': '+e.count+'</span>';
+        if (evidence.length) {
+          html += '<div id="eng-'+e.key+'" class="hidden" style="margin:6px 0 10px 8px;padding:8px 12px;background:var(--bg3);border-radius:6px;font-size:12px">';
+          evidence.forEach(ev => {
+            const text = typeof ev === 'string' ? ev : (ev.quote || ev.excerpt || ev.text || '');
+            const ts = typeof ev === 'object' ? (ev.timestamp || '') : '';
+            const speaker = typeof ev === 'object' ? (ev.speaker || '') : '';
+            const evType = typeof ev === 'object' ? (ev.type || '') : '';
+            html += '<div style="padding:4px 0;border-bottom:1px solid rgba(46,51,72,.3)">';
+            if (ts || speaker) html += '<div style="font-size:10px;color:var(--text2);margin-bottom:2px">'+(ts?'<span style="font-family:monospace">'+ts+'</span> ':'')+(speaker?speaker:'')+(evType?' — <span style="font-weight:600">'+evType+'</span>':'')+'</div>';
+            html += '<div style="font-style:italic">"'+text+'"</div></div>';
+          });
+          html += '</div>';
+        }
+      });
+      html += '</div>';
+    }
+
+    // Call verdict pills
+    const callVerdict = call.call_verdict || [];
+    const callVerdictArr = Array.isArray(callVerdict) ? callVerdict : (typeof callVerdict === 'string' ? callVerdict.split(',').map(v => v.trim()) : []);
+    if (callVerdictArr.length > 0) {
+      const verdictExplanations = {
+        'No Close': 'The AE ended the call without attempting any closing technique — no assumptive close, no next-step commitment, no contract mention.',
+        'Never Checked In': 'The AE talked without checking if the prospect was following along. No pace checks like "Gaat dit te snel?" or "Is dit relevant?"',
+        'Missed Buy Signal': 'The prospect showed interest or asked a buying question, but the AE did not advance or build on it.',
+        'Too Much Talking': 'The AE dominated the conversation with a talk ratio above 62%, leaving too little room for the prospect.',
+        'Accepted Think-It-Over': 'When the prospect said "ik moet erover nadenken", the AE accepted it instead of converting to concrete conditions.',
+        'No Discovery': 'The AE jumped into pitching without asking enough discovery questions to understand the prospect\'s situation.',
+        'Strong Discovery': 'The AE asked 18+ targeted questions, understood the prospect\'s business before pitching.',
+        'Good Check-ins': 'The AE regularly checked in with the prospect, maintaining engagement and adjusting pace.',
+        'Price Without Anchor': 'Pricing was mentioned without first establishing ROI context or value anchoring.',
+        'Pricing Without ROI': 'The AE discussed pricing before building a clear ROI case for the prospect.',
+        'Live Proof': 'The AE demonstrated the product live with the prospect\'s actual data or website.',
+        'Assumptive Close': 'The AE used an assumptive close technique, moving the conversation toward a decision naturally.',
+        'ROI Reframe': 'The AE reframed the price in terms of ROI or business impact.',
+      };
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Call Verdicts</h3>';
+      callVerdictArr.filter(Boolean).forEach(v => {
+        const isNeg = v.includes('No ') || v.includes('Never') || v.includes('Missed') || v.includes('Too ') || v.includes('Accepted');
+        const vId = 'vd-'+v.replace(/[^a-zA-Z]/g,'');
+        const explanation = verdictExplanations[v] || '';
+        html += '<span class="pill '+(isNeg?'r':'g')+'" onclick="var el=document.getElementById(\''+vId+'\');if(el)el.classList.toggle(\'hidden\')">'+v+'</span>';
+        if (explanation) {
+          html += '<div id="'+vId+'" class="hidden" style="margin:4px 0 8px 8px;padding:8px 12px;background:var(--bg3);border-radius:6px;font-size:12px;color:var(--text2);line-height:1.6;border-left:2px solid '+(isNeg?'var(--red)':'var(--green)')+'">'+explanation+'</div>';
+        }
+      });
+      html += '</div>';
+    }
+
+    // Script adherence pills
+    const callSHit = call.sections_hit || [];
+    const callSMiss = call.sections_missed || [];
+    if (callSHit.length || callSMiss.length) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Script Adherence — '+(call.script_adherence||0)+'%</h3>'+scriptPillsHTML(callSHit, callSMiss)+'</div>';
+    }
+
+    // Behavior scores with evidence
+    if (call.patterns && Object.keys(call.patterns).length) {
+      html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Behavior Scores</h3>'+behaviorScoresHTML(call)+'</div>';
+    }
+
+    // Good / Coachable moments
+    const callHighlights = call.highlights || [];
+    const callGood = callHighlights.filter(h => h.type === 'strength');
+    const callBad = callHighlights.filter(h => h.type === 'coachable');
+    if (callGood.length || callBad.length) {
+      html += '<div class="grid-2">';
+      html += '<div class="card" style="border-top:3px solid var(--green)"><h3 style="font-size:14px;margin-bottom:12px;color:var(--green)">What Went Well</h3>';
+      if (callGood.length) { callGood.forEach(h => { html += renderMoment(h, 'good', baseUrl, rid); }); }
+      else { html += '<div style="color:var(--text2);font-size:13px">No strengths detected</div>'; }
+      html += '</div>';
+      html += '<div class="card" style="border-top:3px solid var(--orange)"><h3 style="font-size:14px;margin-bottom:12px;color:var(--orange)">What To Improve</h3>';
+      if (callBad.length) { callBad.forEach(h => { html += renderMoment(h, 'coachable', baseUrl, rid); }); }
+      else { html += '<div style="color:var(--text2);font-size:13px">No coachable moments detected</div>'; }
+      html += '</div>';
+      html += '</div>';
     }
 
     $('app').innerHTML = html;
