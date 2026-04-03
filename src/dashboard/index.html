@@ -320,20 +320,34 @@ let chartInstances = {};
 
 async function api(url, opts = {}) {
   if (!authToken) return null;
-  const res = await fetch(url, {
-    ...opts,
-    headers: { ...opts.headers, 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
-  });
-  if (res.status === 401) {
-    // Clear token and show login — don't reload to avoid loop
-    authToken = '';
-    authRole = '';
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_role');
-    document.getElementById('login-overlay').style.display = 'flex';
+  try {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { ...opts.headers, 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
+    });
+    if (res.status === 401) {
+      authToken = '';
+      authRole = '';
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_role');
+      document.getElementById('login-overlay').style.display = 'flex';
+      return null;
+    }
+    if (!res.ok) {
+      console.warn('API error:', url, res.status);
+      return null;
+    }
+    return res.json();
+  } catch (e) {
+    console.warn('API fetch failed:', url, e.message);
     return null;
   }
-  return res.json();
+}
+function showLoading(msg) {
+  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)"><div style="font-size:16px;margin-bottom:8px">'+msg+'</div></div>';
+}
+function showError(msg) {
+  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)"><div style="font-size:16px;margin-bottom:8px">'+msg+'</div><button class="back-btn" onclick="loadTeam()">Retry</button></div>';
 }
 function esc(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function qCls(q) { return q >= 65 ? 'hi' : q >= 45 ? 'mi' : 'lo'; }
@@ -846,19 +860,22 @@ function getEdgesAndGaps(aePatterns, teamAvg) {
 // ════════════════════════════════════════════════════════
 
 async function loadTeam() {
-  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading...</div>';
+  showLoading('Loading...');
   try {
-    [teamData, benchData, insightsData, teamPillarsData] = await Promise.all([
-      api('/api/team'),
-      api('/api/team/benchmarks'),
-      api('/api/team/insights'),
-      api('/api/team/pillars'),
-    ]);
-    teamPillarsData = teamPillarsData || {};
-    if (mode === 'ae') renderTeamAE();
-    else renderTeamLead();
+    const dashboard = await api('/api/dashboard');
+    if (!dashboard) { showError('Failed to load dashboard data'); return; }
+    teamData = dashboard.team || [];
+    benchData = dashboard.benchmarks || {};
+    teamPillarsData = dashboard.teamPillars || {};
+    if (mode === 'ae') {
+      renderTeamAE();
+    } else {
+      // Load heavy data only for lead view
+      insightsData = insightsData || await api('/api/team/insights');
+      renderTeamLead();
+    }
   } catch (err) {
-    $('app').innerHTML = '<div class="card" style="border-color:var(--red)"><p>Error: '+err.message+'</p></div>';
+    showError('Error: ' + err.message);
   }
 }
 
@@ -1185,7 +1202,7 @@ function generateDiagnostic(ae, calls) {
 // ════════════════════════════════════════════════════════
 
 async function loadAEDetail(name) {
-  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading '+name+'...</div>';
+  showLoading('Loading '+name+'...');
   try {
     const [ae, calls, trend, aePillars] = await Promise.all([
       api('/api/ae/' + encodeURIComponent(name)),
@@ -1616,7 +1633,7 @@ async function loadAEDetail(name) {
 // ════════════════════════════════════════════════════════
 
 async function loadCallDetail(rid, aeName) {
-  $('app').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2)">Loading call...</div>';
+  showLoading('Loading call...');
   try {
     const call = await api('/api/call/' + rid);
     await loadFeedback(rid);

@@ -79,6 +79,19 @@ async function ensureTables() {
     `,
   }).catch(() => ({ error: { message: 'rpc not available' } }));
 
+  // Create indexes for ae_call_analysis (critical for dashboard performance)
+  await supabase.rpc('exec_sql', {
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_ae_call_recorder ON ae_call_analysis(recorder_name);
+      CREATE INDEX IF NOT EXISTS idx_ae_call_outcome ON ae_call_analysis(outcome);
+      CREATE INDEX IF NOT EXISTS idx_ae_call_created ON ae_call_analysis(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_ae_call_recorder_created ON ae_call_analysis(recorder_name, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_ae_call_quality ON ae_call_analysis(call_quality_score DESC);
+      CREATE INDEX IF NOT EXISTS idx_ae_call_recording ON ae_call_analysis(recording_id);
+      CREATE INDEX IF NOT EXISTS idx_ae_call_deal ON ae_call_analysis(deal_name);
+    `,
+  }).catch(() => {});
+
   // If RPC not available, try direct table creation won't work either.
   // Tables should be created manually in Supabase dashboard if needed.
 }
@@ -193,15 +206,23 @@ async function main() {
     if (processed % 25 === 0) console.log(`  Progress: ${processed}/${toAnalyze.length}`);
   }
 
-  // Upsert analysis results in batches
+  // Upsert analysis results in batches (with retry)
   if (allResults.length > 0) {
-    for (let i = 0; i < allResults.length; i += 50) {
-      const batch = allResults.slice(i, i + 50);
-      const { error: upsertError } = await supabase
-        .from('ae_call_analysis')
-        .upsert(batch, { onConflict: 'id' });
-      if (upsertError) {
-        console.error(`Batch upsert error at ${i}:`, upsertError.message);
+    for (let i = 0; i < allResults.length; i += 25) {
+      const batch = allResults.slice(i, i + 25);
+      let retries = 3;
+      while (retries > 0) {
+        const { error: upsertError } = await supabase
+          .from('ae_call_analysis')
+          .upsert(batch, { onConflict: 'id' });
+        if (!upsertError) break;
+        retries--;
+        if (retries > 0) {
+          console.warn(`Batch ${i} failed, retrying in 2s (${retries} left): ${upsertError.message}`);
+          await new Promise(r => setTimeout(r, 2000));
+        } else {
+          console.error(`Batch ${i} failed permanently: ${upsertError.message}`);
+        }
       }
     }
     console.log(`\nStored ${allResults.length} call analyses`);

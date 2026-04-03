@@ -18,6 +18,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const supabase = createSupabaseClient();
 const app = new Hono();
 
+// ─── In-memory cache ─────────────────────────────────────────────────────────
+const cache: Record<string, { data: any; time: number }> = {};
+const CACHE_TTL = 120000; // 2 minutes
+
+function getCached(key: string): any | null {
+  const entry = cache[key];
+  if (entry && Date.now() - entry.time < CACHE_TTL) return entry.data;
+  return null;
+}
+
+function setCache(key: string, data: any): void {
+  cache[key] = { data, time: Date.now() };
+}
+
+function clearCache(): void {
+  Object.keys(cache).forEach(k => delete cache[k]);
+}
+
 app.use('*', cors());
 
 // Auth: protect all /api/* routes except login
@@ -50,8 +68,36 @@ app.put('/api/settings/:key', requireRole('lead'), async (c) => {
   if (!validKeys.includes(key)) return c.json({ error: 'Unknown setting: ' + key }, 400);
   const ok = await saveSetting(key, value);
   if (!ok) return c.json({ error: 'Failed to save setting' }, 500);
+  clearCache();
   return c.json({ ok: true, key });
 });
+
+// ─── Team Benchmarks Cache (avoids duplicate full-table scans) ───────────────
+
+let _teamBenchCache: { data: any; ts: number } | null = null;
+const BENCH_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getTeamWonBenchmarks() {
+  if (_teamBenchCache && Date.now() - _teamBenchCache.ts < BENCH_TTL) return _teamBenchCache.data;
+  const { data: teamCalls } = await supabase
+    .from('ae_call_analysis')
+    .select('talk_ratio, question_count, script_adherence, patterns')
+    .eq('outcome', 'won')
+    .limit(500);
+  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const calls = teamCalls || [];
+  const dims = ['contentEngine','marketContext','roiReframe','humor','urgency','contract','checkIn','theirBusiness'];
+  const patterns: Record<string, number> = {};
+  for (const d of dims) patterns[d] = +(avg(calls.map(tc => (tc.patterns as Record<string,number>)?.[d] || 0))).toFixed(1);
+  const result = {
+    talkRatio: calls.length ? Math.round(avg(calls.map(tc => tc.talk_ratio || 0))) : 55,
+    questionCount: calls.length ? Math.round(avg(calls.map(tc => tc.question_count || 0))) : 22,
+    scriptAdherence: calls.length ? Math.round(avg(calls.map(tc => tc.script_adherence || 0))) : 50,
+    patterns,
+  };
+  _teamBenchCache = { data: result, ts: Date.now() };
+  return result;
+}
 
 // ─── Call Quality Score ───────────────────────────────────────────────────────
 
@@ -75,16 +121,21 @@ function computeCallQualityScore(analysis: Record<string, any>): number {
 
 // Team overview — all AE profiles
 app.get('/api/team', async (c) => {
+  const cached = getCached('team');
+  if (cached) return c.json(cached);
   const { data, error } = await supabase
     .from('ae_coaching_profiles')
     .select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence, top_strengths, top_weaknesses, coaching_recs, avg_patterns_all')
     .order('avg_call_quality', { ascending: false });
   if (error) return c.json({ error: error.message }, 500);
+  setCache('team', data);
   return c.json(data);
 });
 
 // Team benchmarks
 app.get('/api/team/benchmarks', async (c) => {
+  const cached = getCached('benchmarks');
+  if (cached) return c.json(cached);
   const { data, error } = await supabase
     .from('ae_coaching_profiles')
     .select('avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence');
@@ -94,7 +145,7 @@ app.get('/api/team/benchmarks', async (c) => {
   const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
   const topPerformers = data.filter(d => (d.avg_call_quality || 0) > 65);
 
-  return c.json({
+  const result = {
     teamAvg: {
       callQuality: Math.round(avg(data.map(d => d.avg_call_quality || 0))),
       talkRatio: Math.round(avg(data.map(d => d.avg_talk_ratio))),
@@ -107,7 +158,9 @@ app.get('/api/team/benchmarks', async (c) => {
       questionCount: Math.round(avg(topPerformers.map(d => d.avg_question_count))),
       scriptAdherence: Math.round(avg(topPerformers.map(d => d.avg_script_adherence))),
     },
-  });
+  };
+  setCache('benchmarks', result);
+  return c.json(result);
 });
 
 // Single AE profile
@@ -115,7 +168,7 @@ app.get('/api/ae/:name', async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
   const { data, error } = await supabase
     .from('ae_coaching_profiles')
-    .select('*')
+    .select('recorder_name, total_calls, won_calls, lost_calls, win_rate, avg_duration_won, avg_duration_lost, avg_script_adherence, avg_talk_ratio, avg_question_count, avg_longest_monologue, avg_call_quality, avg_patterns_won, avg_patterns_lost, avg_patterns_all, top_strengths, top_weaknesses, coaching_recs, updated_at')
     .eq('recorder_name', name)
     .single();
   if (error) return c.json({ error: error.message }, 404);
@@ -130,7 +183,7 @@ app.get('/api/ae/:name/calls', async (c) => {
 
   const { data, error } = await supabase
     .from('ae_call_analysis')
-    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores, smart_review')
+    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores')
     .eq('recorder_name', name)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -172,10 +225,13 @@ app.get('/api/ae/:name/trend', async (c) => {
 
 // Team-wide insights — correlations, streaks, learning moments
 app.get('/api/team/insights', async (c) => {
+  const cached = getCached('insights');
+  if (cached) return c.json(cached);
   const { data, error } = await supabase
     .from('ae_call_analysis')
-    .select('recording_id, recorder_name, outcome, talk_ratio, question_count, duration_seconds, script_adherence, call_quality_score, sections_hit, patterns, highlights, recording_url, title, created_at')
-    .order('created_at', { ascending: true });
+    .select('recording_id, recorder_name, outcome, talk_ratio, question_count, script_adherence, call_quality_score, patterns, highlights, recording_url, title, created_at')
+    .order('created_at', { ascending: true })
+    .limit(1000);
   if (error) return c.json({ error: error.message }, 500);
   if (!data) return c.json({});
 
@@ -258,7 +314,9 @@ app.get('/api/team/insights', async (c) => {
 
   const avgTeamQuality = Math.round(avg(data.map(d => d.call_quality_score || 0)));
 
-  return c.json({ correlations, talkBuckets, qualityAlerts, learnMoments, totalCalls: data.length, avgTeamQuality });
+  const insightsResult = { correlations, talkBuckets, qualityAlerts, learnMoments, totalCalls: data.length, avgTeamQuality };
+  setCache('insights', insightsResult);
+  return c.json(insightsResult);
 });
 
 // Live analyze a Claap recording by URL or ID
@@ -291,29 +349,22 @@ app.post('/api/analyze-call', async (c) => {
   // First check: is this recording already analyzed in Supabase?
   const { data: existingAnalysis } = await supabase
     .from('ae_call_analysis')
-    .select('*')
+    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores')
     .eq('recording_id', recordingId)
     .single();
 
   if (existingAnalysis) {
     // Already analyzed — build response from stored data without hitting Claap
-    const { data: teamCalls } = await supabase.from('ae_call_analysis').select('talk_ratio, question_count, script_adherence, patterns, outcome').eq('outcome', 'won');
-    const avg = (arr: number[]) => arr.length ? arr.reduce((a,b) => a + b, 0) / arr.length : 0;
-    const teamAvgTalk = teamCalls ? Math.round(avg(teamCalls.map(tc => tc.talk_ratio || 0))) : 55;
-    const teamAvgQs = teamCalls ? Math.round(avg(teamCalls.map(tc => tc.question_count || 0))) : 22;
-    const teamAvgScript = teamCalls ? Math.round(avg(teamCalls.map(tc => tc.script_adherence || 0))) : 50;
-    const teamPatterns: Record<string, number> = {};
-    const dims = ['contentEngine','marketContext','roiReframe','humor','urgency','contract','checkIn','theirBusiness'];
-    if (teamCalls) for (const d of dims) teamPatterns[d] = +(avg(teamCalls.map(tc => (tc.patterns as Record<string,number>)?.[d] || 0))).toFixed(1);
+    const teamAvg = await getTeamWonBenchmarks();
 
     const dimLabels: Record<string,string> = { contentEngine:'Product explanation', roiReframe:'ROI reframing', humor:'Humor', urgency:'Urgency', contract:'Close language', checkIn:'Check-ins' };
     const verdicts: any[] = [];
-    verdicts.push({ metric:'Talk Ratio', value:existingAnalysis.talk_ratio+'%', teamAvg:teamAvgTalk+'%', verdict:existingAnalysis.talk_ratio<=55?'good':existingAnalysis.talk_ratio<=65?'warning':'bad', tip:existingAnalysis.talk_ratio>60?'Too much talking.':'Good balance.' });
-    verdicts.push({ metric:'Questions', value:existingAnalysis.question_count, teamAvg:teamAvgQs, verdict:existingAnalysis.question_count>=20?'good':existingAnalysis.question_count>=14?'warning':'bad', tip:existingAnalysis.question_count<16?'Not enough discovery.':'Solid.' });
-    verdicts.push({ metric:'Script Score', value:existingAnalysis.script_adherence+'%', teamAvg:teamAvgScript+'%', verdict:existingAnalysis.script_adherence>=50?'good':existingAnalysis.script_adherence>=30?'warning':'bad', tip:existingAnalysis.script_adherence<30?'Low script coverage.':'OK.' });
+    verdicts.push({ metric:'Talk Ratio', value:existingAnalysis.talk_ratio+'%', teamAvg:teamAvg.talkRatio+'%', verdict:existingAnalysis.talk_ratio<=55?'good':existingAnalysis.talk_ratio<=65?'warning':'bad', tip:existingAnalysis.talk_ratio>60?'Too much talking.':'Good balance.' });
+    verdicts.push({ metric:'Questions', value:existingAnalysis.question_count, teamAvg:teamAvg.questionCount, verdict:existingAnalysis.question_count>=20?'good':existingAnalysis.question_count>=14?'warning':'bad', tip:existingAnalysis.question_count<16?'Not enough discovery.':'Solid.' });
+    verdicts.push({ metric:'Script Score', value:existingAnalysis.script_adherence+'%', teamAvg:teamAvg.scriptAdherence+'%', verdict:existingAnalysis.script_adherence>=50?'good':existingAnalysis.script_adherence>=30?'warning':'bad', tip:existingAnalysis.script_adherence<30?'Low script coverage.':'OK.' });
     for (const [d, label] of Object.entries(dimLabels)) {
       const val = (existingAnalysis.patterns as Record<string,number>)?.[d] || 0;
-      const ta = teamPatterns[d] || 0;
+      const ta = teamAvg.patterns[d] || 0;
       if (Math.abs(val - ta) > 1) verdicts.push({ metric:label, value:val, teamAvg:ta, verdict:val>ta?'good':'warning', tip:val<ta-1?`Below average (${ta}).`:'Above average.' });
     }
 
@@ -339,16 +390,12 @@ app.post('/api/analyze-call', async (c) => {
     const parsed = parseTranscript(existingRec.transcript_text, existingRec.recorder_name || 'Unknown');
     const analysis = analyzeCall(parsed.turns, existingRec.recorder_name || 'Unknown', existingRec.url);
 
-    const { data: teamCalls } = await supabase.from('ae_call_analysis').select('talk_ratio, question_count, script_adherence, patterns, outcome').eq('outcome', 'won');
-    const avg = (arr: number[]) => arr.length ? arr.reduce((a,b) => a + b, 0) / arr.length : 0;
-    const teamAvgTalk = teamCalls ? Math.round(avg(teamCalls.map(tc => tc.talk_ratio || 0))) : 55;
-    const teamAvgQs = teamCalls ? Math.round(avg(teamCalls.map(tc => tc.question_count || 0))) : 22;
-    const teamAvgScript = teamCalls ? Math.round(avg(teamCalls.map(tc => tc.script_adherence || 0))) : 50;
+    const teamBench = await getTeamWonBenchmarks();
 
     const verdicts: any[] = [];
-    verdicts.push({ metric:'Talk Ratio', value:analysis.talkRatio+'%', teamAvg:teamAvgTalk+'%', verdict:analysis.talkRatio<=55?'good':analysis.talkRatio<=65?'warning':'bad', tip:analysis.talkRatio>60?'Too much talking.':'Good balance.' });
-    verdicts.push({ metric:'Questions', value:analysis.questionCount, teamAvg:teamAvgQs, verdict:analysis.questionCount>=20?'good':analysis.questionCount>=14?'warning':'bad', tip:analysis.questionCount<16?'Not enough discovery.':'Solid.' });
-    verdicts.push({ metric:'Script Score', value:analysis.scriptAdherence+'%', teamAvg:teamAvgScript+'%', verdict:analysis.scriptAdherence>=50?'good':analysis.scriptAdherence>=30?'warning':'bad', tip:analysis.scriptAdherence<30?'Low coverage.':'OK.' });
+    verdicts.push({ metric:'Talk Ratio', value:analysis.talkRatio+'%', teamAvg:teamBench.talkRatio+'%', verdict:analysis.talkRatio<=55?'good':analysis.talkRatio<=65?'warning':'bad', tip:analysis.talkRatio>60?'Too much talking.':'Good balance.' });
+    verdicts.push({ metric:'Questions', value:analysis.questionCount, teamAvg:teamBench.questionCount, verdict:analysis.questionCount>=20?'good':analysis.questionCount>=14?'warning':'bad', tip:analysis.questionCount<16?'Not enough discovery.':'Solid.' });
+    verdicts.push({ metric:'Script Score', value:analysis.scriptAdherence+'%', teamAvg:teamBench.scriptAdherence+'%', verdict:analysis.scriptAdherence>=50?'good':analysis.scriptAdherence>=30?'warning':'bad', tip:analysis.scriptAdherence<30?'Low coverage.':'OK.' });
 
     const aeProfile = (await supabase.from('ae_coaching_profiles').select('avg_call_quality, total_calls').eq('recorder_name', existingRec.recorder_name).single()).data;
 
@@ -390,26 +437,12 @@ app.post('/api/analyze-call', async (c) => {
     const parsed = parseTranscript(transcriptText, recorderName);
     const analysis = analyzeCall(parsed.turns, recorderName, rec.url);
 
-    // Get team benchmarks for comparison
-    const { data: teamProfiles } = await supabase.from('ae_coaching_profiles').select('recorder_name, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, total_calls');
-    const { data: teamCalls } = await supabase.from('ae_call_analysis').select('talk_ratio, question_count, script_adherence, patterns, outcome');
-
-    const teamAvg = {
-      talkRatio: 0, questionCount: 0, scriptAdherence: 0, patterns: {} as Record<string, number>,
-    };
-    if (teamCalls && teamCalls.length > 0) {
-      const wonCalls = teamCalls.filter(tc => tc.outcome === 'won');
-      teamAvg.talkRatio = Math.round(wonCalls.reduce((s, tc) => s + (tc.talk_ratio || 0), 0) / wonCalls.length);
-      teamAvg.questionCount = Math.round(wonCalls.reduce((s, tc) => s + (tc.question_count || 0), 0) / wonCalls.length);
-      teamAvg.scriptAdherence = Math.round(wonCalls.reduce((s, tc) => s + (tc.script_adherence || 0), 0) / wonCalls.length);
-      const dims = ['contentEngine','marketContext','roiReframe','humor','urgency','contract','checkIn','theirBusiness'];
-      for (const d of dims) {
-        teamAvg.patterns[d] = +(wonCalls.reduce((s, tc) => s + ((tc.patterns as Record<string,number>)?.[d] || 0), 0) / wonCalls.length).toFixed(1);
-      }
-    }
-
-    // Get AE's own profile for personal comparison
-    const aeProfile = teamProfiles?.find(p => p.recorder_name === recorderName) || null;
+    // Get team benchmarks for comparison (cached, avoids full table scan)
+    const [teamAvg, { data: aeProfileData }] = await Promise.all([
+      getTeamWonBenchmarks(),
+      supabase.from('ae_coaching_profiles').select('avg_call_quality, total_calls').eq('recorder_name', recorderName).single(),
+    ]);
+    const aeProfile = aeProfileData || null;
 
     // Build comparison verdicts
     const verdicts: { metric: string; value: number | string; teamAvg: number | string; verdict: 'good' | 'warning' | 'bad'; tip: string }[] = [];
@@ -510,11 +543,14 @@ app.get('/api/call/:id/evidence/:dimension', async (c) => {
 // ─── Feature: Weekly Coaching Agenda ──────────────────────────────────────────
 
 app.get('/api/team/coaching-agenda', async (c) => {
-  // Fetch all recent calls and coaching profiles
+  const cached = getCached('agenda');
+  if (cached) return c.json(cached);
+  // Fetch recent calls and coaching profiles (limited to avoid full table scan)
   const [{ data: calls, error: callsErr }, { data: profiles, error: profilesErr }] = await Promise.all([
     supabase.from('ae_call_analysis')
       .select('recording_id, recorder_name, outcome, title, deal_name, created_at, script_adherence, talk_ratio, question_count, longest_monologue, patterns, highlights, recording_url, sections_hit, sections_missed, call_quality_score')
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(500),
     supabase.from('ae_coaching_profiles')
       .select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, coaching_recs'),
   ]);
@@ -640,16 +676,20 @@ app.get('/api/team/coaching-agenda', async (c) => {
   const priorityOrder = { urgent: 0, high: 1, medium: 2 };
   agenda.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
+  setCache('agenda', agenda);
   return c.json(agenda);
 });
 
 // ─── Feature: Narrative Consistency Score ─────────────────────────────────────
 
 app.get('/api/team/narrative-consistency', async (c) => {
+  const cached = getCached('narrative-consistency');
+  if (cached) return c.json(cached);
   const [{ data: calls, error: callsErr }, { data: profiles, error: profilesErr }] = await Promise.all([
     supabase.from('ae_call_analysis')
       .select('recorder_name, outcome, sections_hit, sections_missed, script_adherence')
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(500),
     supabase.from('ae_coaching_profiles')
       .select('recorder_name, avg_call_quality, total_calls'),
   ]);
@@ -745,7 +785,9 @@ app.get('/api/team/narrative-consistency', async (c) => {
 
   outliers.sort((a, b) => b.deviationScore - a.deviationScore);
 
-  return c.json({ sectionConsistency, driftAlerts, outliers });
+  const consistencyResult = { sectionConsistency, driftAlerts, outliers };
+  setCache('narrative-consistency', consistencyResult);
+  return c.json(consistencyResult);
 });
 
 // ─── Narrative Coach (LLM-powered deep analysis) ─────────────────────────────
@@ -765,21 +807,19 @@ app.post('/api/call/:id/narrative', requireRole('lead'), async (c) => {
     return c.json(existing.narrative_review);
   }
 
-  // Get the call analysis and transcript
-  const { data: analysis } = await supabase
-    .from('ae_call_analysis')
-    .select('*, recording_id')
-    .eq('recording_id', recordingId)
-    .single();
+  // Get the call analysis and transcript in parallel
+  const [{ data: analysis }, { data: recording }] = await Promise.all([
+    supabase.from('ae_call_analysis')
+      .select('recording_id, recorder_name, title, duration_seconds, highlights')
+      .eq('recording_id', recordingId)
+      .single(),
+    supabase.from('recordings')
+      .select('transcript_text')
+      .eq('id', recordingId)
+      .single(),
+  ]);
 
   if (!analysis) return c.json({ error: 'Call not found' }, 404);
-
-  // Get the transcript from recordings table
-  const { data: recording } = await supabase
-    .from('recordings')
-    .select('transcript_text')
-    .eq('id', recordingId)
-    .single();
 
   if (!recording?.transcript_text) {
     return c.json({ error: 'No transcript available for narrative analysis' }, 400);
@@ -994,6 +1034,8 @@ app.get('/api/feedback/:recordingId', async (c) => {
 // ─── What Good Looks Like (team-wide benchmarking) ────────────────────────────
 
 app.get('/api/team/what-good-looks-like', async (c) => {
+  const cached = getCached('wgll');
+  if (cached) return c.json(cached);
   // Fetch all calls with quality scores, patterns, metrics, and pillar scores
   const allCalls: any[] = [];
   let from = 0;
@@ -1053,14 +1095,16 @@ app.get('/api/team/what-good-looks-like', async (c) => {
     },
   };
 
-  return c.json({
+  const wgllResult = {
     highQualityCalls: highQuality.length,
     lowQualityCalls: lowQuality.length,
     totalCalls: allCalls.length,
     patterns,
     pillars: { high: pillarHigh, low: pillarLow },
     metrics,
-  });
+  };
+  setCache('wgll', wgllResult);
+  return c.json(wgllResult);
 });
 
 // ─── AE Pillar Averages ──────────────────────────────────────────────────────
@@ -1093,11 +1137,14 @@ app.get('/api/ae/:name/pillars', async (c) => {
 // ─── Team Pillar Averages (for AE cards) ─────────────────────────────────────
 
 app.get('/api/team/pillars', async (c) => {
-  // Fetch recent calls per AE with pillar scores
+  const cached = getCached('pillars');
+  if (cached) return c.json(cached);
+  // Fetch recent calls per AE with pillar scores (limit to recent data)
   const { data, error } = await supabase
     .from('ae_call_analysis')
     .select('recorder_name, pillar_scores')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(500);
   if (error) return c.json({ error: error.message }, 500);
   if (!data) return c.json({});
 
@@ -1123,6 +1170,68 @@ app.get('/api/team/pillars', async (c) => {
     }
   }
 
+  setCache('pillars', result);
+  return c.json(result);
+});
+
+// ─── Consolidated Dashboard Endpoint ──────────────────────────────────────────
+
+app.get('/api/dashboard', async (c) => {
+  const cached = getCached('dashboard');
+  if (cached) return c.json(cached);
+
+  // Fetch team and benchmarks in parallel (these are light queries)
+  const [teamRes, benchRes, pillarsRes] = await Promise.all([
+    supabase.from('ae_coaching_profiles').select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence, top_strengths, top_weaknesses, coaching_recs, avg_patterns_all').order('avg_call_quality', { ascending: false }),
+    supabase.from('ae_coaching_profiles').select('avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence'),
+    // Pillar data - fetch recent pillar_scores grouped by AE
+    supabase.from('ae_call_analysis').select('recorder_name, pillar_scores').order('created_at', { ascending: false }).limit(500),
+  ]);
+
+  const team = teamRes.data || [];
+  const bench = benchRes.data || [];
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a,b) => a+b, 0) / arr.length) : 0;
+
+  // Compute pillars per AE from recent calls
+  const pillarsByAE: Record<string, any> = {};
+  const pillarCounts: Record<string, number> = {};
+  for (const row of pillarsRes.data || []) {
+    if (!row.pillar_scores || !row.recorder_name) continue;
+    if ((pillarCounts[row.recorder_name] || 0) >= 20) continue;
+    pillarCounts[row.recorder_name] = (pillarCounts[row.recorder_name] || 0) + 1;
+    if (!pillarsByAE[row.recorder_name]) pillarsByAE[row.recorder_name] = {};
+    const ps = row.pillar_scores as any;
+    for (const key of ['control','discovery','gapCreation','objectionHandling','advancement']) {
+      if (!ps[key]) continue;
+      if (!pillarsByAE[row.recorder_name][key]) pillarsByAE[row.recorder_name][key] = [];
+      pillarsByAE[row.recorder_name][key].push(ps[key].score || 0);
+    }
+  }
+  // Average the pillars
+  const teamPillars: Record<string, any> = {};
+  const pillarNames: Record<string, string> = { control: 'Control', discovery: 'Discovery', gapCreation: 'Gap Creation', objectionHandling: 'Objection Handling', advancement: 'Advancement' };
+  for (const [ae, dims] of Object.entries(pillarsByAE)) {
+    teamPillars[ae] = {};
+    for (const [key, scores] of Object.entries(dims as Record<string, number[]>)) {
+      const score = avg(scores);
+      teamPillars[ae][key] = { name: pillarNames[key], score, level: score >= 65 ? 'strong' : score >= 40 ? 'developing' : 'needs work' };
+    }
+  }
+
+  const result = {
+    team,
+    benchmarks: {
+      teamAvg: {
+        callQuality: avg(bench.map((d: any) => d.avg_call_quality || 0)),
+        talkRatio: avg(bench.map((d: any) => d.avg_talk_ratio || 0)),
+        questionCount: avg(bench.map((d: any) => d.avg_question_count || 0)),
+        scriptAdherence: avg(bench.map((d: any) => d.avg_script_adherence || 0)),
+      },
+    },
+    teamPillars,
+  };
+
+  setCache('dashboard', result);
   return c.json(result);
 });
 
@@ -1174,13 +1283,17 @@ function groupCallsIntoDeals(calls: any[]): Map<string, { name: string; calls: a
 // GET /api/deals — Deal Board Data
 app.get('/api/deals', async (c) => {
   // Fetch calls without heavy JSONB columns; check narrative existence separately
+  const cutoffDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
   const [{ data, error }, { data: narrativeIds }] = await Promise.all([
     supabase.from('ae_call_analysis')
-      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, patterns, highlights, call_verdict, prospect_engagement, call_quality_score')
-      .order('created_at', { ascending: false }),
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, patterns, highlights, call_verdict, prospect_engagement, call_quality_score, question_count')
+      .gte('created_at', cutoffDate)
+      .order('created_at', { ascending: false })
+      .limit(1000),
     supabase.from('ae_call_analysis')
       .select('recording_id')
-      .not('narrative_review', 'is', null),
+      .not('narrative_review', 'is', null)
+      .limit(1000),
   ]);
   if (error) return c.json({ error: error.message }, 500);
   if (!data) return c.json([]);
@@ -1253,31 +1366,36 @@ app.get('/api/deals', async (c) => {
 app.get('/api/deal/:name', async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
 
-  // Fetch without heavy JSONB columns (smart_review, pattern_evidence, narrative_review)
-  const [{ data, error }, { data: narrativeIds }] = await Promise.all([
+  // Fetch matching calls by deal_name or title (filter at DB level where possible)
+  const [{ data: byDeal, error }, { data: byTitle }, { data: narrativeIds }] = await Promise.all([
     supabase.from('ae_call_analysis')
-      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores, smart_review')
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores')
+      .ilike('deal_name', `%${name}%`)
+      .order('created_at', { ascending: true }),
+    supabase.from('ae_call_analysis')
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores')
+      .ilike('title', `%${name}%`)
       .order('created_at', { ascending: true }),
     supabase.from('ae_call_analysis')
       .select('recording_id')
-      .not('narrative_review', 'is', null),
+      .not('narrative_review', 'is', null)
+      .limit(1000),
   ]);
   if (error) return c.json({ error: error.message }, 500);
-  if (!data) return c.json([]);
-  const narrativeSet = new Set((narrativeIds || []).map((r: any) => r.recording_id));
 
-  // Find matching calls: by deal_name, by grouping logic, or by title containing the name
-  const nameLower = name.toLowerCase();
-  const matchingCalls = data.filter((call: any) => {
-    // Direct deal_name match
-    if (call.deal_name && call.deal_name.trim().toLowerCase() === nameLower) return true;
-    // Title contains the name
-    if (call.title && call.title.toLowerCase().includes(nameLower)) return true;
-    // Normalized key match
-    const key = normalizeDealKey(call.title || '');
-    if (key === nameLower || key.includes(nameLower) || nameLower.includes(key)) return true;
-    return false;
-  });
+  // Merge and deduplicate results from both queries
+  const seen = new Set<string>();
+  const data: any[] = [];
+  for (const call of [...(byDeal || []), ...(byTitle || [])]) {
+    if (!seen.has(call.recording_id)) {
+      seen.add(call.recording_id);
+      data.push(call);
+    }
+  }
+  data.sort((a: any, b: any) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+  const narrativeSet = new Set((narrativeIds || []).map((r: any) => r.recording_id));
+  const matchingCalls = data;
 
   const result = matchingCalls.map((call: any) => ({
     ...call,
@@ -1293,7 +1411,8 @@ app.get('/api/reps', async (c) => {
     supabase.from('ae_coaching_profiles').select('recorder_name, total_calls, avg_call_quality, top_weaknesses'),
     supabase.from('ae_call_analysis')
       .select('recorder_name, created_at, call_quality_score, talk_ratio, question_count, patterns')
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(500),
   ]);
   if (profilesErr) return c.json({ error: profilesErr.message }, 500);
   if (callsErr) return c.json({ error: callsErr.message }, 500);
@@ -1448,7 +1567,7 @@ app.get('/api/rep/:name/coaching-brief', async (c) => {
     .select('recorder_name, title, recording_url, highlights')
     .neq('recorder_name', name)
     .order('call_quality_score', { ascending: false })
-    .limit(50);
+    .limit(15);
 
   if (otherCalls) {
     for (const call of otherCalls) {
