@@ -130,7 +130,7 @@ app.get('/api/ae/:name/calls', async (c) => {
 
   const { data, error } = await supabase
     .from('ae_call_analysis')
-    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict')
+    .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores, smart_review')
     .eq('recorder_name', name)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -1256,7 +1256,7 @@ app.get('/api/deal/:name', async (c) => {
   // Fetch without heavy JSONB columns (smart_review, pattern_evidence, narrative_review)
   const [{ data, error }, { data: narrativeIds }] = await Promise.all([
     supabase.from('ae_call_analysis')
-      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict')
+      .select('recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores, smart_review')
       .order('created_at', { ascending: true }),
     supabase.from('ae_call_analysis')
       .select('recording_id')
