@@ -92,6 +92,34 @@ async function ensureTables() {
     `,
   }).catch(() => {});
 
+  // Create coaching_interventions table (feedback loop)
+  await supabase.rpc('exec_sql', {
+    sql: `
+      CREATE TABLE IF NOT EXISTS coaching_interventions (
+        id TEXT PRIMARY KEY,
+        recorder_name TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        focus_area TEXT NOT NULL,
+        focus_pillar TEXT,
+        description TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'dashboard',
+        baseline_quality FLOAT,
+        baseline_metric FLOAT,
+        baseline_pillar_score FLOAT,
+        followup_at TIMESTAMPTZ,
+        followup_quality FLOAT,
+        followup_metric FLOAT,
+        followup_pillar_score FLOAT,
+        calls_since INT DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_by TEXT DEFAULT 'system',
+        notes TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_interventions_ae ON coaching_interventions(recorder_name);
+      CREATE INDEX IF NOT EXISTS idx_interventions_status ON coaching_interventions(status);
+    `,
+  }).catch(() => {});
+
   // If RPC not available, try direct table creation won't work either.
   // Tables should be created manually in Supabase dashboard if needed.
 }
@@ -387,7 +415,7 @@ function computeCallQualityScore(analysis: Record<string, any>): number {
   // Coachable moments: fewer = better (0 = 20 pts, 5+ = 0 pts), max 20 pts
   const highlights = analysis.highlights || [];
   const coachableCount = Array.isArray(highlights) ? highlights.filter((h: any) => h.type === 'coachable').length : 0;
-  const coachPts = Math.max(0, 20 - coachableCount * 4);
+  const coachPts = Math.max(0, 20 - coachableCount * 2);
 
   return Math.round(Math.max(0, Math.min(100, talkPts + qPts + scriptPts + engPts + coachPts)));
 }

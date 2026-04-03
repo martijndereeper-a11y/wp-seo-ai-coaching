@@ -113,7 +113,7 @@ function computeCallQualityScore(analysis: Record<string, any>): number {
   const engPts = Math.max(0, Math.min(15, Math.round((netEngagement / 8) * 15)));
   const highlights = analysis.highlights || [];
   const coachableCount = Array.isArray(highlights) ? highlights.filter((h: any) => h.type === 'coachable').length : 0;
-  const coachPts = Math.max(0, 20 - coachableCount * 4);
+  const coachPts = Math.max(0, 20 - coachableCount * 2);
   return Math.round(Math.max(0, Math.min(100, talkPts + qPts + scriptPts + engPts + coachPts)));
 }
 
@@ -1623,6 +1623,345 @@ app.get('/api/rep/:name/coaching-brief', async (c) => {
       direction,
     },
     lastFiveCalls,
+  });
+});
+
+// ─── Call Quality Breakdown (IOI: expose subtask scores) ─────────────────────
+
+function computeQualityBreakdown(analysis: Record<string, any>) {
+  const talkRatio = analysis.talkRatio || analysis.talk_ratio || 50;
+  const talkPts = Math.max(0, 25 - Math.abs(talkRatio - 50));
+  const qCount = analysis.questionCount || analysis.question_count || 0;
+  const qPts = Math.min(20, Math.round((qCount / 22) * 20));
+  const scriptAdh = analysis.scriptAdherence || analysis.script_adherence || 0;
+  const scriptPts = Math.round((scriptAdh / 100) * 20);
+  const pe = analysis.prospectEngagement || analysis.prospect_engagement || {};
+  const netEngagement = (pe.buyingSignals || 0) + (pe.engagementIndicators || 0) - (pe.redFlags || 0);
+  const engPts = Math.max(0, Math.min(15, Math.round((netEngagement / 8) * 15)));
+  const highlights = analysis.highlights || [];
+  const coachableCount = Array.isArray(highlights) ? highlights.filter((h: any) => h.type === 'coachable').length : 0;
+  const coachPts = Math.max(0, 20 - coachableCount * 2);
+  const total = Math.round(Math.max(0, Math.min(100, talkPts + qPts + scriptPts + engPts + coachPts)));
+  return {
+    total,
+    subtasks: [
+      { name: 'Talk Balance', score: Math.round(talkPts), max: 25, value: talkRatio, target: '45-55%', tip: talkRatio > 60 ? `${talkRatio}% — talk less, ask more` : `${talkRatio}% — good balance` },
+      { name: 'Question Depth', score: Math.round(qPts), max: 20, value: qCount, target: '22+', tip: qCount < 16 ? `${qCount} questions — need more discovery` : `${qCount} questions — solid` },
+      { name: 'Script Coverage', score: Math.round(scriptPts), max: 20, value: scriptAdh, target: '50%+', tip: scriptAdh < 30 ? `${scriptAdh}% — missing key sections` : `${scriptAdh}% — good coverage` },
+      { name: 'Engagement', score: Math.round(engPts), max: 15, value: netEngagement, target: '4+', tip: netEngagement < 2 ? 'Low prospect engagement' : 'Prospect is engaged' },
+      { name: 'Coachability', score: Math.round(coachPts), max: 20, value: coachableCount, target: '0-2', tip: coachableCount > 3 ? `${coachableCount} coachable moments — needs work` : 'Clean execution' },
+    ],
+  };
+}
+
+app.get('/api/call/:id/quality-breakdown', async (c) => {
+  const id = c.req.param('id');
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select('talk_ratio, question_count, script_adherence, prospect_engagement, highlights')
+    .eq('recording_id', id)
+    .single();
+  if (error) return c.json({ error: error.message }, 404);
+  return c.json(computeQualityBreakdown(data));
+});
+
+// ─── Coaching Interventions (Feedback Loop) ──────────────────────────────────
+
+// Create a coaching intervention
+app.post('/api/interventions', requireRole('lead'), async (c) => {
+  const body = await c.req.json() as {
+    recorderName: string;
+    focusArea: string;
+    focusPillar?: string;
+    description: string;
+    source?: string;
+    notes?: string;
+  };
+  if (!body.recorderName || !body.focusArea || !body.description) {
+    return c.json({ error: 'Missing recorderName, focusArea, or description' }, 400);
+  }
+
+  // Snapshot baseline metrics for this AE
+  const [{ data: profile }, { data: recentCalls }] = await Promise.all([
+    supabase.from('ae_coaching_profiles')
+      .select('avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence')
+      .eq('recorder_name', body.recorderName).single(),
+    supabase.from('ae_call_analysis')
+      .select('pillar_scores')
+      .eq('recorder_name', body.recorderName)
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ]);
+
+  // Get baseline pillar score if pillar specified
+  let baselinePillar: number | null = null;
+  if (body.focusPillar && recentCalls && recentCalls.length > 0) {
+    const pillarScores = recentCalls
+      .filter(c => c.pillar_scores && (c.pillar_scores as any)[body.focusPillar!])
+      .map(c => ((c.pillar_scores as any)[body.focusPillar!] as any).score || 0);
+    if (pillarScores.length > 0) {
+      baselinePillar = Math.round(pillarScores.reduce((a, b) => a + b, 0) / pillarScores.length);
+    }
+  }
+
+  // Determine baseline metric based on focus area
+  let baselineMetric: number | null = null;
+  if (profile) {
+    if (body.focusArea.toLowerCase().includes('talk')) baselineMetric = profile.avg_talk_ratio;
+    else if (body.focusArea.toLowerCase().includes('question') || body.focusArea.toLowerCase().includes('discovery')) baselineMetric = profile.avg_question_count;
+    else if (body.focusArea.toLowerCase().includes('script')) baselineMetric = profile.avg_script_adherence;
+    else baselineMetric = profile.avg_call_quality;
+  }
+
+  const id = `int_${body.recorderName.replace(/\s+/g, '_')}_${Date.now()}`;
+  const { error } = await supabase.from('coaching_interventions').upsert({
+    id,
+    recorder_name: body.recorderName,
+    focus_area: body.focusArea,
+    focus_pillar: body.focusPillar || null,
+    description: body.description,
+    source: body.source || 'dashboard',
+    baseline_quality: profile?.avg_call_quality || null,
+    baseline_metric: baselineMetric,
+    baseline_pillar_score: baselinePillar,
+    created_by: 'lead',
+    notes: body.notes || null,
+    created_at: new Date().toISOString(),
+  });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ ok: true, id });
+});
+
+// List interventions for an AE
+app.get('/api/ae/:name/interventions', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  const { data, error } = await supabase
+    .from('coaching_interventions')
+    .select('*')
+    .eq('recorder_name', name)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data || []);
+});
+
+// All active interventions (team view)
+app.get('/api/interventions', requireRole('lead'), async (c) => {
+  const { data, error } = await supabase
+    .from('coaching_interventions')
+    .select('*')
+    .in('status', ['active', 'measured'])
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data || []);
+});
+
+// Measure intervention outcomes (run after new calls are analyzed)
+app.post('/api/interventions/measure', requireRole('lead'), async (c) => {
+  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+  // Get all active interventions
+  const { data: interventions } = await supabase
+    .from('coaching_interventions')
+    .select('*')
+    .eq('status', 'active')
+    .limit(100);
+  if (!interventions || interventions.length === 0) return c.json({ measured: 0 });
+
+  let measured = 0;
+  for (const int of interventions) {
+    // Count calls since intervention
+    const { data: newCalls } = await supabase
+      .from('ae_call_analysis')
+      .select('call_quality_score, talk_ratio, question_count, script_adherence, pillar_scores, created_at')
+      .eq('recorder_name', int.recorder_name)
+      .gt('created_at', int.created_at)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (!newCalls || newCalls.length < 5) continue; // Need 5+ calls to measure
+
+    const followupQuality = Math.round(avg(newCalls.map(c => c.call_quality_score || 0)));
+
+    // Get follow-up metric
+    let followupMetric: number | null = null;
+    const fa = int.focus_area.toLowerCase();
+    if (fa.includes('talk')) followupMetric = Math.round(avg(newCalls.map(c => c.talk_ratio || 0)));
+    else if (fa.includes('question') || fa.includes('discovery')) followupMetric = Math.round(avg(newCalls.map(c => c.question_count || 0)));
+    else if (fa.includes('script')) followupMetric = Math.round(avg(newCalls.map(c => c.script_adherence || 0)));
+    else followupMetric = followupQuality;
+
+    // Get follow-up pillar score
+    let followupPillar: number | null = null;
+    if (int.focus_pillar) {
+      const pillarScores = newCalls
+        .filter(c => c.pillar_scores && (c.pillar_scores as any)[int.focus_pillar])
+        .map(c => ((c.pillar_scores as any)[int.focus_pillar] as any).score || 0);
+      if (pillarScores.length > 0) followupPillar = Math.round(avg(pillarScores));
+    }
+
+    // Determine if effective
+    const qualityDelta = followupQuality - (int.baseline_quality || 0);
+    const metricImproved = followupMetric !== null && int.baseline_metric !== null;
+    let status = 'measured';
+    if (qualityDelta > 5 || (metricImproved && Math.abs(followupMetric! - int.baseline_metric!) > 3)) {
+      // For talk ratio, improvement means getting CLOSER to 50, not just going up
+      if (fa.includes('talk')) {
+        status = Math.abs(followupMetric! - 50) < Math.abs(int.baseline_metric! - 50) ? 'effective' : 'ineffective';
+      } else {
+        status = followupMetric! > int.baseline_metric! ? 'effective' : 'ineffective';
+      }
+    }
+
+    await supabase.from('coaching_interventions').update({
+      followup_at: new Date().toISOString(),
+      followup_quality: followupQuality,
+      followup_metric: followupMetric,
+      followup_pillar_score: followupPillar,
+      calls_since: newCalls.length,
+      status,
+    }).eq('id', int.id);
+
+    measured++;
+  }
+
+  return c.json({ measured });
+});
+
+// Dismiss an intervention
+app.put('/api/interventions/:id/dismiss', requireRole('lead'), async (c) => {
+  const id = c.req.param('id');
+  const { error } = await supabase
+    .from('coaching_interventions')
+    .update({ status: 'dismissed' })
+    .eq('id', id);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ ok: true });
+});
+
+// ─── Calibration Study (IOI: validate thresholds empirically) ────────────────
+
+app.get('/api/calibration', requireRole('lead'), async (c) => {
+  const allCalls: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page } = await supabase
+      .from('ae_call_analysis')
+      .select('outcome, talk_ratio, question_count, script_adherence, call_quality_score, pillar_scores')
+      .in('outcome', ['won', 'lost'])
+      .range(from, from + 999);
+    if (!page || page.length === 0) break;
+    allCalls.push(...page);
+    if (page.length < 1000) break;
+    from += 1000;
+  }
+
+  if (allCalls.length < 20) return c.json({ error: 'Need 20+ won/lost calls for calibration' }, 400);
+
+  const avg = (arr: number[]) => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : 0;
+  const winRate = (calls: any[]) => {
+    if (calls.length === 0) return 0;
+    return Math.round(calls.filter(c => c.outcome === 'won').length / calls.length * 100);
+  };
+
+  // Question count buckets
+  const questionBuckets = [
+    { label: '0-10', min: 0, max: 10 },
+    { label: '11-15', min: 11, max: 15 },
+    { label: '16-21', min: 16, max: 21 },
+    { label: '22+', min: 22, max: 999 },
+  ].map(b => {
+    const calls = allCalls.filter(c => c.question_count >= b.min && c.question_count <= b.max);
+    return { ...b, count: calls.length, winRate: winRate(calls), avgQuality: avg(calls.map(c => c.call_quality_score || 0)) };
+  });
+
+  // Talk ratio buckets
+  const talkBuckets = [
+    { label: '<45%', min: 0, max: 44 },
+    { label: '45-55%', min: 45, max: 55 },
+    { label: '56-65%', min: 56, max: 65 },
+    { label: '66%+', min: 66, max: 200 },
+  ].map(b => {
+    const calls = allCalls.filter(c => c.talk_ratio >= b.min && c.talk_ratio <= b.max);
+    return { ...b, count: calls.length, winRate: winRate(calls), avgQuality: avg(calls.map(c => c.call_quality_score || 0)) };
+  });
+
+  // Script adherence buckets
+  const scriptBuckets = [
+    { label: '0-25%', min: 0, max: 25 },
+    { label: '26-50%', min: 26, max: 50 },
+    { label: '51-75%', min: 51, max: 75 },
+    { label: '76%+', min: 76, max: 100 },
+  ].map(b => {
+    const calls = allCalls.filter(c => c.script_adherence >= b.min && c.script_adherence <= b.max);
+    return { ...b, count: calls.length, winRate: winRate(calls), avgQuality: avg(calls.map(c => c.call_quality_score || 0)) };
+  });
+
+  // Quality score buckets
+  const qualityBuckets = [
+    { label: '0-30', min: 0, max: 30 },
+    { label: '31-50', min: 31, max: 50 },
+    { label: '51-65', min: 51, max: 65 },
+    { label: '66-80', min: 66, max: 80 },
+    { label: '81+', min: 81, max: 100 },
+  ].map(b => {
+    const calls = allCalls.filter(c => (c.call_quality_score || 0) >= b.min && (c.call_quality_score || 0) <= b.max);
+    return { ...b, count: calls.length, winRate: winRate(calls) };
+  });
+
+  // Pillar score vs win rate
+  const pillarKeys = ['control', 'discovery', 'gapCreation', 'objectionHandling', 'advancement'];
+  const pillarCalibration = pillarKeys.map(key => {
+    const withPillar = allCalls.filter(c => c.pillar_scores && (c.pillar_scores as any)[key]);
+    const strong = withPillar.filter(c => ((c.pillar_scores as any)[key] as any).score >= 65);
+    const developing = withPillar.filter(c => {
+      const s = ((c.pillar_scores as any)[key] as any).score;
+      return s >= 40 && s < 65;
+    });
+    const needsWork = withPillar.filter(c => ((c.pillar_scores as any)[key] as any).score < 40);
+    return {
+      pillar: key,
+      strong: { count: strong.length, winRate: winRate(strong) },
+      developing: { count: developing.length, winRate: winRate(developing) },
+      needsWork: { count: needsWork.length, winRate: winRate(needsWork) },
+    };
+  });
+
+  // Won vs lost averages
+  const won = allCalls.filter(c => c.outcome === 'won');
+  const lost = allCalls.filter(c => c.outcome === 'lost');
+
+  return c.json({
+    totalCalls: allCalls.length,
+    wonCalls: won.length,
+    lostCalls: lost.length,
+    overallWinRate: winRate(allCalls),
+    wonVsLost: {
+      won: {
+        avgQuality: avg(won.map(c => c.call_quality_score || 0)),
+        avgTalkRatio: avg(won.map(c => c.talk_ratio || 0)),
+        avgQuestions: avg(won.map(c => c.question_count || 0)),
+        avgScript: avg(won.map(c => c.script_adherence || 0)),
+      },
+      lost: {
+        avgQuality: avg(lost.map(c => c.call_quality_score || 0)),
+        avgTalkRatio: avg(lost.map(c => c.talk_ratio || 0)),
+        avgQuestions: avg(lost.map(c => c.question_count || 0)),
+        avgScript: avg(lost.map(c => c.script_adherence || 0)),
+      },
+    },
+    questionBuckets,
+    talkBuckets,
+    scriptBuckets,
+    qualityBuckets,
+    pillarCalibration,
+    thresholdRecommendations: {
+      questionTarget: questionBuckets.reduce((best, b) => b.winRate > best.winRate ? b : best).label,
+      talkRatioSweet: talkBuckets.reduce((best, b) => b.winRate > best.winRate ? b : best).label,
+      scriptMinimum: scriptBuckets.reduce((best, b) => b.winRate > best.winRate ? b : best).label,
+      qualityThreshold: qualityBuckets.reduce((best, b) => b.winRate > best.winRate ? b : best).label,
+    },
   });
 });
 

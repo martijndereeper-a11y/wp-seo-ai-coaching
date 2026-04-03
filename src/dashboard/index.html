@@ -588,7 +588,8 @@ function qualityBreakdownHTML(call) {
   // If this is an aggregate (many highlights from multiple calls), normalize per call
   const callCount = call._callCount || 1;
   if (callCount > 1) coachCount = Math.round(coachCount / callCount);
-  const coachPts = Math.max(0, 20 - coachCount * 4);
+  // Scale: 0 coachable = 20pts, 10+ = 0pts (2pts per coachable moment)
+  const coachPts = Math.max(0, 20 - coachCount * 2);
 
   const rows = [
     { label: 'Talk Balance', pts: talkPts, max: 25, clr: talkPts > 18 ? 'var(--green)' : talkPts > 10 ? 'var(--orange)' : 'var(--red)' },
