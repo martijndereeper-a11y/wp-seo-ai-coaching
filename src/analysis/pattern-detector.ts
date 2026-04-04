@@ -121,10 +121,22 @@ const PATTERN_DEFS: Record<keyof PatternScores, RegExp> = {
   challenging: /maar.*dan|waarom.*niet|wat.*houdt.*tegen|wat.*weerhoudt|als.*niet.*dan|stel.*dat/gi,
 };
 
-/** Get surrounding context for a turn */
+/** Get surrounding context for a turn — finds the nearest OTHER speaker's turn for before/after */
 function getContext(turns: TranscriptTurn[], turnIndex: number, triggerTurn: TranscriptTurn) {
-  const before = turnIndex > 0 ? turns[turnIndex - 1] : undefined;
-  const after = turnIndex < turns.length - 1 ? turns[turnIndex + 1] : undefined;
+  const triggerSpeaker = triggerTurn.speaker;
+
+  // Look backward for the nearest turn by the OTHER speaker
+  let before: TranscriptTurn | undefined;
+  for (let i = turnIndex - 1; i >= Math.max(0, turnIndex - 4); i--) {
+    if (turns[i].speaker !== triggerSpeaker) { before = turns[i]; break; }
+  }
+
+  // Look forward for the nearest turn by the OTHER speaker
+  let after: TranscriptTurn | undefined;
+  for (let i = turnIndex + 1; i < Math.min(turns.length, turnIndex + 4); i++) {
+    if (turns[i].speaker !== triggerSpeaker) { after = turns[i]; break; }
+  }
+
   return {
     before: before ? { speaker: before.speaker, text: before.text.slice(0, 200), timestamp: before.timestampDisplay } : undefined,
     trigger: { speaker: triggerTurn.speaker, text: triggerTurn.text.slice(0, 300), timestamp: triggerTurn.timestampDisplay },
@@ -208,13 +220,13 @@ export function analyzeCall(
     ['Humor', /haha|grap|lach|grappig/gi,
       'Uses humor to build rapport',
       (excerpt, ctx) => {
-        const reaction = ctx?.after?.text ? ` The prospect responded: "${ctx.after.text.slice(0, 60)}" — it landed.` : '';
+        const reaction = ctx?.after ? ` ${ctx.after.speaker} responded: "${ctx.after.text.slice(0, 60)}" — it landed.` : '';
         return `Humor drops the prospect's guard and builds trust.${reaction} Keep it natural — don't force it, but don't suppress it either.`;
       }],
     ['Check-in', /gaat.*te snel|nog.*mee|duidelijk|alles.*helder/gi,
       'Checks if prospect is following along',
       (excerpt, ctx) => {
-        const reaction = ctx?.after?.text ? ` Prospect replied: "${ctx.after.text.slice(0, 60)}"` : '';
+        const reaction = ctx?.after ? ` ${ctx.after.speaker} replied: "${ctx.after.text.slice(0, 60)}"` : '';
         return `Great pace control at "${excerpt.slice(0, 60)}".${reaction} These micro-moments prevent the prospect from zoning out during longer explanations.`;
       }],
     ['Assumptive Close', /wanneer.*starten|welk.*pakket|als we.*beginnen|volgende stap.*is/gi,
@@ -223,7 +235,7 @@ export function analyzeCall(
     ['Opinion Ask', /wat denk je|wat vind je|hoe klinkt|hoe.*kijk.*je/gi,
       'Asks the prospect for their opinion',
       (excerpt, ctx) => {
-        const reaction = ctx?.after?.text ? ` Prospect opened up: "${ctx.after.text.slice(0, 80)}"` : '';
+        const reaction = ctx?.after ? ` ${ctx.after.speaker} opened up: "${ctx.after.text.slice(0, 80)}"` : '';
         return `Good — "${excerpt.slice(0, 60)}" gives the prospect ownership and surfaces objections early.${reaction} Do this after every key section.`;
       }],
     ['Social Proof', /\d+.*klanten|\d+.*bedrijven|2000|tweeduizend/gi,
@@ -342,7 +354,7 @@ export function analyzeCall(
       const vaguePart = turn.text.slice(0, 120);
       const turnIdx = turns.indexOf(turn);
       const ctx = getContext(turns, turnIdx, turn);
-      const prospectContext = ctx.before?.text ? ` The prospect just said: "${ctx.before.text.slice(0, 80)}"` : '';
+      const prospectContext = ctx.before ? ` ${ctx.before.speaker} just said: "${ctx.before.text.slice(0, 80)}"` : '';
       highlights.push({
         timestampSeconds: turn.timestampSeconds,
         timestampDisplay: turn.timestampDisplay,
@@ -391,7 +403,7 @@ export function analyzeCall(
       if (!anchoredFirst) {
         const turnIdx = turns.indexOf(turn);
         const ctx = getContext(turns, turnIdx, turn);
-        const prospectAsked = ctx.before && !ctx.before.speaker.includes(firstName) ? ` after the prospect asked: "${ctx.before.text.slice(0, 80)}"` : '';
+        const prospectAsked = ctx.before ? ` after ${ctx.before.speaker} said: "${ctx.before.text.slice(0, 80)}"` : '';
         highlights.push({
           timestampSeconds: turn.timestampSeconds,
           timestampDisplay: turn.timestampDisplay,
@@ -477,12 +489,12 @@ export function analyzeCall(
             type: 'coachable', category: 'Accepted Think-It-Over',
             description: 'Accepted "ik moet erover nadenken" without probing',
             guidance: `Koen's rule: Never accept this. Convert doubt into conditions with a defined next step.`,
-            excerpt: `Prospect: "${turn.text.slice(0,100)}" → AE: "${nextAETurn.text.slice(0,100)}"`,
+            excerpt: `${turn.speaker}: "${turn.text.slice(0,100)}" → ${nextAETurn.speaker}: "${nextAETurn.text.slice(0,100)}"`,
             confidence: 'high',
             context: {
               before: { speaker: turn.speaker, text: turn.text.slice(0, 250), timestamp: turn.timestampDisplay },
               trigger: { speaker: nextAETurn.speaker, text: nextAETurn.text.slice(0, 300), timestamp: nextAETurn.timestampDisplay },
-              shouldHaveDone: `The prospect said: "${turn.text.slice(0, 120)}". You responded: "${nextAETurn.text.slice(0, 120)}". This lets the deal go cold. Instead say: "Snap ik. Welke 2-3 vragen moeten jullie intern beantwoorden om Go of No-Go te zeggen? Laten we het volgende gesprek precies daarover hebben — dan weten we allebei waar we staan."`,
+              shouldHaveDone: `${turn.speaker} said: "${turn.text.slice(0, 120)}". You responded: "${nextAETurn.text.slice(0, 120)}". This lets the deal go cold. Instead say: "Snap ik. Welke 2-3 vragen moeten jullie intern beantwoorden om Go of No-Go te zeggen? Laten we het volgende gesprek precies daarover hebben — dan weten we allebei waar we staan."`,
             },
           });
         }
@@ -496,7 +508,7 @@ export function analyzeCall(
     if (/dat is maar|kost maar|duurt maar|is maar|maar.*uur|maar.*minuut|heel eenvoudig|heel simpel|geen moeite/i.test(t)) {
       const turnIdx = turns.indexOf(turn);
       const ctx = getContext(turns, turnIdx, turn);
-      const prospectConcern = ctx.before && !ctx.before.speaker.includes(firstName) ? `The prospect raised: "${ctx.before.text.slice(0, 100)}". ` : '';
+      const prospectConcern = ctx.before ? `${ctx.before.speaker} raised: "${ctx.before.text.slice(0, 100)}". ` : '';
       highlights.push({
         timestampSeconds: turn.timestampSeconds, timestampDisplay: turn.timestampDisplay,
         type: 'coachable', category: 'Minimizing Concern',
@@ -667,13 +679,13 @@ export function analyzeCall(
           timestampSeconds: bs.timestampSeconds, timestampDisplay: bs.timestampDisplay,
           type: 'coachable', category: 'Missed Buy Signal',
           description: 'Prospect showed buying interest but AE didn\'t advance',
-          guidance: `The prospect asked: "${bs.text.slice(0, 100)}". You answered with "${nextAE.text.slice(0, 80)}" and kept pitching. When a prospect asks about pricing/timing/implementation, they're mentally buying. Answer briefly, then advance: ${advanceScript}`,
-          excerpt: `Prospect: "${bs.text.slice(0, 150)}"`,
+          guidance: `${bs.speaker} asked: "${bs.text.slice(0, 100)}". You answered with "${nextAE.text.slice(0, 80)}" and kept pitching. When a prospect asks about pricing/timing/implementation, they're mentally buying. Answer briefly, then advance: ${advanceScript}`,
+          excerpt: `${bs.speaker}: "${bs.text.slice(0, 150)}"`,
           confidence: 'high',
           context: {
             ...getContext(turns, idx, bs),
             after: nextAE ? { speaker: nextAE.speaker, text: nextAE.text.slice(0, 250), timestamp: nextAE.timestampDisplay } : undefined,
-            shouldHaveDone: `The prospect said: "${bs.text.slice(0, 100)}". You responded with: "${nextAE?.text.slice(0, 100) || ''}". Instead, after answering their question, you should have immediately moved to: "Goed dat je dat vraagt. Laten we even kijken welk pakket het beste past en wanneer we kunnen starten."`,
+            shouldHaveDone: `${bs.speaker} said: "${bs.text.slice(0, 100)}". You responded with: "${nextAE?.text.slice(0, 100) || ''}". Instead, after answering their question, you should have immediately moved to: "Goed dat je dat vraagt. Laten we even kijken welk pakket het beste past en wanneer we kunnen starten."`,
           },
         });
         missedCount++;
@@ -683,7 +695,7 @@ export function analyzeCall(
           type: 'strength', category: 'Captured Buy Signal',
           description: 'Prospect showed interest and AE advanced the conversation',
           guidance: 'You recognized the buying signal and moved forward. This is exactly right.',
-          excerpt: `Prospect: "${bs.text.slice(0, 100)}" → AE: "${nextAE.text.slice(0, 100)}"`,
+          excerpt: `${bs.speaker}: "${bs.text.slice(0, 100)}" → ${nextAE.speaker}: "${nextAE.text.slice(0, 100)}"`,
           confidence: 'high',
           context: {
             ...getContext(turns, idx, bs),

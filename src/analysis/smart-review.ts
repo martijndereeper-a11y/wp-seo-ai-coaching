@@ -321,11 +321,11 @@ function detectObjections(
       if (handling === 'explored') {
         contextualAdvice = `Good instinct to explore. You asked a follow-up question, which is the right move. To go further: ${obj.shouldHaveDone}`;
       } else if (handling === 'minimized') {
-        contextualAdvice = `You minimized the concern with: "${aeResponse.slice(0, 80)}". The prospect's worry is real to them — dismissing it erodes trust. Instead: ${obj.shouldHaveDone}`;
+        contextualAdvice = `You minimized the concern with: "${aeResponse.slice(0, 80)}". ${t.speaker}'s worry is real to them — dismissing it erodes trust. Instead: ${obj.shouldHaveDone}`;
       } else if (handling === 'talked over') {
-        contextualAdvice = `You responded with ${responseWords} words without pausing to understand their concern ("${aeResponse.slice(0, 80)}..."). Stop. Acknowledge first. Then: ${obj.shouldHaveDone}`;
+        contextualAdvice = `You responded with ${responseWords} words without pausing to understand ${t.speaker}'s concern ("${aeResponse.slice(0, 80)}..."). Stop. Acknowledge first. Then: ${obj.shouldHaveDone}`;
       } else if (handling === 'ignored') {
-        contextualAdvice = `You changed the topic entirely after the prospect said: "${t.text.slice(0, 80)}". This tells them you don't care about their concerns. Instead: ${obj.shouldHaveDone}`;
+        contextualAdvice = `You changed the topic entirely after ${t.speaker} said: "${t.text.slice(0, 80)}". This tells them you don't care about their concerns. Instead: ${obj.shouldHaveDone}`;
       }
 
       results.push({
@@ -393,9 +393,9 @@ function detectBuyingSignals(
       // Contextual advice based on whether they advanced or not
       let advice: string;
       if (didAdvance) {
-        advice = `Good — the prospect asked about ${sig.type} ("${t.text.slice(0, 60)}") and you moved forward ("${aeResponse.text.slice(0, 60)}"). This is exactly right.`;
+        advice = `Good — ${t.speaker} asked about ${sig.type} ("${t.text.slice(0, 60)}") and you moved forward ("${aeResponse.text.slice(0, 60)}"). This is exactly right.`;
       } else {
-        advice = `The prospect asked: "${t.text.slice(0, 80)}". You responded with: "${aeResponse.text.slice(0, 80)}". They're mentally evaluating — but you answered and kept pitching instead of advancing. After answering briefly, say: "Goed dat je dat vraagt. Zullen we even kijken welk pakket het beste past?"`;
+        advice = `${t.speaker} asked: "${t.text.slice(0, 80)}". You responded with: "${aeResponse.text.slice(0, 80)}". They're mentally evaluating — but you answered and kept pitching instead of advancing. After answering briefly, say: "Goed dat je dat vraagt. Zullen we even kijken welk pakket het beste past?"`;
       }
 
       results.push({
