@@ -9,8 +9,10 @@ import type { Context, Next } from 'hono';
 import { getPasswords } from '../config/settings.ts';
 
 export async function authMiddleware(c: Context, next: Next) {
-  // Skip auth for login endpoint
+  // Skip auth for login and public MM content endpoints
   if (c.req.path === '/api/auth/login') return next();
+  if (c.req.path.startsWith('/api/mm/market-thesis')) return next();
+  if (c.req.path.startsWith('/api/mm/narrative')) return next();
 
   const token = c.req.header('Authorization')?.replace('Bearer ', '')
     || c.req.header('X-Auth-Token')

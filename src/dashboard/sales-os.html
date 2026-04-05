@@ -1539,10 +1539,9 @@ function mdToHtml(md) {
 
 // ── MARKET THESIS PAGE ──
 PAGE_RENDERERS['market-thesis'] = (el) => {
-  if (!isApiAuthenticated()) { showApiLogin(() => navigateTo('market-thesis')); return; }
   el.innerHTML = `<div class="page-header"><h1>Market thesis ${confPill('testing')}</h1><p>The company's position on where search and discovery is going. Source document for all external narratives.</p></div><div id="mt-loading" class="callout info">Loading market thesis...</div><div id="mt-content"></div>`;
 
-  apiFetch('/api/mm/market-thesis').then(r => {
+  fetch('/api/mm/market-thesis').then(r => {
     if (r.status === 401) { showApiLogin(() => navigateTo('market-thesis')); return; }
     return r.text();
   }).then(md => {
@@ -1556,10 +1555,9 @@ PAGE_RENDERERS['market-thesis'] = (el) => {
 
 // ── FULL NARRATIVE PAGE ──
 PAGE_RENDERERS['full-narrative'] = (el) => {
-  if (!isApiAuthenticated()) { showApiLogin(() => navigateTo('full-narrative')); return; }
   el.innerHTML = `<div class="page-header"><h1>B2B narrative ${confPill('testing')}</h1><p>Full talk track for mid-market B2B discovery and demo calls. Written to be spoken, not projected.</p></div><div id="fn-loading" class="callout info">Loading narrative...</div><div id="fn-content"></div>`;
 
-  apiFetch('/api/mm/narrative').then(r => {
+  fetch('/api/mm/narrative').then(r => {
     if (r.status === 401) { showApiLogin(() => navigateTo('full-narrative')); return; }
     return r.text();
   }).then(md => {
@@ -1573,7 +1571,6 @@ PAGE_RENDERERS['full-narrative'] = (el) => {
 
 // ── B2C NARRATIVE PAGE ──
 PAGE_RENDERERS['narrative-b2c'] = (el) => {
-  if (!isApiAuthenticated()) { showApiLogin(() => navigateTo('narrative-b2c')); return; }
   el.innerHTML = `<div class="page-header"><h1>B2C narrative ${confPill('draft')}</h1><p>Talk track for mid-market B2C companies — e-commerce, retail, hospitality, health and fitness, consumer brands.</p></div><div id="b2c-loading" class="callout info">Loading B2C narrative...</div><div id="b2c-content"></div>`;
 
   apiFetch('/api/mm/narrative-b2c').then(r => {
