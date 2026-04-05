@@ -5,7 +5,7 @@
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "context/sales/use-cases/**,src/dashboard/**,data/**,coaching-guides/**"
+      "includeFiles": "context/sales/use-cases/**,src/dashboard/**,data/**,coaching-guides/**,work/midmarket/*.md"
     }
   }
 }

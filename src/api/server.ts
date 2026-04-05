@@ -1970,22 +1970,299 @@ app.get('/api/calibration', requireRole('lead'), async (c) => {
   });
 });
 
+// ─── MM Sales OS — Static Content ────────────────────────────────────────────
+
+app.get('/api/mm/market-thesis', (c) => {
+  const paths = [
+    join(__dirname, '..', '..', 'work', 'midmarket', 'WP SEO AI - Market Thesis - April 2026.md'),
+    join(process.cwd(), 'work', 'midmarket', 'WP SEO AI - Market Thesis - April 2026.md'),
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) return c.text(readFileSync(p, 'utf-8'));
+  }
+  return c.text('Market thesis not found', 404);
+});
+
+app.get('/api/mm/narrative', (c) => {
+  const paths = [
+    join(__dirname, '..', '..', 'work', 'midmarket', 'MM Narrative V3 - April 2026.md'),
+    join(process.cwd(), 'work', 'midmarket', 'MM Narrative V3 - April 2026.md'),
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) return c.text(readFileSync(p, 'utf-8'));
+  }
+  return c.text('Narrative not found', 404);
+});
+
+// ─── MM Sales OS API ─────────────────────────────────────────────────────────
+
+const MM_DEAL_FILTER = 'deal_name.ilike.%- MM%,deal_name.ilike.%MM -%,deal_name.ilike.%MM Pilot%,deal_name.ilike.%MM Expansion%,deal_name.ilike.%MidMarket%,deal_name.ilike.%Mid Market%,deal_name.ilike.%Mid market%';
+
+function isActualMM(dealName: string): boolean {
+  if (!dealName) return false;
+  return /\bMM\b/i.test(dealName) || /mid[\s-]?market/i.test(dealName);
+}
+
+// List all MM recordings grouped by deal
+app.get('/api/mm/calls', async (c) => {
+  const cached = getCached('mm-calls');
+  if (cached) return c.json(cached);
+
+  const { data, error } = await supabase
+    .from('recordings')
+    .select('id, title, deal_name, channel_name, recorder_name, created_at, duration_seconds, url, key_takeaways, outline')
+    .or(MM_DEAL_FILTER)
+    .order('created_at', { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 500);
+
+  const mmRecs = (data || []).filter(r => isActualMM(r.deal_name));
+
+  // Group by deal
+  const byDeal: Record<string, any> = {};
+  mmRecs.forEach(r => {
+    const deal = r.deal_name || 'Unknown';
+    if (!byDeal[deal]) byDeal[deal] = { deal, recordings: [], totalMinutes: 0, aes: new Set(), latestDate: r.created_at };
+    byDeal[deal].recordings.push(r);
+    byDeal[deal].totalMinutes += Math.round((r.duration_seconds || 0) / 60);
+    if (r.recorder_name) byDeal[deal].aes.add(r.recorder_name);
+  });
+
+  const deals = Object.values(byDeal)
+    .map((d: any) => ({ ...d, aes: [...d.aes] }))
+    .sort((a: any, b: any) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
+
+  const result = {
+    totalRecordings: mmRecs.length,
+    totalDeals: deals.length,
+    totalMinutes: mmRecs.reduce((s, r) => s + Math.round((r.duration_seconds || 0) / 60), 0),
+    aes: [...new Set(mmRecs.map(r => r.recorder_name).filter(Boolean))],
+    deals,
+  };
+
+  setCache('mm-calls', result);
+  return c.json(result);
+});
+
+// Get a single MM call with full transcript
+app.get('/api/mm/call/:id', async (c) => {
+  const id = c.req.param('id');
+  const { data, error } = await supabase
+    .from('recordings')
+    .select('id, title, deal_name, channel_name, recorder_name, created_at, duration_seconds, url, transcript_text, key_takeaways, outline')
+    .eq('id', id)
+    .single();
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data);
+});
+
+// AI-powered MM call analysis — extracts learnings against MM sales process
+app.post('/api/mm/analyze-call', async (c) => {
+  const { recordingId } = await c.req.json() as { recordingId: string };
+
+  const { data: rec, error } = await supabase
+    .from('recordings')
+    .select('id, title, deal_name, recorder_name, created_at, duration_seconds, transcript_text, key_takeaways, outline')
+    .eq('id', recordingId)
+    .single();
+
+  if (error || !rec) return c.json({ error: 'Recording not found' }, 404);
+  if (!rec.transcript_text) return c.json({ error: 'No transcript available' }, 400);
+
+  // Truncate transcript to ~12K chars for Claude context
+  const transcript = rec.transcript_text.length > 12000
+    ? rec.transcript_text.substring(0, 12000) + '\n[...transcript truncated...]'
+    : rec.transcript_text;
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic();
+
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `You are analyzing a mid-market sales call for WP SEO AI, a Search Visibility Platform (SEO + GEO + SEA managed service).
+
+CONTEXT:
+- Call: "${rec.title}" with ${rec.recorder_name} on ${new Date(rec.created_at).toISOString().split('T')[0]}
+- Deal: ${rec.deal_name}
+- Duration: ${Math.round((rec.duration_seconds || 0) / 60)} minutes
+
+OUR MM SALES PROCESS (6 stages):
+Stage 0: BDR Qualification (deal hypothesis)
+Stage 1: Problem Framing (no demo, no pitch — reframe SEO/GEO as systemic problem, test rejection of status quo)
+Stage 2: Current State Deconstruction (map workflow, expose waste, identify bottlenecks)
+Stage 2.5: Validation Demo (system proof gate, not a sales demo)
+Stage 3: Economic Framing (translate waste into business impact, decision map)
+Stage 4: Proposal & Commitment (mutual action plan)
+Stage 5: Close or Clean Loss
+
+KEY RULES:
+- Multi-threading is mandatory (single-threaded deals cannot pass Stage 2)
+- Artifacts required at every stage
+- Problem statement must be in buyer language
+- No demo before discovery is complete
+
+TRANSCRIPT:
+${transcript}
+
+Analyze this call and return a JSON object with exactly these fields:
+{
+  "stageDetected": "0" | "1" | "2" | "2.5" | "3" | "4" | "5",
+  "stageConfidence": "high" | "medium" | "low",
+  "processCompliance": {
+    "score": 0-100,
+    "followed": ["list of process elements correctly followed"],
+    "missed": ["list of process elements missed or skipped"],
+    "violations": ["list of non-negotiable rule violations, if any"]
+  },
+  "narrativeDelivery": {
+    "marketShiftLanded": true/false,
+    "threeChannelExplained": true/false,
+    "ceilingValidated": true/false,
+    "managedServicePositioned": true/false,
+    "notes": "brief observation"
+  },
+  "multiThreading": {
+    "stakeholdersMentioned": ["names or roles mentioned"],
+    "newAccessRequested": true/false,
+    "notes": "brief observation"
+  },
+  "discoveryDepth": {
+    "score": 0-100,
+    "inputsCaptured": ["list: content volume, spend, tools, performing %, etc."],
+    "inputsMissing": ["list of discovery inputs NOT captured"],
+    "buyerLanguageUsed": true/false
+  },
+  "learnings": [
+    {
+      "category": "Process" | "ICP" | "Pricing" | "Narrative" | "Objections" | "Competitive" | "Discovery" | "Expansion" | "Team",
+      "insight": "one sentence — what we learned",
+      "evidence": "brief quote or description from the call",
+      "confidenceImpact": "Validates current approach" | "Challenges current approach" | "New insight" | "Needs more data"
+    }
+  ],
+  "keyMoments": [
+    {
+      "timestamp": "MM:SS if visible in transcript",
+      "type": "strength" | "missed_opportunity" | "objection" | "breakthrough",
+      "description": "what happened",
+      "recommendation": "what to do differently or keep doing"
+    }
+  ],
+  "overallAssessment": "2-3 sentence summary of the call from a MM motion-building perspective",
+  "actionItems": ["specific next steps for this deal"]
+}
+
+Return ONLY valid JSON, no markdown formatting.`
+      }]
+    });
+
+    const text = msg.content[0].type === 'text' ? msg.content[0].text : '';
+    let analysis;
+    try {
+      analysis = JSON.parse(text);
+    } catch {
+      // Try extracting JSON from potential markdown wrapping
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to parse analysis', raw: text };
+    }
+
+    // Store analysis in Supabase
+    const { error: upsertError } = await supabase
+      .from('mm_call_analysis')
+      .upsert({
+        recording_id: rec.id,
+        deal_name: rec.deal_name,
+        recorder_name: rec.recorder_name,
+        title: rec.title,
+        created_at: rec.created_at,
+        duration_seconds: rec.duration_seconds,
+        analysis,
+        analyzed_at: new Date().toISOString(),
+      }, { onConflict: 'recording_id' });
+
+    // Non-fatal if table doesn't exist yet — return analysis anyway
+    if (upsertError) console.warn('Could not store MM analysis:', upsertError.message);
+
+    return c.json({ recording: rec, analysis });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// Get all stored MM call analyses
+app.get('/api/mm/analyses', async (c) => {
+  const cached = getCached('mm-analyses');
+  if (cached) return c.json(cached);
+
+  const { data, error } = await supabase
+    .from('mm_call_analysis')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    // Table might not exist yet — return empty
+    return c.json({ analyses: [], learnings: [] });
+  }
+
+  // Extract and aggregate all learnings across calls
+  const allLearnings: any[] = [];
+  (data || []).forEach(a => {
+    const analysis = a.analysis as any;
+    if (analysis?.learnings) {
+      analysis.learnings.forEach((l: any) => {
+        allLearnings.push({
+          ...l,
+          dealName: a.deal_name,
+          recorderName: a.recorder_name,
+          callTitle: a.title,
+          callDate: a.created_at,
+          recordingId: a.recording_id,
+        });
+      });
+    }
+  });
+
+  // Count learnings by category
+  const byCat: Record<string, number> = {};
+  allLearnings.forEach(l => {
+    byCat[l.category] = (byCat[l.category] || 0) + 1;
+  });
+
+  const result = {
+    analyses: data || [],
+    learnings: allLearnings,
+    learningsByCategory: byCat,
+    totalCalls: (data || []).length,
+    totalLearnings: allLearnings.length,
+  };
+
+  setCache('mm-analyses', result);
+  return c.json(result);
+});
+
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
-app.get('/', (c) => {
-  // Try multiple paths: local dev, Vercel serverless
+function serveDashboardFile(c: any, filename: string) {
   const paths = [
-    join(__dirname, '..', 'dashboard', 'index.html'),           // local: src/api -> src/dashboard
-    join(process.cwd(), 'src', 'dashboard', 'index.html'),      // Vercel: project root
-    join(__dirname, '..', '..', 'src', 'dashboard', 'index.html'), // Vercel: from api/
+    join(__dirname, '..', 'dashboard', filename),
+    join(process.cwd(), 'src', 'dashboard', filename),
+    join(__dirname, '..', '..', 'src', 'dashboard', filename),
   ];
   for (const p of paths) {
     if (existsSync(p)) {
       return c.html(readFileSync(p, 'utf-8'));
     }
   }
-  return c.text('Dashboard not found. Tried: ' + paths.join(', '), 500);
-});
+  return c.text(`${filename} not found. Tried: ${paths.join(', ')}`, 500);
+}
+
+app.get('/', (c) => serveDashboardFile(c, 'index.html'));
+app.get('/sales-os', (c) => serveDashboardFile(c, 'sales-os.html'));
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 
