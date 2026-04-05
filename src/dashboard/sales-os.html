@@ -553,7 +553,8 @@ const NAV = {
     {section:'Home',items:[{id:'dashboard',label:'Dashboard',icon:'&#9632;'}]},
     {section:'Foundation',items:[
       {id:'market-thesis',label:'Market thesis',icon:'&#9670;'},
-      {id:'full-narrative',label:'Full narrative (V3)',icon:'&#9733;'}
+      {id:'full-narrative',label:'B2B narrative',icon:'&#9733;'},
+      {id:'narrative-b2c',label:'B2C narrative',icon:'&#9733;'}
     ]},
     {section:'Playbook',items:[
       {id:'process',label:'Sales process',icon:'&#9654;'},
@@ -587,7 +588,8 @@ const NAV = {
     {section:'Home',items:[{id:'dashboard',label:'Dashboard',icon:'&#9632;'}]},
     {section:'Foundation',items:[
       {id:'market-thesis',label:'Market thesis',icon:'&#9670;'},
-      {id:'full-narrative',label:'Full narrative (V3)',icon:'&#9733;'}
+      {id:'full-narrative',label:'B2B narrative',icon:'&#9733;'},
+      {id:'narrative-b2c',label:'B2C narrative',icon:'&#9733;'}
     ]},
     {section:'Playbook',items:[
       {id:'bdr-qualification',label:'Qualification checklist',icon:'&#9654;'},
@@ -608,7 +610,8 @@ const NAV = {
     {section:'Home',items:[{id:'dashboard',label:'Dashboard',icon:'&#9632;'}]},
     {section:'Foundation',items:[
       {id:'market-thesis',label:'Market thesis',icon:'&#9670;'},
-      {id:'full-narrative',label:'Full narrative (V3)',icon:'&#9733;'}
+      {id:'full-narrative',label:'B2B narrative',icon:'&#9733;'},
+      {id:'narrative-b2c',label:'B2C narrative',icon:'&#9733;'}
     ]},
     {section:'Playbook',items:[
       {id:'process',label:'Sales process',icon:'&#9654;'},
@@ -680,6 +683,7 @@ function handleSearch(q){
   OS.stages.forEach(s=>{searchItems.push({id:'process',title:'Stage '+s.num+': '+s.name,context:s.goal.substring(0,80),tag:'Process'});});
   OS.narrative.acts.forEach(a=>{searchItems.push({id:'narrative',title:'Act '+a.n+': '+a.title,context:a.hook,tag:'Narrative'});});
   OS.narrative.dataPoints.forEach(d=>{searchItems.push({id:'narrative',title:d.d,context:'Source: '+d.s,tag:'Data'});});
+  searchItems.push({id:'narrative-b2c',title:'B2C Narrative',context:'Talk track for consumer businesses — e-commerce, retail, hospitality, health and fitness',tag:'Foundation'});
   OS.offers.forEach(o=>{searchItems.push({id:'offers',title:o.tier+' '+o.price,context:o.scope,tag:'Offer'});});
   OS.championTests.forEach(t=>{searchItems.push({id:'champion',title:t.test,context:t.action.substring(0,60),tag:'Champion'});});
   // Search learnings
@@ -1553,7 +1557,7 @@ PAGE_RENDERERS['market-thesis'] = (el) => {
 // ── FULL NARRATIVE PAGE ──
 PAGE_RENDERERS['full-narrative'] = (el) => {
   if (!isApiAuthenticated()) { showApiLogin(() => navigateTo('full-narrative')); return; }
-  el.innerHTML = `<div class="page-header"><h1>MM narrative V3 ${confPill('testing')}</h1><p>Full talk track for discovery and demo calls. Written to be spoken, not projected.</p></div><div id="fn-loading" class="callout info">Loading narrative...</div><div id="fn-content"></div>`;
+  el.innerHTML = `<div class="page-header"><h1>B2B narrative ${confPill('testing')}</h1><p>Full talk track for mid-market B2B discovery and demo calls. Written to be spoken, not projected.</p></div><div id="fn-loading" class="callout info">Loading narrative...</div><div id="fn-content"></div>`;
 
   apiFetch('/api/mm/narrative').then(r => {
     if (r.status === 401) { showApiLogin(() => navigateTo('full-narrative')); return; }
@@ -1564,6 +1568,23 @@ PAGE_RENDERERS['full-narrative'] = (el) => {
     document.getElementById('fn-content').innerHTML = `<div class="callout info" style="margin-bottom:16px"><strong>How to use:</strong> Phase 1 (Discovery) = Opening + Acts 1-3. Phase 2 (Demo/Proposal) = Acts 4-6. You don't need every act every call — read the room.</div><div class="card" style="max-width:720px;line-height:1.8;font-size:15px;color:var(--text)">${mdToHtml(md)}</div>`;
   }).catch(err => {
     document.getElementById('fn-loading').innerHTML = '<span class="badge red">Failed: ' + err.message + '</span>';
+  });
+};
+
+// ── B2C NARRATIVE PAGE ──
+PAGE_RENDERERS['narrative-b2c'] = (el) => {
+  if (!isApiAuthenticated()) { showApiLogin(() => navigateTo('narrative-b2c')); return; }
+  el.innerHTML = `<div class="page-header"><h1>B2C narrative ${confPill('draft')}</h1><p>Talk track for mid-market B2C companies — e-commerce, retail, hospitality, health and fitness, consumer brands.</p></div><div id="b2c-loading" class="callout info">Loading B2C narrative...</div><div id="b2c-content"></div>`;
+
+  apiFetch('/api/mm/narrative-b2c').then(r => {
+    if (r.status === 401) { showApiLogin(() => navigateTo('narrative-b2c')); return; }
+    return r.text();
+  }).then(md => {
+    if (!md) return;
+    document.getElementById('b2c-loading').style.display = 'none';
+    document.getElementById('b2c-content').innerHTML = `<div class="callout info" style="margin-bottom:16px"><strong>B2C adaptation:</strong> Same structure as the B2B narrative but reframed for consumer businesses. Opening uses customer behaviour (not procurement data). Examples use products (running shoes, yoga mats) not abstract B2B categories. Urgency framed through CAC and seasonal timing.</div><div class="card" style="max-width:720px;line-height:1.8;font-size:15px;color:var(--text)">${mdToHtml(md)}</div>`;
+  }).catch(err => {
+    document.getElementById('b2c-loading').innerHTML = '<span class="badge red">Failed: ' + err.message + '</span>';
   });
 };
 

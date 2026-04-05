@@ -1994,6 +1994,17 @@ app.get('/api/mm/narrative', (c) => {
   return c.text('Narrative not found', 404);
 });
 
+app.get('/api/mm/narrative-b2c', (c) => {
+  const paths = [
+    join(__dirname, '..', '..', 'work', 'midmarket', 'MM Narrative V3 - B2C - April 2026.md'),
+    join(process.cwd(), 'work', 'midmarket', 'MM Narrative V3 - B2C - April 2026.md'),
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) return c.text(readFileSync(p, 'utf-8'));
+  }
+  return c.text('B2C Narrative not found', 404);
+});
+
 // ─── MM Sales OS API ─────────────────────────────────────────────────────────
 
 const MM_DEAL_FILTER = 'deal_name.ilike.%- MM%,deal_name.ilike.%MM -%,deal_name.ilike.%MM Pilot%,deal_name.ilike.%MM Expansion%,deal_name.ilike.%MidMarket%,deal_name.ilike.%Mid Market%,deal_name.ilike.%Mid market%';
