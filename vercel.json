@@ -1,10 +1,13 @@
 {
   "buildCommand": "",
+  "regions": ["iad1"],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
   ],
   "functions": {
     "api/index.ts": {
+      "memory": 1024,
+      "maxDuration": 60,
       "includeFiles": "context/sales/use-cases/**,src/dashboard/**,data/**,coaching-guides/**,work/midmarket/*.md"
     }
   }
