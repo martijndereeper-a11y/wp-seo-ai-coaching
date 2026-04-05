@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.x"
   },
   "scripts": {
     "build": "tsc",
@@ -17,7 +17,8 @@
     "digest": "npx tsx src/digest/crawler.ts",
     "digest:send": "npx tsx src/digest/mailer.ts",
     "digest:send:test": "npx tsx src/digest/mailer.ts --test",
-    "digest:scheduled": "npx tsx src/digest/run-scheduled.ts"
+    "digest:scheduled": "npx tsx src/digest/run-scheduled.ts",
+    "digest:notion": "npx tsx src/digest/notion-sync.ts"
   },
   "devDependencies": {
     "@types/nodemailer": "^7.0.11",
@@ -27,6 +28,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@hono/node-server": "^1.19.12",
+    "@notionhq/client": "^5.16.0",
     "@supabase/supabase-js": "^2.100.1",
     "dotenv": "^17.3.1",
     "hono": "^4.12.9",
