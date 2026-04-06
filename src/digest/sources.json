@@ -1,0 +1,142 @@
+{
+  "global_en": [
+    {
+      "name": "Search Engine Land",
+      "url": "https://searchengineland.com/",
+      "type": "homepage",
+      "language": "en"
+    },
+    {
+      "name": "Search Engine Journal",
+      "url": "https://www.searchenginejournal.com/",
+      "type": "homepage",
+      "language": "en"
+    },
+    {
+      "name": "McKinsey - Marketing & Sales",
+      "url": "https://www.mckinsey.com/capabilities/growth-marketing-and-sales/our-insights",
+      "type": "homepage",
+      "language": "en"
+    },
+    {
+      "name": "Forrester Blogs",
+      "url": "https://www.forrester.com/blogs/",
+      "type": "homepage",
+      "language": "en"
+    },
+    {
+      "name": "Neil Patel",
+      "url": "https://neilpatel.com/blog/",
+      "type": "homepage",
+      "language": "en"
+    }
+  ],
+  "nl": [
+    {
+      "name": "Emerce",
+      "url": "https://www.emerce.nl/",
+      "type": "homepage",
+      "language": "nl"
+    },
+    {
+      "name": "Frankwatching",
+      "url": "https://www.frankwatching.com/",
+      "type": "homepage",
+      "language": "nl"
+    },
+    {
+      "name": "Marketingfacts",
+      "url": "https://www.marketingfacts.nl/",
+      "type": "homepage",
+      "language": "nl"
+    },
+    {
+      "name": "Fingerspitz Blog",
+      "url": "https://fingerspitz.nl/blog/",
+      "type": "homepage",
+      "language": "nl"
+    },
+    {
+      "name": "Onder (AI-SEO)",
+      "url": "https://onder.nl/blog/",
+      "type": "homepage",
+      "language": "nl"
+    },
+    {
+      "name": "Traffic Builders",
+      "url": "https://www.traffic-builders.com/blog/",
+      "type": "homepage",
+      "language": "nl"
+    },
+    {
+      "name": "SAM Online Marketing",
+      "url": "https://www.samonlinemarketing.nl/blog/",
+      "type": "homepage",
+      "language": "nl"
+    }
+  ],
+  "fi": [
+    {
+      "name": "Markkinointi Kollektiivi",
+      "url": "https://www.mkollektiivi.fi/",
+      "type": "homepage",
+      "language": "fi"
+    },
+    {
+      "name": "MRKTNG",
+      "url": "https://www.mrktng.fi/",
+      "type": "homepage",
+      "language": "fi"
+    },
+    {
+      "name": "Searchbox",
+      "url": "https://www.searchbox.fi/blogi/",
+      "type": "homepage",
+      "language": "fi"
+    },
+    {
+      "name": "Dagmar Insight",
+      "url": "https://www.dagmar.fi/insight/",
+      "type": "homepage",
+      "language": "fi"
+    }
+  ],
+  "de": [
+    {
+      "name": "SISTRIX Blog",
+      "url": "https://www.sistrix.de/news/",
+      "type": "homepage",
+      "language": "de"
+    },
+    {
+      "name": "t3n Magazin",
+      "url": "https://t3n.de/",
+      "type": "homepage",
+      "language": "de"
+    },
+    {
+      "name": "OMR",
+      "url": "https://omr.com/de",
+      "type": "homepage",
+      "language": "de"
+    },
+    {
+      "name": "SEO Sudwest",
+      "url": "https://www.seo-suedwest.de/",
+      "type": "homepage",
+      "language": "de"
+    },
+    {
+      "name": "HORIZONT",
+      "url": "https://www.horizont.net/",
+      "type": "homepage",
+      "language": "de"
+    },
+    {
+      "name": "OnlineMarketing.de",
+      "url": "https://onlinemarketing.de/",
+      "type": "homepage",
+      "language": "de"
+    }
+  ]
+}

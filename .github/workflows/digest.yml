@@ -1,0 +1,67 @@
+name: Bi-weekly Sales Intel Digest
+
+on:
+  schedule:
+    # Every other Monday at 05:30 UTC = 07:30 CET
+    # GitHub Actions doesn't support "every other week" natively,
+    # so the script checks the week number and skips odd weeks.
+    - cron: '30 5 * * 1'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check bi-weekly schedule
+        id: schedule
+        run: |
+          # April 7, 2026 = first run. Week 2936 from epoch.
+          START_WEEK=2936
+          CURRENT_WEEK=$(( $(date +%s) / 604800 ))
+          WEEKS_SINCE_START=$(( CURRENT_WEEK - START_WEEK ))
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Manual trigger — running regardless of schedule"
+          elif [ $(( WEEKS_SINCE_START % 2 )) -ne 0 ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Not a bi-weekly Monday — skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Bi-weekly Monday — running digest"
+          fi
+
+      - name: Generate digest
+        if: steps.schedule.outputs.skip != 'true'
+        run: npx tsx src/digest/crawler.ts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Send email
+        if: steps.schedule.outputs.skip != 'true'
+        run: npx tsx src/digest/mailer.ts
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+          DIGEST_CC: ${{ secrets.DIGEST_CC }}
+
+      - name: Sync to Notion
+        if: steps.schedule.outputs.skip != 'true'
+        run: npx tsx src/digest/notion-sync.ts
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_MARKET_INSIGHTS_PAGE_ID: ${{ secrets.NOTION_MARKET_INSIGHTS_PAGE_ID }}

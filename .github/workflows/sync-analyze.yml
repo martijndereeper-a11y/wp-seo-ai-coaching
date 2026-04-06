@@ -1,0 +1,50 @@
+name: Sync & Analyze Recordings
+
+on:
+  schedule:
+    # Every weekday at 06:00 UTC (08:00 CET) — before the team starts
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  sync-and-analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync recordings from Claap
+        run: npx tsx src/sync/claap-to-supabase.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CLAAP_API_KEY: ${{ secrets.CLAAP_API_KEY }}
+
+      - name: Analyze new recordings
+        run: npx tsx src/analysis/run-analysis.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Measure coaching interventions
+        run: |
+          # Hit the measure endpoint to update intervention outcomes
+          if [ -n "$API_URL" ]; then
+            curl -s -X POST "$API_URL/api/interventions/measure" \
+              -H "Authorization: Bearer $LEAD_TOKEN" \
+              -H "Content-Type: application/json" || true
+          fi
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          LEAD_TOKEN: ${{ secrets.LEAD_PASSWORD }}

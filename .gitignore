@@ -14,7 +14,8 @@ career/
 context/
 work/
 proposal-system/
-scripts/
+scripts/*
+!scripts/digest-cron.sh
 build_*.py
 supabase/
 PROPOSAL_SYSTEM_DESIGN.md
@@ -33,4 +34,6 @@ coaching-guides/*.txt
 coaching-guides/README.md
 .vercel
 IMG_5213.jpg
-src/digest/
+src/digest/*
+!src/digest/*.ts
+!src/digest/sources.json
