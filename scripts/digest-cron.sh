@@ -1,11 +1,11 @@
 #!/bin/bash
 # WP SEO AI — Bi-weekly Digest Cron Script
 # Runs every Monday at 07:30, but only executes on bi-weekly schedule
-# Starting: Monday April 21, 2026, then May 5, May 19, etc.
+# Starting: Monday April 20, 2026, then May 4, May 18, etc.
 
-# Bi-weekly check: count weeks since epoch, starting week = April 21, 2026
-# April 21, 2026 = week number 2938 from epoch
-START_WEEK=2938
+# Bi-weekly check: count weeks since epoch, starting week = April 20, 2026
+# April 20, 2026 = week number 2937 from epoch
+START_WEEK=2937
 CURRENT_WEEK=$(( $(date +%s) / 604800 ))
 WEEKS_SINCE_START=$(( CURRENT_WEEK - START_WEEK ))
 

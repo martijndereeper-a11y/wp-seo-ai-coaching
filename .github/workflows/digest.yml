@@ -29,8 +29,8 @@ jobs:
       - name: Check bi-weekly schedule
         id: schedule
         run: |
-          # April 21, 2026 = first run. Week 2938 from epoch.
-          START_WEEK=2938
+          # April 20, 2026 = first run. Week 2937 from epoch.
+          START_WEEK=2937
           CURRENT_WEEK=$(( $(date +%s) / 604800 ))
           WEEKS_SINCE_START=$(( CURRENT_WEEK - START_WEEK ))
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
