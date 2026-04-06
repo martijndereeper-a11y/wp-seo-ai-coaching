@@ -29,14 +29,14 @@ jobs:
       - name: Check bi-weekly schedule
         id: schedule
         run: |
-          # April 7, 2026 = first run. Week 2936 from epoch.
-          START_WEEK=2936
+          # April 21, 2026 = first run. Week 2938 from epoch.
+          START_WEEK=2938
           CURRENT_WEEK=$(( $(date +%s) / 604800 ))
           WEEKS_SINCE_START=$(( CURRENT_WEEK - START_WEEK ))
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "skip=false" >> $GITHUB_OUTPUT
             echo "Manual trigger — running regardless of schedule"
-          elif [ $(( WEEKS_SINCE_START % 2 )) -ne 0 ]; then
+          elif [ $WEEKS_SINCE_START -lt 0 ] || [ $(( WEEKS_SINCE_START % 2 )) -ne 0 ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Not a bi-weekly Monday — skipping"
           else
