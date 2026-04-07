@@ -42,8 +42,11 @@ app.use('/api/admin/*', async (c, next) => {
   await next();
 });
 
-/** Rebuild derived lists from current cases */
-function getDerived() {
+/** Rebuild derived lists from current cases (cached until cases change) */
+let _derivedCache: ReturnType<typeof buildDerived> | null = null;
+let _derivedCaseCount = -1;
+
+function buildDerived() {
   const cases = loadAllCases();
   const painPatterns = [...new Set(cases.map((c) => c.painPattern))];
   const industries = [...new Set(cases.map((c) => c.industry))];
@@ -52,6 +55,14 @@ function getDerived() {
     count: cases.filter((c) => c.objections.includes(obj)).length,
   }));
   return { cases, painPatterns, industries, objectionCounts };
+}
+
+function getDerived() {
+  const cases = loadAllCases();
+  if (_derivedCache && _derivedCaseCount === cases.length) return _derivedCache;
+  _derivedCache = buildDerived();
+  _derivedCaseCount = cases.length;
+  return _derivedCache;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -88,7 +99,7 @@ app.get('/api/use-cases/search', (c) => {
     return { ...uc, score };
   });
 
-  const results = scored.filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
+  const results = scored.filter((r) => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 20);
   return c.json({ results });
 });
 

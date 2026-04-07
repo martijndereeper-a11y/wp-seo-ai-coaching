@@ -13,6 +13,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authMiddleware, requireRole } from './auth.ts';
 import { loadSettings, saveSetting, invalidateCache, getPasswords } from '../config/settings.ts';
+import { parseTranscript } from '../analysis/transcript-parser.ts';
+import {
+  analyzeTimeframe,
+  analyzeAllWindows,
+  analyzeByInterval,
+  compareTimeframes,
+  PRESET_WINDOWS,
+  type TimeWindow,
+} from '../analysis/timeframe-analyzer.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const supabase = createSupabaseClient();
@@ -1668,6 +1677,231 @@ app.get('/api/call/:id/quality-breakdown', async (c) => {
     .single();
   if (error) return c.json({ error: error.message }, 404);
   return c.json(computeQualityBreakdown(data));
+});
+
+// ─── Timeframe Analysis ─────────────────────────────────────────────────────
+
+// Helper: fetch recording transcript and parse it
+async function fetchParsedTranscript(recordingId: string) {
+  const { data, error } = await supabase
+    .from('recordings')
+    .select('transcript_text, recorder_name, duration_seconds')
+    .eq('id', recordingId)
+    .single();
+  if (error || !data?.transcript_text) return null;
+  const parsed = parseTranscript(data.transcript_text, data.recorder_name);
+  return {
+    turns: parsed.turns,
+    recorderName: data.recorder_name || 'Unknown',
+    durationSeconds: data.duration_seconds ? Number(data.duration_seconds) : parsed.durationSeconds,
+  };
+}
+
+// Analyze a specific time window in a single call
+// ?start=0&end=300  OR  ?preset=opening  OR  ?interval=5
+app.get('/api/call/:id/timeframe', async (c) => {
+  const id = c.req.param('id');
+  const recording = await fetchParsedTranscript(id);
+  if (!recording) return c.json({ error: 'Recording not found or has no transcript' }, 404);
+
+  const { turns, recorderName, durationSeconds } = recording;
+  const preset = c.req.query('preset');
+  const interval = c.req.query('interval');
+  const start = c.req.query('start');
+  const end = c.req.query('end');
+
+  // Mode 1: Equal-sized intervals (e.g., every 5 minutes)
+  if (interval) {
+    const minutes = parseInt(interval, 10);
+    if (isNaN(minutes) || minutes < 1) return c.json({ error: 'interval must be a positive number (minutes)' }, 400);
+    const analyses = analyzeByInterval(turns, recorderName, durationSeconds, minutes);
+    return c.json({ recordingId: id, durationSeconds, windowType: 'interval', intervalMinutes: minutes, windows: analyses });
+  }
+
+  // Mode 2: All preset windows (quarters, halves, or named presets)
+  if (preset === 'quarters' || preset === 'halves' || preset === 'presets') {
+    const analyses = analyzeAllWindows(turns, recorderName, durationSeconds, preset);
+    return c.json({ recordingId: id, durationSeconds, windowType: preset, windows: analyses });
+  }
+
+  // Mode 3: Single preset window
+  if (preset && PRESET_WINDOWS[preset]) {
+    const window = PRESET_WINDOWS[preset](durationSeconds);
+    const analysis = analyzeTimeframe(turns, recorderName, window);
+    return c.json({ recordingId: id, durationSeconds, ...analysis });
+  }
+
+  // Mode 4: Custom time range
+  if (start !== undefined && end !== undefined) {
+    const s = parseInt(start, 10);
+    const e = parseInt(end, 10);
+    if (isNaN(s) || isNaN(e) || s < 0 || e <= s) {
+      return c.json({ error: 'start and end must be valid seconds with end > start' }, 400);
+    }
+    const window: TimeWindow = {
+      startSeconds: s,
+      endSeconds: e,
+      label: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}–${Math.floor(e / 60)}:${String(e % 60).padStart(2, '0')}`,
+    };
+    const analysis = analyzeTimeframe(turns, recorderName, window);
+    return c.json({ recordingId: id, durationSeconds, ...analysis });
+  }
+
+  // Default: return quarters
+  const analyses = analyzeAllWindows(turns, recorderName, durationSeconds, 'quarters');
+  return c.json({ recordingId: id, durationSeconds, windowType: 'quarters', windows: analyses });
+});
+
+// Compare a time window across multiple calls
+// groupBy: "outcome" (won/lost), "ae" (per rep), "period" (month/week/custom date ranges)
+app.post('/api/timeframe/compare', async (c) => {
+  const body = await c.req.json() as {
+    recordingIds?: string[];
+    window?: string | { start: number; end: number };
+    groupBy?: 'outcome' | 'ae' | 'period';
+    ae?: string;       // Filter to a specific AE
+    limit?: number;    // Max calls per group
+    // Period grouping options (used when groupBy === 'period')
+    periodType?: 'month' | 'week' | 'custom';
+    periods?: Array<{ label: string; from: string; to: string }>; // custom date ranges (ISO dates)
+  };
+
+  const groupBy = body.groupBy || 'outcome';
+  const windowParam = body.window || 'opening';
+  const maxPerGroup = body.limit || 50;
+
+  // Build the call-timeframe window
+  let windowArg: TimeWindow | string;
+  if (typeof windowParam === 'string') {
+    if (!PRESET_WINDOWS[windowParam]) {
+      return c.json({ error: `Unknown preset: ${windowParam}. Available: ${Object.keys(PRESET_WINDOWS).join(', ')}` }, 400);
+    }
+    windowArg = windowParam;
+  } else {
+    windowArg = {
+      startSeconds: windowParam.start,
+      endSeconds: windowParam.end,
+      label: `${Math.floor(windowParam.start / 60)}:${String(windowParam.start % 60).padStart(2, '0')}–${Math.floor(windowParam.end / 60)}:${String(windowParam.end % 60).padStart(2, '0')}`,
+    };
+  }
+
+  // Fetch recordings — either by explicit IDs or query from ae_call_analysis
+  let recordingIds = body.recordingIds;
+  let outcomeMap = new Map<string, string>();
+  let aeMap = new Map<string, string>();
+  let dateMap = new Map<string, string>();  // recordingId -> created_at ISO string
+
+  if (!recordingIds || recordingIds.length === 0) {
+    let query = supabase
+      .from('ae_call_analysis')
+      .select('recording_id, outcome, recorder_name, created_at')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (body.ae) {
+      query = query.eq('recorder_name', body.ae);
+    }
+
+    const { data: analyses } = await query;
+    if (!analyses || analyses.length === 0) {
+      return c.json({ error: 'No analyzed calls found' }, 404);
+    }
+
+    recordingIds = analyses.map(a => a.recording_id);
+    for (const a of analyses) {
+      outcomeMap.set(a.recording_id, a.outcome || 'unknown');
+      aeMap.set(a.recording_id, a.recorder_name);
+      if (a.created_at) dateMap.set(a.recording_id, a.created_at);
+    }
+  } else {
+    const { data: analyses } = await supabase
+      .from('ae_call_analysis')
+      .select('recording_id, outcome, recorder_name, created_at')
+      .in('recording_id', recordingIds);
+    for (const a of (analyses || [])) {
+      outcomeMap.set(a.recording_id, a.outcome || 'unknown');
+      aeMap.set(a.recording_id, a.recorder_name);
+      if (a.created_at) dateMap.set(a.recording_id, a.created_at);
+    }
+  }
+
+  // Period grouping helper: assign a recording to a period label
+  function assignPeriodGroup(rid: string): string | null {
+    const dateStr = dateMap.get(rid);
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+
+    if (body.periodType === 'week') {
+      // ISO week: find Monday of that week
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      d.setDate(diff);
+      return `Week of ${d.toISOString().slice(0, 10)}`;
+    }
+
+    if (body.periodType === 'custom' && body.periods) {
+      for (const p of body.periods) {
+        const from = new Date(p.from);
+        const to = new Date(p.to);
+        if (date >= from && date < to) return p.label;
+      }
+      return null; // Falls outside all custom periods
+    }
+
+    // Default: month
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
+  // Fetch transcripts and build call inputs
+  const calls: Array<{ turns: any[]; recorderName: string; durationSeconds: number; group: string }> = [];
+  const groupCounts = new Map<string, number>();
+
+  for (const rid of recordingIds) {
+    let group: string;
+    if (groupBy === 'ae') {
+      group = aeMap.get(rid) || 'Unknown';
+    } else if (groupBy === 'period') {
+      const periodGroup = assignPeriodGroup(rid);
+      if (!periodGroup) continue; // Skip if outside date range
+      group = periodGroup;
+    } else {
+      group = outcomeMap.get(rid) || 'unknown';
+    }
+
+    // Limit per group
+    const count = groupCounts.get(group) || 0;
+    if (count >= maxPerGroup) continue;
+
+    const recording = await fetchParsedTranscript(rid);
+    if (!recording || recording.turns.length === 0) continue;
+
+    calls.push({
+      turns: recording.turns,
+      recorderName: recording.recorderName,
+      durationSeconds: recording.durationSeconds,
+      group,
+    });
+    groupCounts.set(group, count + 1);
+  }
+
+  if (calls.length === 0) {
+    return c.json({ error: 'No calls with transcripts found' }, 404);
+  }
+
+  const comparison = compareTimeframes(calls, windowArg);
+  return c.json(comparison);
+});
+
+// List available preset windows for a given call duration
+app.get('/api/timeframe/presets', (c) => {
+  const duration = parseInt(c.req.query('duration') || '1800', 10);
+  const presets: Record<string, TimeWindow> = {};
+  for (const [name, fn] of Object.entries(PRESET_WINDOWS)) {
+    presets[name] = fn(duration);
+  }
+  return c.json({ durationSeconds: duration, presets });
 });
 
 // ─── Coaching Interventions (Feedback Loop) ──────────────────────────────────

@@ -17,27 +17,44 @@ function ensureDataDir() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 }
 
-/** Load all cases: seed + user-added */
+// ─── In-memory cache to avoid readFileSync on every request ──────────────────
+let _casesCache: UseCase[] | null = null;
+let _addedCache: UseCase[] | null = null;
+
+/** Invalidate the cache (call after writes) */
+export function invalidateCasesCache() {
+  _casesCache = null;
+  _addedCache = null;
+}
+
+/** Load all cases: seed + user-added (cached in memory) */
 export function loadAllCases(): UseCase[] {
+  if (_casesCache) return _casesCache;
   ensureDataDir();
-  if (!existsSync(CASES_FILE)) return [...seedCases];
+  if (!existsSync(CASES_FILE)) {
+    _casesCache = [...seedCases];
+    return _casesCache;
+  }
   try {
     const added: UseCase[] = JSON.parse(readFileSync(CASES_FILE, 'utf-8'));
-    // Merge: seed cases + added cases (dedupe by id)
     const ids = new Set(added.map((c) => c.id));
     const fromSeed = seedCases.filter((c) => !ids.has(c.id));
-    return [...fromSeed, ...added];
+    _casesCache = [...fromSeed, ...added];
+    return _casesCache;
   } catch {
-    return [...seedCases];
+    _casesCache = [...seedCases];
+    return _casesCache;
   }
 }
 
-/** Load only user-added cases */
+/** Load only user-added cases (cached) */
 function loadAddedCases(): UseCase[] {
+  if (_addedCache) return _addedCache;
   ensureDataDir();
   if (!existsSync(CASES_FILE)) return [];
   try {
-    return JSON.parse(readFileSync(CASES_FILE, 'utf-8'));
+    _addedCache = JSON.parse(readFileSync(CASES_FILE, 'utf-8'));
+    return _addedCache!;
   } catch {
     return [];
   }
@@ -51,6 +68,7 @@ export function saveCase(uc: UseCase): void {
   if (idx >= 0) added[idx] = uc;
   else added.push(uc);
   writeFileSync(CASES_FILE, JSON.stringify(added, null, 2), 'utf-8');
+  invalidateCasesCache();
 }
 
 /** Delete a user-added case by id */
@@ -60,6 +78,7 @@ export function deleteCase(id: string): boolean {
   if (filtered.length === added.length) return false;
   ensureDataDir();
   writeFileSync(CASES_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
+  invalidateCasesCache();
   return true;
 }
 
