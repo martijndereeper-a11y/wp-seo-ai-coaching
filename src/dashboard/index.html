@@ -207,6 +207,30 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 .wgll-diff .wd-name{flex:1}
 .wgll-diff .wd-vals{color:var(--text2)}
 .wgll-diff .wd-arrow{color:var(--green);font-weight:600;font-size:11px}
+
+/* Timeframe Analysis */
+.tf-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Archivo',sans-serif}
+.tf-btn:hover{border-color:var(--purple);color:var(--text)}
+.tf-btn.active{background:var(--purple);color:white;border-color:var(--purple)}
+.tf-heatmap{display:flex;gap:2px;margin:8px 0}
+.tf-cell{flex:1;border-radius:6px;padding:10px 6px;text-align:center;background:var(--bg3);transition:background .2s;cursor:default;min-width:0}
+.tf-cell .tf-label{font-size:10px;color:var(--text2);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tf-cell .tf-val{font-size:18px;font-weight:700;line-height:1.2}
+.tf-cell .tf-sub{font-size:10px;color:var(--text2);margin-top:2px}
+.tf-metric-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(46,51,72,.3);font-size:12px}
+.tf-metric-row:last-child{border:none}
+.tf-metric-row .tf-mn{width:130px;color:var(--text2)}
+.tf-metric-row .tf-bars{flex:1;display:flex;gap:2px;align-items:center}
+.tf-metric-row .tf-bar{height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;min-width:24px;transition:width .3s}
+.tf-delta{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.tf-delta.pos{background:rgba(16,185,129,.12);color:var(--green)}
+.tf-delta.neg{background:rgba(239,68,68,.12);color:var(--red)}
+.tf-delta.neutral{background:rgba(59,130,246,.08);color:var(--text2)}
+.tf-insight{padding:8px 12px;background:rgba(183,72,255,.06);border:1px solid rgba(183,72,255,.15);border-radius:6px;font-size:12px;line-height:1.6;color:var(--purple-soft);margin-bottom:6px}
+.tf-period-select{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.tf-period-chip{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text2);font-size:11px;cursor:pointer;transition:all .15s;font-family:'Archivo',sans-serif}
+.tf-period-chip:hover{border-color:var(--purple)}
+.tf-period-chip.active{background:var(--purple);color:white;border-color:var(--purple)}
 </style>
 </head>
 <body>
@@ -1398,6 +1422,235 @@ function generateDiagnostic(ae, calls) {
 }
 
 // ════════════════════════════════════════════════════════
+//  TIMEFRAME ANALYSIS
+// ════════════════════════════════════════════════════════
+
+function tfColor(val, optimal, range) {
+  const dist = Math.abs(val - optimal);
+  if (dist <= range) return 'var(--green)';
+  if (dist <= range * 2) return 'var(--orange)';
+  return 'var(--red)';
+}
+
+function engColor(level) {
+  return level === 'high' ? 'var(--green)' : level === 'low' ? 'var(--red)' : 'var(--orange)';
+}
+
+function renderTimeframeHeatmap(windows) {
+  if (!windows || !windows.length) return '<div style="color:var(--text2);font-size:12px">No data for this timeframe.</div>';
+
+  // Talk ratio heatmap
+  let h = '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">AE Talk Ratio</div>';
+  h += '<div class="tf-heatmap">';
+  windows.forEach(w => {
+    const tr = w.metrics.talkRatio;
+    const clr = tfColor(tr, 50, 8);
+    h += '<div class="tf-cell"><div class="tf-label">'+w.window.label+'</div><div class="tf-val" style="color:'+clr+'">'+tr+'%</div><div class="tf-sub">'+w.metrics.durationSeconds+'s</div></div>';
+  });
+  h += '</div>';
+
+  // Questions heatmap
+  h += '<div style="font-size:11px;color:var(--text2);margin:12px 0 4px;font-weight:600">AE Questions Asked</div>';
+  h += '<div class="tf-heatmap">';
+  windows.forEach(w => {
+    const q = w.metrics.questionCount;
+    const clr = q >= 4 ? 'var(--green)' : q >= 2 ? 'var(--orange)' : 'var(--red)';
+    h += '<div class="tf-cell"><div class="tf-label">'+w.window.label+'</div><div class="tf-val" style="color:'+clr+'">'+q+'</div><div class="tf-sub">questions</div></div>';
+  });
+  h += '</div>';
+
+  // Engagement heatmap
+  h += '<div style="font-size:11px;color:var(--text2);margin:12px 0 4px;font-weight:600">Prospect Engagement</div>';
+  h += '<div class="tf-heatmap">';
+  windows.forEach(w => {
+    const lvl = w.engagement.level;
+    const clr = engColor(lvl);
+    h += '<div class="tf-cell"><div class="tf-label">'+w.window.label+'</div><div class="tf-val" style="color:'+clr+';font-size:13px;text-transform:uppercase">'+lvl+'</div><div class="tf-sub">avg '+w.engagement.prospectAvgLength+' words</div></div>';
+  });
+  h += '</div>';
+
+  // Metrics table
+  h += '<div style="margin-top:16px">';
+  const metrics = [
+    { key: 'wordsPerMinute', label: 'Pace (words/min)', color: 'var(--blue)' },
+    { key: 'controlShifts', label: 'Speaker switches', color: 'var(--purple)' },
+    { key: 'longestMonologue', label: 'Longest monologue', color: 'var(--orange)' },
+  ];
+  metrics.forEach(m => {
+    const maxVal = Math.max(...windows.map(w => w.metrics[m.key] || 0), 1);
+    h += '<div class="tf-metric-row"><div class="tf-mn">'+m.label+'</div><div class="tf-bars">';
+    windows.forEach(w => {
+      const val = w.metrics[m.key] || 0;
+      const pct = Math.round((val / maxVal) * 100);
+      h += '<div class="tf-bar" style="width:'+pct+'%;background:'+m.color+'22;color:'+m.color+'">'+val+'</div>';
+    });
+    h += '</div></div>';
+  });
+  h += '</div>';
+
+  // Top patterns per window
+  h += '<div style="margin-top:16px"><div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600">Active Patterns by Phase</div>';
+  windows.forEach(w => {
+    if (!w.patterns.topDimensions.length) return;
+    h += '<div style="margin-bottom:4px"><span style="font-size:10px;color:var(--text2)">'+w.window.label+':</span> ';
+    w.patterns.topDimensions.slice(0,4).forEach(d => {
+      const label = d.replace(/([A-Z])/g,' $1').trim();
+      h += '<span class="pill b" style="font-size:10px;padding:2px 6px;cursor:default">'+label+'</span>';
+    });
+    h += '</div>';
+  });
+  h += '</div>';
+
+  return h;
+}
+
+async function loadTimeframe(rid, mode, btn) {
+  // Toggle active button
+  if (btn) {
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const el = document.getElementById('tf-content');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text2);font-size:12px">Loading...</div>';
+
+  let url;
+  if (mode === '5min') url = '/api/call/'+rid+'/timeframe?interval=5';
+  else if (mode === 'presets') url = '/api/call/'+rid+'/timeframe?preset=presets';
+  else url = '/api/call/'+rid+'/timeframe?preset=quarters';
+
+  const data = await api(url);
+  if (!data || !data.windows) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">No transcript data available.</div>'; return; }
+  el.innerHTML = renderTimeframeHeatmap(data.windows);
+}
+
+function renderPeriodComparison(comparison) {
+  if (!comparison || !comparison.groups || !comparison.groups.length) return '<div style="color:var(--text2);font-size:12px">Not enough data.</div>';
+
+  let h = '';
+
+  // Insights
+  if (comparison.insights && comparison.insights.length) {
+    h += '<div style="margin-bottom:12px">';
+    comparison.insights.forEach(ins => {
+      h += '<div class="tf-insight">'+ins+'</div>';
+    });
+    h += '</div>';
+  }
+
+  // Group comparison bars
+  const groups = comparison.groups;
+  const groupColors = ['var(--purple)', 'var(--blue)', 'var(--green)', 'var(--orange)', 'var(--red)'];
+  const compMetrics = [
+    { key: 'talkRatio', label: 'Talk Ratio', suffix: '%', optimal: 50 },
+    { key: 'questionCount', label: 'Questions', suffix: '', optimal: null },
+    { key: 'wordsPerMinute', label: 'Pace (wpm)', suffix: '', optimal: null },
+    { key: 'longestMonologue', label: 'Longest Monologue', suffix: ' words', optimal: null },
+    { key: 'controlShifts', label: 'Speaker Switches', suffix: '', optimal: null },
+  ];
+
+  // Legend
+  h += '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">';
+  groups.forEach((g, i) => {
+    h += '<div style="display:flex;align-items:center;gap:4px;font-size:11px"><div style="width:10px;height:10px;border-radius:2px;background:'+groupColors[i % groupColors.length]+'"></div>'+g.name+' <span style="color:var(--text2)">('+g.callCount+' calls)</span></div>';
+  });
+  h += '</div>';
+
+  compMetrics.forEach(m => {
+    const maxVal = Math.max(...groups.map(g => g.avgMetrics[m.key] || 0), 1);
+    h += '<div class="tf-metric-row"><div class="tf-mn">'+m.label+'</div><div class="tf-bars" style="flex-direction:column;gap:3px">';
+    groups.forEach((g, i) => {
+      const val = g.avgMetrics[m.key] || 0;
+      const pct = Math.max(8, Math.round((val / maxVal) * 100));
+      const clr = groupColors[i % groupColors.length];
+      h += '<div style="display:flex;align-items:center;gap:6px;width:100%"><div class="tf-bar" style="width:'+pct+'%;background:'+clr+'22;color:'+clr+'">'+val+(m.suffix||'')+'</div></div>';
+    });
+    h += '</div></div>';
+  });
+
+  // Engagement comparison
+  h += '<div style="margin-top:12px;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px">Prospect Engagement</div>';
+  h += '<div style="display:flex;gap:8px">';
+  groups.forEach((g, i) => {
+    const clr = engColor(g.avgEngagement.level);
+    h += '<div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:6px"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">'+g.name+'</div><div style="font-size:14px;font-weight:700;color:'+clr+';text-transform:uppercase">'+g.avgEngagement.level+'</div><div style="font-size:10px;color:var(--text2)">avg '+g.avgEngagement.prospectAvgLength+' words/turn</div></div>';
+  });
+  h += '</div>';
+
+  // Deltas
+  if (comparison.deltas && groups.length >= 2) {
+    h += '<div style="margin-top:12px;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px">Key Differences ('+groups[0].name+' vs '+groups[1].name+')</div>';
+    const deltaKeys = [
+      { key: 'talkRatio', label: 'Talk Ratio', suffix: '%' },
+      { key: 'questionCount', label: 'Questions', suffix: '' },
+      { key: 'prospectAvgLength', label: 'Prospect Turn Length', suffix: ' words' },
+    ];
+    deltaKeys.forEach(dk => {
+      const d = comparison.deltas[dk.key];
+      if (d === undefined) return;
+      const cls = Math.abs(d) < 2 ? 'neutral' : d > 0 ? 'pos' : 'neg';
+      const sign = d > 0 ? '+' : '';
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px"><span style="width:130px;color:var(--text2)">'+dk.label+'</span><span class="tf-delta '+cls+'">'+sign+d+(dk.suffix||'')+'</span></div>';
+    });
+  }
+
+  return h;
+}
+
+async function loadPeriodComparison(aeName, windowPreset, periodType, btn) {
+  if (btn) {
+    const parent = btn.closest('.tf-period-select');
+    if (parent) parent.querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const el = document.getElementById('period-content');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text2);font-size:12px">Analyzing calls across periods...</div>';
+
+  const data = await api('/api/timeframe/compare', {
+    method: 'POST',
+    body: JSON.stringify({ ae: aeName, window: windowPreset || 'opening', groupBy: 'period', periodType: periodType || 'month' }),
+  });
+  if (!data || !data.groups) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">Not enough calls with transcripts to compare periods.</div>'; return; }
+  el.innerHTML = renderPeriodComparison(data);
+}
+
+async function loadOutcomeComparison(aeName, windowPreset, btn) {
+  if (btn) {
+    const parent = btn.closest('.tf-period-select');
+    if (parent) parent.querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const el = document.getElementById('period-content');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text2);font-size:12px">Comparing won vs lost...</div>';
+
+  const data = await api('/api/timeframe/compare', {
+    method: 'POST',
+    body: JSON.stringify({ ae: aeName, window: windowPreset || 'opening', groupBy: 'outcome' }),
+  });
+  if (!data || !data.groups) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">Not enough data to compare outcomes.</div>'; return; }
+  el.innerHTML = renderPeriodComparison(data);
+}
+
+let currentPeriodAE = '';
+let currentPeriodWindow = 'opening';
+
+function setPeriodWindow(aeName, preset, btn) {
+  currentPeriodWindow = preset;
+  if (btn) {
+    btn.closest('.tf-period-select').querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  // Re-run the active comparison type
+  const activeType = document.querySelector('#period-type-select .tf-period-chip.active');
+  const type = activeType ? activeType.dataset.type : 'month';
+  if (type === 'outcome') loadOutcomeComparison(aeName, preset);
+  else loadPeriodComparison(aeName, preset, type);
+}
+
+// ════════════════════════════════════════════════════════
 //  AE DETAIL
 // ════════════════════════════════════════════════════════
 
@@ -1451,6 +1704,32 @@ async function loadAEDetail(name) {
         '<button id="ae-deep-btn" onclick="generateAEDeepAnalysis(\''+esc(name)+'\')" style="padding:8px 16px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Generate Full Review</button>'+
       '</div>'+
       '<div id="ae-deep-result"></div>'+
+    '</div>';
+
+    // Timeframe Period Comparison
+    const safeName = esc(name);
+    html += '<div class="card">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+        '<div><h3 style="font-size:14px;margin:0">Performance Over Time</h3><div style="font-size:11px;color:var(--text2);margin-top:2px">Compare call phases across months, weeks, or won vs lost</div></div>'+
+      '</div>'+
+      // Call phase selector
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Call Phase</div>'+
+      '<div class="tf-period-select">'+
+        '<button class="tf-period-chip active" onclick="setPeriodWindow(\''+safeName+'\',\'opening\',this)">Opening</button>'+
+        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'discovery\',this)">Discovery</button>'+
+        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'mid\',this)">Middle</button>'+
+        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'close\',this)">Close</button>'+
+        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'first-half\',this)">1st Half</button>'+
+        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'second-half\',this)">2nd Half</button>'+
+      '</div>'+
+      // Comparison type selector
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Compare by</div>'+
+      '<div class="tf-period-select" id="period-type-select">'+
+        '<button class="tf-period-chip active" data-type="month" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'month\',this)">Month</button>'+
+        '<button class="tf-period-chip" data-type="week" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'week\',this)">Week</button>'+
+        '<button class="tf-period-chip" data-type="outcome" onclick="loadOutcomeComparison(\''+safeName+'\',currentPeriodWindow,this)">Won vs Lost</button>'+
+      '</div>'+
+      '<div id="period-content"><div style="color:var(--text2);font-size:12px">Loading comparison...</div></div>'+
     '</div>';
 
     // How Scores Are Calculated (collapsible)
@@ -1755,6 +2034,11 @@ async function loadAEDetail(name) {
 
     $('app').innerHTML = html;
 
+    // Auto-load period comparison
+    currentPeriodAE = name;
+    currentPeriodWindow = 'opening';
+    loadPeriodComparison(name, 'opening', 'month', null);
+
     // Render charts after DOM is ready
     setTimeout(() => {
       if (mode === 'ae' && safeTrend.length >= 2) {
@@ -1905,6 +2189,19 @@ async function loadCallDetail(rid, aeName) {
       qualityBreakdownHTML(call)+
     '</div>';
 
+    // Timeframe Analysis — how metrics shift across the call
+    html += '<div class="card" id="tf-card">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+        '<h3 style="font-size:14px;margin:0">Call Timeline</h3>'+
+        '<div style="display:flex;gap:4px">'+
+          '<button class="tf-btn active" onclick="loadTimeframe(\''+rid+'\',\'quarters\',this)">Quarters</button>'+
+          '<button class="tf-btn" onclick="loadTimeframe(\''+rid+'\',\'5min\',this)">5-min</button>'+
+          '<button class="tf-btn" onclick="loadTimeframe(\''+rid+'\',\'presets\',this)">Phases</button>'+
+        '</div>'+
+      '</div>'+
+      '<div id="tf-content"><div style="color:var(--text2);font-size:12px">Loading timeline...</div></div>'+
+    '</div>';
+
     // Smart Review (primary call analysis)
     const sr = call.smart_review || {};
     if (sr.summary) {
@@ -2006,6 +2303,9 @@ async function loadCallDetail(rid, aeName) {
     }
 
     $('app').innerHTML = html;
+
+    // Auto-load timeframe analysis
+    loadTimeframe(rid, 'quarters', null);
 
   } catch (err) {
     $('app').innerHTML = '<button class="back-btn" onclick="loadAEDetail(\''+esc(aeName)+'\')">&larr; Back</button><div class="card" style="border-color:var(--red)"><p>Error: '+err.message+'</p></div>';
