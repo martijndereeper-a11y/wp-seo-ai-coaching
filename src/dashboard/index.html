@@ -1528,72 +1528,114 @@ async function loadTimeframe(rid, mode, btn) {
 function renderPeriodComparison(comparison) {
   if (!comparison || !comparison.groups || !comparison.groups.length) return '<div style="color:var(--text2);font-size:12px">Not enough data.</div>';
 
+  // Limit to last 3 groups for readability (most recent first)
+  let groups = comparison.groups.slice();
+  // Sort chronologically if period names contain dates
+  groups.sort((a, b) => {
+    const dateA = a.name.match(/\d{4}/);
+    const dateB = b.name.match(/\d{4}/);
+    if (dateA && dateB) return a.name.localeCompare(b.name);
+    return 0;
+  });
+  // Keep only last 3 for month/week, all for outcome
+  const isOutcome = groups.some(g => g.name === 'won' || g.name === 'lost');
+  if (!isOutcome && groups.length > 3) groups = groups.slice(-3);
+
   let h = '';
+  const colCount = groups.length;
 
-  // Insights
-  if (comparison.insights && comparison.insights.length) {
-    h += '<div style="margin-bottom:12px">';
-    comparison.insights.forEach(ins => {
-      h += '<div class="tf-insight">'+ins+'</div>';
-    });
-    h += '</div>';
-  }
-
-  // Group comparison bars
-  const groups = comparison.groups;
-  const groupColors = ['var(--purple)', 'var(--blue)', 'var(--green)', 'var(--orange)', 'var(--red)'];
-  const compMetrics = [
-    { key: 'talkRatio', label: 'Talk Ratio', suffix: '%', optimal: 50 },
-    { key: 'questionCount', label: 'Questions', suffix: '', optimal: null },
-    { key: 'wordsPerMinute', label: 'Pace (wpm)', suffix: '', optimal: null },
-    { key: 'longestMonologue', label: 'Longest Monologue', suffix: ' words', optimal: null },
-    { key: 'controlShifts', label: 'Speaker Switches', suffix: '', optimal: null },
+  // Metrics to compare — the ones AEs care about
+  const metrics = [
+    { key: 'talkRatio', label: 'Talk Ratio', suffix: '%', good: v => v >= 42 && v <= 58, icon: '🎙' },
+    { key: 'questionCount', label: 'Questions', suffix: '', good: v => v >= 4, icon: '❓' },
+    { key: 'prospectAvgLength', label: 'Prospect Answers', suffix: ' words', good: v => v >= 15, icon: '💬', fromEngagement: true },
+    { key: 'controlShifts', label: 'Back & Forth', suffix: '', good: v => v >= 6, icon: '🔄' },
+    { key: 'longestMonologue', label: 'Longest Monologue', suffix: ' words', good: v => v <= 80, icon: '📏' },
   ];
 
-  // Legend
-  h += '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">';
-  groups.forEach((g, i) => {
-    h += '<div style="display:flex;align-items:center;gap:4px;font-size:11px"><div style="width:10px;height:10px;border-radius:2px;background:'+groupColors[i % groupColors.length]+'"></div>'+g.name+' <span style="color:var(--text2)">('+g.callCount+' calls)</span></div>';
-  });
-  h += '</div>';
+  // Trend summary — compare first and last group
+  if (groups.length >= 2) {
+    const first = groups[0];
+    const last = groups[groups.length - 1];
+    const talkDiff = last.avgMetrics.talkRatio - first.avgMetrics.talkRatio;
+    const qDiff = last.avgMetrics.questionCount - first.avgMetrics.questionCount;
 
-  compMetrics.forEach(m => {
-    const maxVal = Math.max(...groups.map(g => g.avgMetrics[m.key] || 0), 1);
-    h += '<div class="tf-metric-row"><div class="tf-mn">'+m.label+'</div><div class="tf-bars" style="flex-direction:column;gap:3px">';
-    groups.forEach((g, i) => {
-      const val = g.avgMetrics[m.key] || 0;
-      const pct = Math.max(8, Math.round((val / maxVal) * 100));
-      const clr = groupColors[i % groupColors.length];
-      h += '<div style="display:flex;align-items:center;gap:6px;width:100%"><div class="tf-bar" style="width:'+pct+'%;background:'+clr+'22;color:'+clr+'">'+val+(m.suffix||'')+'</div></div>';
-    });
-    h += '</div></div>';
-  });
-
-  // Engagement comparison
-  h += '<div style="margin-top:12px;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px">Prospect Engagement</div>';
-  h += '<div style="display:flex;gap:8px">';
-  groups.forEach((g, i) => {
-    const clr = engColor(g.avgEngagement.level);
-    h += '<div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:6px"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">'+g.name+'</div><div style="font-size:14px;font-weight:700;color:'+clr+';text-transform:uppercase">'+g.avgEngagement.level+'</div><div style="font-size:10px;color:var(--text2)">avg '+g.avgEngagement.prospectAvgLength+' words/turn</div></div>';
-  });
-  h += '</div>';
-
-  // Deltas
-  if (comparison.deltas && groups.length >= 2) {
-    h += '<div style="margin-top:12px;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px">Key Differences ('+groups[0].name+' vs '+groups[1].name+')</div>';
-    const deltaKeys = [
-      { key: 'talkRatio', label: 'Talk Ratio', suffix: '%' },
-      { key: 'questionCount', label: 'Questions', suffix: '' },
-      { key: 'prospectAvgLength', label: 'Prospect Turn Length', suffix: ' words' },
-    ];
-    deltaKeys.forEach(dk => {
-      const d = comparison.deltas[dk.key];
-      if (d === undefined) return;
-      const cls = Math.abs(d) < 2 ? 'neutral' : d > 0 ? 'pos' : 'neg';
-      const sign = d > 0 ? '+' : '';
-      h += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px"><span style="width:130px;color:var(--text2)">'+dk.label+'</span><span class="tf-delta '+cls+'">'+sign+d+(dk.suffix||'')+'</span></div>';
-    });
+    let trendText = '';
+    if (isOutcome) {
+      const won = groups.find(g => g.name === 'won');
+      const lost = groups.find(g => g.name === 'lost');
+      if (won && lost) {
+        const parts = [];
+        const talkW = won.avgMetrics.talkRatio;
+        const talkL = lost.avgMetrics.talkRatio;
+        if (Math.abs(talkW - talkL) > 5) parts.push('You talk '+(talkW < talkL ? 'less' : 'more')+' in won calls ('+talkW+'% vs '+talkL+'%)');
+        const qW = won.avgMetrics.questionCount;
+        const qL = lost.avgMetrics.questionCount;
+        if (Math.abs(qW - qL) > 1) parts.push('you ask '+(qW > qL ? 'more' : 'fewer')+' questions when you win ('+qW+' vs '+qL+')');
+        const engW = won.avgEngagement.prospectAvgLength;
+        const engL = lost.avgEngagement.prospectAvgLength;
+        if (Math.abs(engW - engL) > 5) parts.push('prospects give '+(engW > engL ? 'longer' : 'shorter')+' answers in won calls');
+        if (parts.length) trendText = parts.join(', and ') + '.';
+      }
+    } else {
+      const parts = [];
+      if (Math.abs(talkDiff) > 3) parts.push('Talk ratio went '+(talkDiff > 0 ? 'up' : 'down')+' by '+Math.abs(talkDiff)+'%');
+      if (Math.abs(qDiff) > 1) parts.push('questions '+(qDiff > 0 ? 'increased' : 'decreased')+' by '+Math.abs(qDiff));
+      const engFirst = first.avgEngagement.prospectAvgLength;
+      const engLast = last.avgEngagement.prospectAvgLength;
+      if (Math.abs(engLast - engFirst) > 5) parts.push('prospect engagement '+(engLast > engFirst ? 'improved' : 'dropped'));
+      if (parts.length) trendText = 'From '+first.name+' to '+last.name+': '+parts.join(', ')+'.';
+    }
+    if (trendText) {
+      h += '<div style="padding:10px 14px;background:rgba(183,72,255,.06);border:1px solid rgba(183,72,255,.12);border-radius:8px;font-size:13px;line-height:1.5;color:var(--purple-soft);margin-bottom:16px">'+trendText+'</div>';
+    }
   }
+
+  // Column headers
+  h += '<div style="display:grid;grid-template-columns:140px repeat('+colCount+',1fr);gap:8px;margin-bottom:6px">';
+  h += '<div></div>';
+  groups.forEach(g => {
+    const shortName = isOutcome ? (g.name.charAt(0).toUpperCase() + g.name.slice(1)) : g.name.replace('Week of ','W/').replace(/\s\d{4}$/,'');
+    h += '<div style="text-align:center"><div style="font-size:13px;font-weight:700">'+shortName+'</div><div style="font-size:10px;color:var(--text2)">'+g.callCount+' calls</div></div>';
+  });
+  h += '</div>';
+
+  // Metric rows as a clean table
+  metrics.forEach(m => {
+    h += '<div style="display:grid;grid-template-columns:140px repeat('+colCount+',1fr);gap:8px;padding:8px 0;border-top:1px solid rgba(46,51,72,.3)">';
+    h += '<div style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px">'+m.label+'</div>';
+    groups.forEach((g, i) => {
+      const val = m.fromEngagement ? (g.avgEngagement ? g.avgEngagement.prospectAvgLength : 0) : (g.avgMetrics[m.key] || 0);
+      const isGood = m.good(val);
+      const clr = isGood ? 'var(--green)' : 'var(--orange)';
+
+      // Trend arrow for non-first columns
+      let arrow = '';
+      if (i > 0) {
+        const prevVal = m.fromEngagement ? (groups[i-1].avgEngagement ? groups[i-1].avgEngagement.prospectAvgLength : 0) : (groups[i-1].avgMetrics[m.key] || 0);
+        const diff = val - prevVal;
+        // For longestMonologue, lower is better
+        const betterWhenLower = m.key === 'longestMonologue';
+        const improved = betterWhenLower ? diff < -3 : diff > 1;
+        const worsened = betterWhenLower ? diff > 3 : diff < -1;
+        if (improved) arrow = ' <span style="color:var(--green);font-size:10px">▲</span>';
+        else if (worsened) arrow = ' <span style="color:var(--red);font-size:10px">▼</span>';
+      }
+
+      h += '<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:'+clr+'">'+val+(m.suffix||'')+arrow+'</div></div>';
+    });
+    h += '</div>';
+  });
+
+  // Engagement row
+  h += '<div style="display:grid;grid-template-columns:140px repeat('+colCount+',1fr);gap:8px;padding:8px 0;border-top:1px solid rgba(46,51,72,.3)">';
+  h += '<div style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px">Engagement</div>';
+  groups.forEach(g => {
+    const lvl = g.avgEngagement.level;
+    const clr = engColor(lvl);
+    h += '<div style="text-align:center"><div style="font-size:14px;font-weight:700;color:'+clr+';text-transform:uppercase">'+lvl+'</div></div>';
+  });
+  h += '</div>';
 
   return h;
 }
@@ -1709,27 +1751,24 @@ async function loadAEDetail(name) {
     // Timeframe Period Comparison
     const safeName = esc(name);
     html += '<div class="card">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
-        '<div><h3 style="font-size:14px;margin:0">Performance Over Time</h3><div style="font-size:11px;color:var(--text2);margin-top:2px">Compare call phases across months, weeks, or won vs lost</div></div>'+
+      '<h3 style="font-size:14px;margin:0 0 4px">Performance Over Time</h3>'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:14px">See how your calls are changing. Pick a part of the call and compare across periods.</div>'+
+      // Row: phase + comparison type side by side
+      '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px">'+
+        '<div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Part of the call</div>'+
+        '<div class="tf-period-select">'+
+          '<button class="tf-period-chip active" onclick="setPeriodWindow(\''+safeName+'\',\'opening\',this)">First 5 min</button>'+
+          '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'discovery\',this)">Discovery</button>'+
+          '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'close\',this)">Last 5 min</button>'+
+        '</div></div>'+
+        '<div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Compare by</div>'+
+        '<div class="tf-period-select" id="period-type-select">'+
+          '<button class="tf-period-chip active" data-type="month" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'month\',this)">Month</button>'+
+          '<button class="tf-period-chip" data-type="week" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'week\',this)">Week</button>'+
+          '<button class="tf-period-chip" data-type="outcome" onclick="loadOutcomeComparison(\''+safeName+'\',currentPeriodWindow,this)">Won vs Lost</button>'+
+        '</div></div>'+
       '</div>'+
-      // Call phase selector
-      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Call Phase</div>'+
-      '<div class="tf-period-select">'+
-        '<button class="tf-period-chip active" onclick="setPeriodWindow(\''+safeName+'\',\'opening\',this)">Opening</button>'+
-        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'discovery\',this)">Discovery</button>'+
-        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'mid\',this)">Middle</button>'+
-        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'close\',this)">Close</button>'+
-        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'first-half\',this)">1st Half</button>'+
-        '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'second-half\',this)">2nd Half</button>'+
-      '</div>'+
-      // Comparison type selector
-      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Compare by</div>'+
-      '<div class="tf-period-select" id="period-type-select">'+
-        '<button class="tf-period-chip active" data-type="month" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'month\',this)">Month</button>'+
-        '<button class="tf-period-chip" data-type="week" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'week\',this)">Week</button>'+
-        '<button class="tf-period-chip" data-type="outcome" onclick="loadOutcomeComparison(\''+safeName+'\',currentPeriodWindow,this)">Won vs Lost</button>'+
-      '</div>'+
-      '<div id="period-content"><div style="color:var(--text2);font-size:12px">Loading comparison...</div></div>'+
+      '<div id="period-content"><div style="color:var(--text2);font-size:12px">Loading...</div></div>'+
     '</div>';
 
     // How Scores Are Calculated (collapsible)
