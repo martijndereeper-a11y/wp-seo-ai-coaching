@@ -164,7 +164,7 @@ export const useCases: UseCase[] = [
     outcome: 'Freed capacity',
     result: 'Went from invisible online to ranking for key local construction searches, generating inbound leads for the first time.',
     summary: 'Small construction firm that relied entirely on word of mouth. Had zero online presence and no time to build one. WP SEO AI automated their local SEO and content, opening a new lead channel.',
-    businessType: 'B2B',
+    businessType: 'B2C',
     marketPosition: 'Niche',
     trustSensitive: false,
     objections: [
@@ -288,7 +288,7 @@ export const useCases: UseCase[] = [
     outcome: 'Lead flow from LLMs',
     result: 'Generated a significant new lead stream directly from ChatGPT and other LLM platforms, a channel competitors hadn\'t tapped.',
     summary: 'Catering platform that discovered massive lead potential from AI search. WP SEO AI optimized their content for LLM discoverability, resulting in a new acquisition channel their competitors don\'t have.',
-    businessType: 'B2B',
+    businessType: 'B2C',
     marketPosition: 'Niche',
     trustSensitive: false,
     objections: [
@@ -330,7 +330,7 @@ export const useCases: UseCase[] = [
     outcome: 'Diversified acquisition',
     result: 'Opened an organic search channel that now generates leads alongside their existing referral network.',
     summary: 'Energy and installation company that relied solely on word of mouth. WP SEO AI created an online presence that attracts new customers who aren\'t in their existing referral network.',
-    businessType: 'B2B',
+    businessType: 'B2C',
     marketPosition: 'Niche',
     trustSensitive: false,
     objections: [
@@ -520,7 +520,7 @@ export const useCases: UseCase[] = [
     outcome: 'Scaled for AI',
     result: 'Scaled their marketing output for AI search readiness without growing the team.',
     summary: 'Energy installation company that knew AI search was coming but lacked the marketing capacity to prepare. WP SEO AI automated their content scaling so they\'re positioned for the AI search shift.',
-    businessType: 'B2B',
+    businessType: 'B2C',
     marketPosition: 'Niche',
     trustSensitive: false,
     objections: [
@@ -586,7 +586,7 @@ export const useCases: UseCase[] = [
     result: '240 AI-optimized articles published in 9 months. +12,031 AI-attributed clicks, 1.25M impressions, traffic worth valued at €8,769. Content cited in ChatGPT and Google AI Overviews.',
     summary: 'German e-bike specialist portal with strong domain authority but a tiny team juggling research, content, and optimization. WP SEO AI scaled content production across key keyword clusters, driving massive organic and AI search growth.',
     businessType: 'B2C',
-    marketPosition: 'Niche',
+    marketPosition: 'Mainstream',
     trustSensitive: false,
     objections: [
       'It takes too long before you see results',
@@ -668,7 +668,7 @@ export const useCases: UseCase[] = [
     outcome: '5x traffic, 100+ leads, 13% conversion rate',
     result: 'Organic traffic increased fivefold in 6 months. 100+ leads in August. 13% conversion rate vs 4% industry benchmark. Leads up +300%, cost of acquisition down -62%. Traffic worth €4,178.',
     summary: 'Amsterdam short-stay housing provider with zero SEO efforts. WP SEO AI built their entire organic presence from scratch, achieving a conversion rate 3x the industry benchmark and dramatically lowering acquisition costs.',
-    businessType: 'B2B',
+    businessType: 'B2C',
     marketPosition: 'Niche',
     trustSensitive: false,
     objections: [
@@ -689,7 +689,7 @@ export const useCases: UseCase[] = [
     result: '+57% organic traffic in 8 months. +295% jump in top 3 rankings. Ranking #1 for high-intent terms. 41% of clicks from AI content. Scaled from 10 to 20+ articles/month.',
     summary: 'Finnish hair salon where clients were clearly searching on Google but the salon lacked time and SEO expertise. WP SEO AI automated their content at scale, pushing them to #1 positions for high-intent local searches.',
     businessType: 'B2C',
-    marketPosition: 'Mainstream',
+    marketPosition: 'Niche',
     trustSensitive: false,
     objections: [
       'We are too small for this kind of approach',
