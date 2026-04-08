@@ -17,6 +17,7 @@ import { loadCoachingGuides, matchRulesToCall } from './coaching-guides-loader.t
 import { scoreCallPillars } from './coaching-pillars.ts';
 import { generateSmartReview, type SmartReviewBenchmarks } from './smart-review.ts';
 import { scoreGame } from './sales-game.ts';
+import { classifyWithDealContext, classifyMeeting, type MeetingClassification } from './meeting-classifier.ts';
 
 const supabase = createSupabaseClient();
 const isFullMode = process.argv.includes('--full');
@@ -54,9 +55,13 @@ async function ensureTables() {
     `,
   }).catch(() => ({ error: { message: 'rpc not available' } }));
 
-  // Add game_score column if table already exists (migration for existing installs)
+  // Add columns if table already exists (migration for existing installs)
   await supabase.rpc('exec_sql', {
-    sql: `ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS game_score JSONB DEFAULT '{}';`,
+    sql: `
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS game_score JSONB DEFAULT '{}';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS meeting_type TEXT DEFAULT 'first';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS meeting_classification JSONB DEFAULT '{}';
+    `,
   }).catch(() => {});
 
   // Create ae_coaching_profiles table
@@ -202,6 +207,22 @@ async function main() {
     }
   }
 
+  // Build deal grouping for meeting classification
+  // Group ALL recordings (not just toAnalyze) by deal_name to detect sequences
+  const dealGroups = new Map<string, string[]>(); // deal_name -> recording IDs sorted by date
+  const sortedByDate = [...recordings].sort((a, b) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  for (const rec of sortedByDate) {
+    const dealKey = rec.deal_name || rec.deal_id;
+    if (!dealKey) continue;
+    const normalized = dealKey.trim().toLowerCase();
+    if (!dealGroups.has(normalized)) dealGroups.set(normalized, []);
+    dealGroups.get(normalized)!.push(rec.id);
+  }
+  const dealsWithMultiple = Array.from(dealGroups.entries()).filter(([, ids]) => ids.length > 1).length;
+  console.log(`Deal grouping: ${dealGroups.size} deals, ${dealsWithMultiple} with multiple calls\n`);
+
   // Analyze each recording
   const allResults: Record<string, unknown>[] = [];
   let processed = 0;
@@ -214,6 +235,13 @@ async function main() {
     if (rec.channel_name === 'Closed Won Analysis') outcome = 'won';
     else if (rec.channel_name === 'Closed Lost Analysis') outcome = 'lost';
     else if (/\b(starter|basic|pro|12m|12p|24m|12 month|24 month)\b/i.test(rec.deal_name || '')) outcome = 'won';
+    // Classify meeting type
+    const dealKey = (rec.deal_name || rec.deal_id || '').trim().toLowerCase();
+    const dealRecIds = dealGroups.get(dealKey) || [];
+    const meetingClass = dealRecIds.length > 0
+      ? classifyWithDealContext(rec.id, rec.title || '', parsed.turns, rec.recorder_name, dealRecIds)
+      : classifyMeeting(rec.title || '', parsed.turns, rec.recorder_name);
+
     // Merge team + AE-specific benchmarks for relative coaching
     const aeBm = aeAverages.get(rec.recorder_name);
     const callBenchmarks: SmartReviewBenchmarks = {
@@ -250,13 +278,15 @@ async function main() {
       highlights: analysis.highlights,
       prospect_engagement: analysis.prospectEngagement || {},
       call_verdict: analysis.callVerdict || [],
-      call_quality_score: computeCallQualityScore(analysis),
+      meeting_type: meetingClass.type,
+      meeting_classification: meetingClass,
+      call_quality_score: computeCallQualityScore(analysis, meetingClass.type),
       pattern_evidence: trimEvidence(analysis.patternEvidence || {}),
       smart_review: smartReview,
       pillar_scores: scoreCallPillars(
         analysis.talkRatio, analysis.questionCount, analysis.patterns as Record<string, number>,
         analysis.highlights, analysis.callVerdict, analysis.sectionsHit,
-        analysis.prospectEngagement, smartReview,
+        analysis.prospectEngagement, smartReview, meetingClass.type,
       ),
       game_score: scoreGame(parsed.turns, rec.recorder_name, outcome),
       analyzed_at: new Date().toISOString(),
@@ -423,31 +453,74 @@ async function buildCoachingProfiles() {
   }
 }
 
-function computeCallQualityScore(analysis: Record<string, any>): number {
-  // Talk ratio: closer to 50% = better, max 25 pts
+function computeCallQualityScore(analysis: Record<string, any>, meetingType: string = 'first'): number {
+  const isFollowUp = meetingType === 'follow-up';
   const talkRatio = analysis.talkRatio || analysis.talk_ratio || 50;
-  const talkDiff = Math.abs(talkRatio - 50);
-  const talkPts = Math.max(0, 25 - talkDiff);
-
-  // Question count: 22+ = full marks, max 20 pts
   const qCount = analysis.questionCount || analysis.question_count || 0;
-  const qPts = Math.min(20, Math.round((qCount / 22) * 20));
-
-  // Script adherence: already 0-100, scale to max 20 pts
   const scriptAdh = analysis.scriptAdherence || analysis.script_adherence || 0;
-  const scriptPts = Math.round((scriptAdh / 100) * 20);
-
-  // Prospect engagement net score: max 15 pts
   const pe = analysis.prospectEngagement || analysis.prospect_engagement || {};
   const buying = pe.buyingSignals || 0;
   const engagement = pe.engagementIndicators || 0;
   const redFlags = pe.redFlags || 0;
   const netEngagement = buying + engagement - redFlags;
-  const engPts = Math.max(0, Math.min(15, Math.round((netEngagement / 8) * 15)));
-
-  // Coachable moments: fewer = better (0 = 20 pts, 5+ = 0 pts), max 20 pts
   const highlights = analysis.highlights || [];
   const coachableCount = Array.isArray(highlights) ? highlights.filter((h: any) => h.type === 'coachable').length : 0;
+  const patterns = analysis.patterns || analysis.pattern || {};
+
+  if (isFollowUp) {
+    // ── Follow-up scoring: advancement > discovery, script less important ──
+    //
+    // Follow-ups should: advance the deal, handle objections, close or set hard next step.
+    // Discovery is lighter (already done), full script isn't expected.
+
+    // Talk ratio (15 pts, lower weight — follow-ups can be more AE-led)
+    const talkDiff = Math.abs(talkRatio - 55); // ideal shifts to 55% (AE drives proposal)
+    const talkPts = Math.max(0, 15 - talkDiff * 0.6);
+
+    // Questions (10 pts, lower target — fewer but more pointed questions)
+    const qPts = Math.min(10, Math.round((qCount / 12) * 10));
+
+    // Advancement (25 pts, heavily weighted — this is the point of follow-ups)
+    let advPts = 0;
+    advPts += Math.min(8, (patterns.contract || 0) * 4);          // close language
+    advPts += Math.min(8, (patterns.assumptiveClose || 0) * 4);   // assumptive close
+    advPts += Math.min(5, (patterns.urgency || 0) * 2);           // urgency
+    advPts += Math.min(4, (patterns.priceAnchor || 0) * 2);       // price anchoring
+    advPts = Math.min(25, advPts);
+
+    // Objection handling (20 pts — follow-ups surface objections)
+    let objPts = 10; // base
+    objPts += Math.min(5, (patterns.roiReframe || 0) * 3);
+    objPts += Math.min(5, (patterns.challenging || 0) * 3);
+    const accepted = Array.isArray(highlights) && highlights.some((h: any) => h.category === 'Accepted Think-It-Over');
+    if (accepted) objPts -= 5;
+    objPts = Math.max(0, Math.min(20, objPts));
+
+    // Engagement (15 pts, same)
+    const engPts = Math.max(0, Math.min(15, Math.round((netEngagement / 8) * 15)));
+
+    // Discipline (15 pts)
+    const coachPts = Math.max(0, 15 - coachableCount * 2);
+
+    return Math.round(Math.max(0, Math.min(100, talkPts + qPts + advPts + objPts + engPts + coachPts)));
+  }
+
+  // ── First meeting scoring: discovery + gap creation, original weights ──
+
+  // Talk ratio: closer to 50% = better, max 25 pts
+  const talkDiff = Math.abs(talkRatio - 50);
+  const talkPts = Math.max(0, 25 - talkDiff);
+
+  // Question count: 22+ = full marks, max 20 pts
+  const qPts = Math.min(20, Math.round((qCount / 22) * 20));
+
+  // Script adherence: already 0-100, scale to max 20 pts
+  const scriptPts = Math.round((scriptAdh / 100) * 20);
+
+  // Prospect engagement net score: max 15 pts
+  const engPts = Math.max(0, Math.min(15, Math.round((netEngagement / 8) * 15)));
+
+  // Coachable moments: fewer = better, max 20 pts
   const coachPts = Math.max(0, 20 - coachableCount * 2);
 
   return Math.round(Math.max(0, Math.min(100, talkPts + qPts + scriptPts + engPts + coachPts)));

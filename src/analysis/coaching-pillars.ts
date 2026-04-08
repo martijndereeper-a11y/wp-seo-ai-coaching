@@ -36,7 +36,9 @@ export function scoreCallPillars(
   scriptSectionsHit: number[],
   prospectEngagement: { buyingSignals?: number; redFlags?: number; engagementIndicators?: number; score?: string } | null,
   smartReview?: { phases?: { control: string; engagement: string }[]; objections?: { handling: string }[]; buyingSignals?: { didAdvance: boolean }[] },
+  meetingType: string = 'first',
 ): PillarScores {
+  const isFollowUp = meetingType === 'follow-up';
 
   const vd = Array.isArray(callVerdict) ? callVerdict : [];
   const hl = highlights || [];
@@ -45,12 +47,11 @@ export function scoreCallPillars(
   const sr = smartReview || {};
 
   // ── 1. CONTROL: Does the AE lead the conversation? ──
-  // Good: 45-60% talk ratio, check-ins, agenda setting, redirecting
-  // Bad: >70% (monologuing) or <30% (passive)
+  // Follow-ups: AE can be more directive (ideal shifts to 55%)
   let controlScore = 50;
-  // Talk ratio sweet spot: 45-55% is ideal
-  const talkDiff = Math.abs(talkRatio - 50);
-  controlScore += Math.max(0, 25 - talkDiff); // up to +25 for perfect ratio
+  const controlIdeal = isFollowUp ? 55 : 50;
+  const talkDiff = Math.abs(talkRatio - controlIdeal);
+  controlScore += Math.max(0, 25 - talkDiff);
   // Check-ins show pace control
   controlScore += Math.min(15, (p.checkIn || 0) * 5);
   // Excessive monologues hurt control
@@ -64,11 +65,10 @@ export function scoreCallPillars(
   controlScore = Math.max(0, Math.min(100, controlScore));
 
   // ── 2. DISCOVERY: Do they understand the prospect? ──
-  // Good: 18+ questions, hypothesis-led, prospect gives long answers
-  // Bad: <10 questions, jumped straight to pitch
+  // Follow-ups: lower question target (confirmation, not deep discovery)
   let discoveryScore = 0;
-  // Question count (target: 22, minimum: 12)
-  discoveryScore += Math.min(40, Math.round((questionCount / 22) * 40));
+  const qTarget = isFollowUp ? 12 : 22;
+  discoveryScore += Math.min(40, Math.round((questionCount / qTarget) * 40));
   // Open discovery questions
   discoveryScore += Math.min(10, (p.openDiscovery || 0) * 5);
   // Talked about their business
@@ -84,17 +84,24 @@ export function scoreCallPillars(
   discoveryScore = Math.max(0, Math.min(100, discoveryScore));
 
   // ── 3. GAP CREATION: Does the prospect see the problem? ──
-  // Good: live proof, 96.55% stat, sitemap demo, prospect engagement rises
-  // Bad: abstract "vindbaarheid", no concrete proof
+  // Follow-ups: gap should already exist, less script needed. Focus on reinforcement.
   let gapScore = 0;
-  // Key script sections that create the gap
   const gapSections = new Set(scriptSectionsHit || []);
-  if (gapSections.has(2)) gapScore += 15;  // AI Search shift
-  if (gapSections.has(5)) gapScore += 15;  // 96.55% stat
-  if (gapSections.has(6)) gapScore += 10;  // Manual pain
-  if (gapSections.has(7)) gapScore += 20;  // Sitemap demo
-  if (gapSections.has(8)) gapScore += 10;  // Pling flow
-  if (gapSections.has(9)) gapScore += 10;  // Topic clusters
+  if (isFollowUp) {
+    // Follow-ups: bonus for reinforcing key sections, but start with higher base
+    gapScore = 30; // base: gap was already created in first call
+    if (gapSections.has(7)) gapScore += 15;  // Sitemap demo (if re-shown)
+    if (gapSections.has(12)) gapScore += 15; // Pricing/close sections
+    if (gapSections.has(11)) gapScore += 10; // Expectation management
+    if (gapSections.has(10)) gapScore += 10; // Fisher/first mover
+  } else {
+    if (gapSections.has(2)) gapScore += 15;  // AI Search shift
+    if (gapSections.has(5)) gapScore += 15;  // 96.55% stat
+    if (gapSections.has(6)) gapScore += 10;  // Manual pain
+    if (gapSections.has(7)) gapScore += 20;  // Sitemap demo
+    if (gapSections.has(8)) gapScore += 10;  // Pling flow
+    if (gapSections.has(9)) gapScore += 10;  // Topic clusters
+  }
   // Live proof shown
   if (hl.some(h => h.category === 'Live Proof')) gapScore += 15;
   // Market context set
@@ -126,9 +133,9 @@ export function scoreCallPillars(
   objScore = Math.max(0, Math.min(100, objScore));
 
   // ── 5. ADVANCEMENT: Does every call end with a next step? ──
-  // Good: close language, assumptive close, next step defined, urgency
-  // Bad: no close, "laat maar weten", missed buying signals
+  // Follow-ups: advancement is critical — the entire point is to close or commit
   let advScore = 0;
+  const advMultiplier = isFollowUp ? 1.3 : 1.0; // follow-ups weigh advancement higher
   // Close language used
   advScore += Math.min(25, (p.contract || 0) * 10);
   // Assumptive close
@@ -152,7 +159,9 @@ export function scoreCallPillars(
   if (hl.some(h => h.category === 'Missed Buy Signal')) advScore -= 10;
   if (hl.some(h => h.category === 'Price Without Anchor')) advScore -= 5;
   if (vd.includes('Pricing without ROI framing')) advScore -= 10;
-  advScore = Math.max(0, Math.min(100, advScore));
+  // Follow-ups: penalties hit harder for not advancing
+  if (isFollowUp && advScore < 30) advScore = Math.max(0, advScore - 10);
+  advScore = Math.max(0, Math.min(100, Math.round(advScore * advMultiplier)));
 
   // Convert to levels
   function toLevel(score: number): 'strong' | 'developing' | 'needs work' {

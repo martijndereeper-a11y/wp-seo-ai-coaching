@@ -310,6 +310,25 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 
   <div class="wn-entry">
     <div class="wn-date">8 apr 2026</div>
+    <div class="wn-title">First Meeting vs Follow-up Detectie</div>
+    <span class="wn-tag feature">Nieuw</span>
+    <div class="wn-body" style="margin-top:6px">
+      Calls worden nu automatisch geclassificeerd als <strong>First Meeting</strong> of <strong>Follow-up</strong>. De detectie kijkt naar:
+      <div style="margin:6px 0">
+        &bull; Deal-groepering &mdash; meerdere calls op dezelfde deal<br>
+        &bull; Titel-patronen &mdash; "follow-up", "vervolg", "2e gesprek"<br>
+        &bull; Transcript opening &mdash; verwijzingen naar een vorig gesprek<br>
+        &bull; Company intro &mdash; uitgebreide introductie = eerste call
+      </div>
+      <strong>Waarom dit belangrijk is:</strong> de kwaliteitsscore en pillar scores worden nu <strong>anders berekend</strong> per type.
+      First meetings worden beoordeeld op discovery en gap creation. Follow-ups op advancement en objection handling.
+      <br><br>
+      Je ziet het badge bij elke call en in je call-lijst.
+    </div>
+  </div>
+
+  <div class="wn-entry">
+    <div class="wn-date">8 apr 2026</div>
     <div class="wn-title">Sales Game Scoring</div>
     <span class="wn-tag feature">Nieuw</span>
     <div class="wn-body" style="margin-top:6px">
@@ -405,7 +424,7 @@ const $ = id => document.getElementById(id);
 let mode = 'ae'; // 'ae' or 'lead'
 
 // What's New panel
-const WN_VERSION = '2026-04-08';
+const WN_VERSION = '2026-04-08b';
 function toggleWhatsNew() {
   const panel = $('wn-panel');
   const overlay = $('wn-overlay');
@@ -943,9 +962,10 @@ function callRowHTML(c, name) {
   const date = (c.created_at||'').slice(0,10);
   const dur = c.duration_seconds ? Math.round(c.duration_seconds/60)+'m' : '';
   const rid = c.recording_id || '';
+  const mtBadge = c.meeting_type === 'follow-up' ? ' <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">FU</span>' : '';
   return '<tr onclick="loadCallDetail(\''+rid+'\',\''+esc(name)+'\')">'+
     '<td>'+date+'</td>'+
-    '<td>'+(c.title||'Untitled')+'</td>'+
+    '<td>'+(c.title||'Untitled')+mtBadge+'</td>'+
     '<td>'+(c.deal_name||'')+'</td>'+
     '<td><span style="color:'+qClr(cq)+';font-weight:700">'+cq+'</span></td>'+
     '<td>'+(c.talk_ratio != null ? c.talk_ratio : '')+'%</td>'+
@@ -2113,6 +2133,8 @@ async function loadAEDetail(name) {
         html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
         html += '<span style="font-size:12px;color:var(--text2);width:75px">'+date+'</span>';
         html += '<span style="font-size:13px;font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(c.title||'Untitled')+'</span>';
+        var cmt = c.meeting_type || '';
+        if (cmt === 'follow-up') html += '<span style="padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">Follow-up</span>';
         html += '<span style="font-size:12px;color:var(--text2)">'+dur+'min</span>';
         html += '<span style="font-size:14px;font-weight:700;color:'+qClr(c.call_quality_score||0)+';width:30px;text-align:right">'+(c.call_quality_score||0)+'</span>';
         html += '</div>';
@@ -2389,9 +2411,16 @@ async function loadCallDetail(rid, aeName) {
     const baseUrl = call.recording_url || '';
 
     // Header
+    const mt = call.meeting_type || 'first';
+    const mtClass = call.meeting_classification || {};
+    const mtBadge = mt === 'follow-up'
+      ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">Follow-up'+(mtClass.dealSequence ? ' #'+mtClass.dealSequence : '')+'</span>'
+      : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(183,72,255,.12);color:var(--purple)">First Meeting</span>';
+    const mtConf = mtClass.confidence ? ' <span style="font-size:10px;color:var(--text2)">('+mtClass.confidence+' confidence)</span>' : '';
+
     let html = '<button class="back-btn" onclick="loadAEDetail(\''+esc(aeName)+'\')">&larr; Back to '+aeName+'</button>';
     html += '<div class="card" style="margin-bottom:20px">'+
-      '<div style="font-size:18px;font-weight:700;margin-bottom:4px">'+(call.title||'Untitled Call')+'</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="font-size:18px;font-weight:700">'+(call.title||'Untitled Call')+'</div>'+mtBadge+mtConf+'</div>'+
       '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">'+call.recorder_name+' &middot; '+date+' &middot; '+(call.deal_name||'')+
       (outcome?' &middot; <span style="font-size:11px;color:var(--text2)">'+outcome+'</span>':'')+
       '</div>'+
