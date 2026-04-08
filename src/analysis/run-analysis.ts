@@ -16,6 +16,7 @@ import { SCRIPT_SECTIONS } from './script-sections.ts';
 import { loadCoachingGuides, matchRulesToCall } from './coaching-guides-loader.ts';
 import { scoreCallPillars } from './coaching-pillars.ts';
 import { generateSmartReview, type SmartReviewBenchmarks } from './smart-review.ts';
+import { scoreGame } from './sales-game.ts';
 
 const supabase = createSupabaseClient();
 const isFullMode = process.argv.includes('--full');
@@ -47,10 +48,16 @@ async function ensureTables() {
         patterns JSONB DEFAULT '{}',
         highlights JSONB DEFAULT '[]',
         call_quality_score FLOAT DEFAULT 0,
+        game_score JSONB DEFAULT '{}',
         analyzed_at TIMESTAMPTZ DEFAULT NOW()
       );
     `,
   }).catch(() => ({ error: { message: 'rpc not available' } }));
+
+  // Add game_score column if table already exists (migration for existing installs)
+  await supabase.rpc('exec_sql', {
+    sql: `ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS game_score JSONB DEFAULT '{}';`,
+  }).catch(() => {});
 
   // Create ae_coaching_profiles table
   const { error: e2 } = await supabase.rpc('exec_sql', {
@@ -251,6 +258,7 @@ async function main() {
         analysis.highlights, analysis.callVerdict, analysis.sectionsHit,
         analysis.prospectEngagement, smartReview,
       ),
+      game_score: scoreGame(parsed.turns, rec.recorder_name, outcome),
       analyzed_at: new Date().toISOString(),
     };
 

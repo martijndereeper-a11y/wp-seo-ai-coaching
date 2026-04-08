@@ -231,6 +231,29 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 .tf-period-chip{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text2);font-size:11px;cursor:pointer;transition:all .15s;font-family:'Archivo',sans-serif}
 .tf-period-chip:hover{border-color:var(--purple)}
 .tf-period-chip.active{background:var(--purple);color:white;border-color:var(--purple)}
+
+/* Sales Game */
+.game-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.game-score-big{font-size:42px;font-weight:800;line-height:1}
+.game-action{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid rgba(46,51,72,.3)}
+.game-action:last-child{border:none}
+.game-action .ga-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;flex-shrink:0}
+.game-action .ga-icon.earned{background:rgba(16,185,129,.15);color:var(--green)}
+.game-action .ga-icon.missed{background:rgba(239,68,68,.08);color:var(--red)}
+.game-action .ga-icon.blocked{background:rgba(245,158,11,.08);color:var(--orange)}
+.game-action .ga-body{flex:1;min-width:0}
+.game-action .ga-head{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.game-action .ga-name{font-size:13px;font-weight:600}
+.game-action .ga-pts{font-size:11px;font-weight:700;padding:1px 6px;border-radius:3px}
+.game-action .ga-pts.earned{background:rgba(16,185,129,.12);color:var(--green)}
+.game-action .ga-pts.missed{color:var(--text2)}
+.game-action .ga-metaphor{font-size:10px;color:var(--text2)}
+.game-action .ga-evidence{font-size:12px;color:var(--text);margin-top:4px;font-style:italic}
+.game-action .ga-reason{font-size:12px;color:var(--orange);margin-top:4px;line-height:1.5}
+.game-lb-row{display:grid;grid-template-columns:32px 1fr 60px 50px repeat(6,36px);gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(46,51,72,.3);font-size:12px}
+.game-lb-row:hover{background:var(--bg3)}
+.game-lb-row .rank{font-size:16px;font-weight:800;text-align:center}
+.game-lb-row .action-dot{width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
 </style>
 </head>
 <body>
@@ -935,8 +958,13 @@ function renderTeamAE() {
         '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+calls+' calls &middot; Talk: '+talk+'% &middot; Script: '+script+'%</div>'+
         pillarBadgesHTML(aePillars)+
       '</div>';
-    }).join('')+'</div>';
+    }).join('')+'</div>'+
+    '<div id="game-lb-ae"></div>';
   $('app').innerHTML = html;
+  loadGameLeaderboard().then(function(lbHtml) {
+    var el = document.getElementById('game-lb-ae');
+    if (el && lbHtml) el.innerHTML = lbHtml;
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -989,6 +1017,9 @@ async function renderTeamLead() {
     });
     html += '</div>';
   }
+
+  // Game Leaderboard (lead view)
+  html += '<div id="game-lb-lead"></div>';
 
   // What Good Looks Like
   if (wgllData && !wgllData.error) {
@@ -1158,6 +1189,12 @@ async function renderTeamLead() {
   html += '</tbody></table></div>';
 
   $('app').innerHTML = html;
+
+  // Load game leaderboard
+  loadGameLeaderboard().then(function(lbHtml) {
+    var el = document.getElementById('game-lb-lead');
+    if (el && lbHtml) el.innerHTML = lbHtml;
+  });
 
   // Render talk ratio buckets chart
   setTimeout(() => {
@@ -1693,6 +1730,84 @@ function setPeriodWindow(aeName, preset, btn) {
 }
 
 // ════════════════════════════════════════════════════════
+//  SALES GAME
+// ════════════════════════════════════════════════════════
+
+function renderGameScorecard(gs) {
+  if (!gs || gs.totalPoints === undefined) return '';
+
+  const pct = Math.round((gs.totalPoints / gs.maxPoints) * 100);
+  const clr = pct >= 60 ? 'var(--green)' : pct >= 30 ? 'var(--orange)' : 'var(--red)';
+
+  let h = '<div class="game-card" style="border-left:3px solid '+clr+'">';
+
+  // Header with big score
+  h += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">';
+  h += '<div><div class="game-score-big" style="color:'+clr+'">'+gs.totalPoints+'</div><div style="font-size:11px;color:var(--text2)">/ '+gs.maxPoints+' punten</div></div>';
+  h += '<div style="flex:1"><div style="font-size:14px;font-weight:700">Sales Game Score</div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+gs.summary+'</div></div>';
+  h += '</div>';
+
+  // Actions
+  gs.actions.forEach(function(a) {
+    const isBlocked = !a.earned && a.evidence && a.evidence.includes('Geblokkeerd');
+    const iconCls = a.earned ? 'earned' : isBlocked ? 'blocked' : 'missed';
+    const icon = a.earned ? '✓' : isBlocked ? '⛔' : '✗';
+    const ptsCls = a.earned ? 'earned' : 'missed';
+
+    h += '<div class="game-action">';
+    h += '<div class="ga-icon '+iconCls+'">'+icon+'</div>';
+    h += '<div class="ga-body">';
+    h += '<div class="ga-head"><span class="ga-name">'+a.id+' — '+a.name+'</span><span class="ga-pts '+ptsCls+'">'+(a.earned ? '+'+a.points : '0')+' pts</span>';
+    if (a.timestamp) h += '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+a.timestamp+'</span>';
+    h += '</div>';
+    h += '<div class="ga-metaphor">'+a.metaphor+'</div>';
+    if (a.earned && a.evidence) h += '<div class="ga-evidence">"'+a.evidence.replace(/^(Prospect bevestigde: |DM bevestigd: |Budget bevestigd: |Harde datum binnen een week: |Deal closed: |Close signal: |Incentive: )/,'').replace(/"/g,'')+'"</div>';
+    if (!a.earned && a.reason) h += '<div class="ga-reason">'+a.reason+'</div>';
+    h += '</div></div>';
+  });
+
+  h += '</div>';
+  return h;
+}
+
+async function loadGameLeaderboard() {
+  const data = await api('/api/game/leaderboard');
+  if (!data || !data.leaderboard) return '';
+
+  const lb = data.leaderboard;
+  if (lb.length === 0) return '';
+
+  let h = '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Sales Game Leaderboard</h3>';
+
+  // Header row
+  h += '<div class="game-lb-row" style="border-bottom:2px solid var(--border);font-weight:600;color:var(--text2)">';
+  h += '<div>#</div><div>AE</div><div style="text-align:right">Avg</div><div style="text-align:right">TD</div>';
+  h += '<div style="text-align:center;font-size:10px">A</div><div style="text-align:center;font-size:10px">B</div><div style="text-align:center;font-size:10px">C</div><div style="text-align:center;font-size:10px">D</div><div style="text-align:center;font-size:10px">E</div><div style="text-align:center;font-size:10px">F</div>';
+  h += '</div>';
+
+  lb.forEach(function(ae, i) {
+    const clr = ae.avgScore >= 30 ? 'var(--green)' : ae.avgScore >= 15 ? 'var(--orange)' : 'var(--red)';
+    h += '<div class="game-lb-row" onclick="loadAEDetail(\''+esc(ae.name)+'\')" style="cursor:pointer">';
+    h += '<div class="rank" style="color:'+(i<3?'var(--purple)':'var(--text2)')+'">'+( i+1)+'</div>';
+    h += '<div><div style="font-weight:600">'+ae.name+'</div><div style="font-size:10px;color:var(--text2)">'+ae.totalCalls+' calls</div></div>';
+    h += '<div style="text-align:right;font-weight:700;color:'+clr+'">'+ae.avgScore+'</div>';
+    h += '<div style="text-align:right;font-weight:600">'+ae.touchdowns+'</div>';
+
+    var actionIds = ['A','B','C','D','E','F'];
+    actionIds.forEach(function(id) {
+      var rate = ae.actionHitRates[id] || 0;
+      var bg = rate >= 60 ? 'rgba(16,185,129,.15)' : rate >= 30 ? 'rgba(245,158,11,.12)' : 'rgba(239,68,68,.08)';
+      var fg = rate >= 60 ? 'var(--green)' : rate >= 30 ? 'var(--orange)' : 'var(--red)';
+      h += '<div class="action-dot" style="background:'+bg+';color:'+fg+'">'+rate+'%</div>';
+    });
+    h += '</div>';
+  });
+
+  h += '</div>';
+  return h;
+}
+
+// ════════════════════════════════════════════════════════
 //  AE DETAIL
 // ════════════════════════════════════════════════════════
 
@@ -2215,13 +2330,22 @@ async function loadCallDetail(rid, aeName) {
       '</div>';
     }
 
-    // Quality Score Stats
-    html += '<div class="grid-4" style="margin-bottom:16px">'+
+    // Quality + Game Score Stats
+    const gs = call.game_score || {};
+    const gsPoints = gs.totalPoints !== undefined ? gs.totalPoints : '—';
+    const gsClr = gs.totalPoints >= 40 ? 'var(--green)' : gs.totalPoints >= 15 ? 'var(--orange)' : gs.totalPoints !== undefined ? 'var(--red)' : 'var(--text2)';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px">'+
       '<div class="sbox"><div class="sv" style="color:'+qClr(cq)+'">'+cq+'</div><div class="sl">Quality</div></div>'+
+      '<div class="sbox"><div class="sv" style="color:'+gsClr+'">'+gsPoints+'</div><div class="sl">Game Score</div></div>'+
       '<div class="sbox"><div class="sv">'+(call.talk_ratio||0)+'%</div><div class="sl">Talk Ratio</div></div>'+
       '<div class="sbox"><div class="sv">'+(call.question_count||0)+'</div><div class="sl">Questions</div></div>'+
       '<div class="sbox"><div class="sv">'+dur+'m</div><div class="sl">Duration</div></div>'+
     '</div>';
+
+    // Game Scorecard
+    if (gs.actions) {
+      html += renderGameScorecard(gs);
+    }
 
     // Quality breakdown
     html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
