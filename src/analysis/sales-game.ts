@@ -27,20 +27,20 @@ export interface GameAction {
   metaphor: string;
   points: number;
   earned: boolean;
-  evidence: string;             // Quote or explanation of why earned/not earned
-  timestamp?: string;           // When in the call this was detected
-  reason?: string;              // If not earned: why not
+  evidence: string;
+  timestamp?: string;
+  reason?: string;
 }
 
 export interface GameScore {
   totalPoints: number;
-  maxPoints: number;            // Always 70
+  maxPoints: number;
   actions: GameAction[];
-  valueConfirmed: boolean;      // Gate for B/C/D
-  summary: string;              // One-line human-readable summary
+  valueConfirmed: boolean;
+  summary: string;
 }
 
-// ─── Detection Helpers ─────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function isAE(turn: TranscriptTurn, recorderName: string): boolean {
   const firstName = recorderName.split(' ')[0].toLowerCase();
@@ -51,14 +51,18 @@ function isProspect(turn: TranscriptTurn, recorderName: string): boolean {
   return !isAE(turn, recorderName);
 }
 
-/** Find the first turn index where a pattern matches in a speaker's turns */
+/**
+ * Search ALL turns from a speaker for a pattern match.
+ * Returns the first match found.
+ */
 function findTurn(
   turns: TranscriptTurn[],
   recorderName: string,
   speaker: 'ae' | 'prospect',
   pattern: RegExp,
+  startFrom: number = 0,
 ): { index: number; turn: TranscriptTurn } | null {
-  for (let i = 0; i < turns.length; i++) {
+  for (let i = startFrom; i < turns.length; i++) {
     const t = turns[i];
     const isSpeaker = speaker === 'ae' ? isAE(t, recorderName) : isProspect(t, recorderName);
     if (!isSpeaker) continue;
@@ -68,7 +72,10 @@ function findTurn(
   return null;
 }
 
-/** Check if a prospect turn exists after a given index matching a pattern */
+/**
+ * Search for a prospect response after a given index.
+ * Can also check for response LENGTH as a signal (long positive = confirmation).
+ */
 function prospectRespondsAfter(
   turns: TranscriptTurn[],
   recorderName: string,
@@ -85,12 +92,51 @@ function prospectRespondsAfter(
   return null;
 }
 
-// ─── Action Detectors ──────────────────────────────────────────────────────
+/**
+ * Find a prospect response that is "positively long" — a substantial positive
+ * answer (>15 words) that doesn't contain doubt/objection language.
+ * Used as a fallback for value confirmation when exact keywords aren't hit.
+ */
+function prospectGivesPositiveLongAnswer(
+  turns: TranscriptTurn[],
+  recorderName: string,
+  afterIndex: number,
+  maxLookahead: number = 6,
+): TranscriptTurn | null {
+  const DOUBT = /weet.*niet|twijfel|lastig|moeilijk|niet.*zeker|misschien.*niet|geen.*idee|moet.*nadenken|intern.*overleg|te.*duur|geen.*budget|geen.*tijd|nicht.*sicher|schwierig/i;
+  const limit = Math.min(afterIndex + maxLookahead, turns.length);
+  for (let i = afterIndex + 1; i < limit; i++) {
+    const t = turns[i];
+    if (!isProspect(t, recorderName)) continue;
+    // Long response (>15 words) without doubt language = implicit positive
+    if (t.wordCount > 15) {
+      DOUBT.lastIndex = 0;
+      if (!DOUBT.test(t.text)) return t;
+    }
+  }
+  return null;
+}
 
-// A — Value Confirmation (15 pts)
-// AE asks if prospect sees value / wants to start → prospect explains why
-const VALUE_ASK = /enthousiast|wil.*je.*starten|zou.*je.*willen|wat.*vind.*je|hoe.*klinkt|zouden.*jullie|interesse|zin.*in|klinkt.*dat|spreekt.*aan|overtuigd|past.*bij/i;
-const VALUE_CONFIRM = /ja.*graag|wil.*starten|klinkt.*goed|spreekt.*aan|zie.*de.*waarde|logisch|past.*bij|interessant|willen.*we|gaan.*we|zeker|absoluut|overtuigd|enthousiast|wil.*ik|willen.*beginnen|ga.*ik|helemaal|snap.*waarom|belangrijk.*voor|helpt.*ons|nodig.*heb|precies.*wat|zoeken.*wij|perfect/i;
+/**
+ * Check if an AE turn is phrased as a question (contains ? or is short + ends questioning).
+ * Filters out AE statements that happen to contain value-related keywords.
+ */
+function isQuestionTurn(turn: TranscriptTurn): boolean {
+  if (turn.text.includes('?')) return true;
+  // Short turns ending with rising intonation words
+  if (turn.wordCount <= 20 && /toch$|of niet$|he$|hè$/i.test(turn.text.trim())) return true;
+  return false;
+}
+
+// ─── A: Value Confirmation (15 pts) ────────────────────────────────────────
+//
+// AE asks if prospect is enthusiastic / wants to start → prospect confirms.
+// The ask MUST be a question (contains ?), not a statement.
+// Confirmation is broad: explicit keywords OR a long positive answer.
+
+const VALUE_ASK = /enthousiast|wil.*je.*starten|zou.*je.*willen|wat.*vind.*je|hoe.*klinkt|zouden.*jullie|interesse|zin.*in|klinkt.*dat|spreekt.*je.*aan|overtuigd|past.*bij|zou.*dit.*iets|is.*dit.*iets|zie.*je.*dit|aanspreek|leuk.*vind|iets.*voor.*jullie|zouden.*jullie.*willen|hier.*mee.*aan.*de.*slag|matcht|aansluit/i;
+
+const VALUE_CONFIRM = /ja|jazeker|zeker|absoluut|helemaal|klopt|inderdaad|precies|exact|goed.*verhaal|klinkt.*goed|klinkt.*logisch|klinkt.*interessant|spreekt.*aan|past.*bij|willen.*we|gaan.*we|willen.*beginnen|wil.*ik|ga.*ik|dat.*willen|nodig.*heb|zoeken.*wij|perfect|super|top|mooi|leuk|dat.*is.*het|dat.*is.*precies|mee.*eens|lijkt.*me.*goed|lijkt.*goed|kan.*niet.*wachten|overtuigd|enthousiast|positief|blij|logisch|dat.*snappen|begrijp.*ik|zie.*ik.*wel|is.*wat.*we|handiger|makkelijker|beter|scheelt|helpt|nuttig|waardevol|relevant/i;
 
 function detectValueConfirmation(turns: TranscriptTurn[], recorderName: string): GameAction {
   const action: GameAction = {
@@ -98,32 +144,63 @@ function detectValueConfirmation(turns: TranscriptTurn[], recorderName: string):
     points: 15, earned: false, evidence: '',
   };
 
-  // Find AE asking the value question
-  const aeAsk = findTurn(turns, recorderName, 'ae', VALUE_ASK);
-  if (!aeAsk) {
+  // Search for AE value questions (must be question-like)
+  // Try multiple passes — sometimes the first match is a statement, not a question
+  let bestAsk: { index: number; turn: TranscriptTurn } | null = null;
+  let searchFrom = 0;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const match = findTurn(turns, recorderName, 'ae', VALUE_ASK, searchFrom);
+    if (!match) break;
+    // Prefer turns that are actual questions
+    if (isQuestionTurn(match.turn)) {
+      bestAsk = match;
+      break;
+    }
+    // Accept non-question turns only in second half of call (after pitch)
+    if (!bestAsk && match.index > turns.length * 0.4) {
+      bestAsk = match;
+    }
+    searchFrom = match.index + 1;
+  }
+
+  if (!bestAsk) {
     action.reason = 'Je hebt niet gevraagd of de prospect de waarde ziet of wil starten. Stel vragen als "Spreekt dit je aan?" of "Zou je hiermee willen starten?"';
     action.evidence = 'Geen value-vraag gevonden in het gesprek.';
     return action;
   }
 
-  // Find prospect confirming after the ask
-  const confirm = prospectRespondsAfter(turns, recorderName, aeAsk.index, VALUE_CONFIRM);
-  if (!confirm) {
-    action.reason = 'Je hebt de vraag gesteld, maar de prospect heeft de waarde niet expliciet bevestigd. Vraag door: "Kun je uitleggen waarom dit voor jullie interessant is?"';
-    action.evidence = `AE vroeg: "${aeAsk.turn.text.slice(0, 120)}" maar prospect bevestigde niet.`;
-    action.timestamp = aeAsk.turn.timestampDisplay;
+  // Check 1: Explicit keyword match in prospect response
+  const confirm = prospectRespondsAfter(turns, recorderName, bestAsk.index, VALUE_CONFIRM);
+  if (confirm) {
+    action.earned = true;
+    action.evidence = `Prospect bevestigde: "${confirm.text.slice(0, 150)}"`;
+    action.timestamp = confirm.timestampDisplay;
     return action;
   }
 
-  action.earned = true;
-  action.evidence = `Prospect bevestigde: "${confirm.text.slice(0, 150)}"`;
-  action.timestamp = confirm.timestampDisplay;
+  // Check 2: Long positive response (>15 words, no doubt language)
+  const longPositive = prospectGivesPositiveLongAnswer(turns, recorderName, bestAsk.index);
+  if (longPositive) {
+    action.earned = true;
+    action.evidence = `Prospect gaf een uitgebreid positief antwoord: "${longPositive.text.slice(0, 150)}"`;
+    action.timestamp = longPositive.timestampDisplay;
+    return action;
+  }
+
+  action.reason = 'Je hebt de vraag gesteld, maar de prospect heeft de waarde niet expliciet bevestigd. Vraag door: "Kun je uitleggen waarom dit voor jullie interessant is?"';
+  action.evidence = `AE vroeg: "${bestAsk.turn.text.slice(0, 120)}" maar prospect bevestigde niet.`;
+  action.timestamp = bestAsk.turn.timestampDisplay;
   return action;
 }
 
-// B — Decision Maker (5 pts)
-const DM_ASK = /wie.*beslist|wie.*beslissing|beslisser|decision.*maker|wie.*tekent|wie.*akkoord|wie.*moet.*meekijk|andere.*stakeholder|nog.*iemand.*nodig|wie.*betrokken.*bij.*besluit|verantwoordelijk.*voor/i;
-const DM_CONFIRM = /ik.*beslis|ik.*besluit|dat.*ben.*ik|dat.*doe.*ik|ik.*teken|alleen.*nodig|ik.*mag.*beslissen|niemand.*anders|mijn.*beslissing|ik.*ga.*erover|ik.*heb.*mandaat/i;
+// ─── B: Decision Maker (5 pts) ─────────────────────────────────────────────
+//
+// AE surfaces who decides. Can be a direct question OR natural conversation
+// where DM topic comes up. Broader patterns for both ask and confirm.
+
+const DM_ASK = /wie.*beslist|wie.*beslissing|beslisser|decision.*maker|wie.*tekent|wie.*akkoord|wie.*moet.*meekijk|stakeholder|nog.*iemand.*nodig|wie.*betrokken|verantwoordelijk|ben.*jij.*degene|jij.*zelf.*beslissen|alleen.*jij|iemand.*anders.*nodig|goedkeuring|eigenaar|directeur|directie|management|team.*betrokken|afstemmen.*met|overleg.*met|toestemming|moet.*je.*nog/i;
+
+const DM_CONFIRM = /ik.*beslis|ik.*besluit|dat.*ben.*ik|dat.*doe.*ik|ik.*teken|alleen.*nodig|ik.*mag.*beslissen|niemand.*anders|mijn.*beslissing|ik.*ga.*erover|ik.*heb.*mandaat|ik.*kan.*dat|hoef.*niemand|eigenaar|directeur.*ben.*ik|mijn.*bedrijf|mijn.*zaak|ik.*ben.*de.*baas|zelf.*weten|ik.*bepaal|nee.*alleen.*ik|nee.*dat.*hoeft.*niet|nee.*ik.*kan/i;
 
 function detectDecisionMaker(turns: TranscriptTurn[], recorderName: string): GameAction {
   const action: GameAction = {
@@ -131,32 +208,46 @@ function detectDecisionMaker(turns: TranscriptTurn[], recorderName: string): Gam
     points: 5, earned: false, evidence: '',
   };
 
+  // Check for AE asking about DM
   const aeAsk = findTurn(turns, recorderName, 'ae', DM_ASK);
-  if (!aeAsk) {
-    action.reason = 'Je hebt niet gevraagd wie de beslisser is. Vraag altijd: "Wie beslist hierover?" of "Zijn er nog andere stakeholders betrokken?"';
-    action.evidence = 'Geen DM-vraag gevonden.';
+
+  if (aeAsk) {
+    // Check for explicit DM confirmation
+    const confirm = prospectRespondsAfter(turns, recorderName, aeAsk.index, DM_CONFIRM, 8);
+    if (confirm) {
+      action.earned = true;
+      action.evidence = `DM bevestigd: "${confirm.text.slice(0, 150)}"`;
+      action.timestamp = confirm.timestampDisplay;
+      return action;
+    }
+    action.reason = 'Je hebt naar de beslisser gevraagd maar geen duidelijke bevestiging gekregen. Push: "Ben jij degene die hierover beslist?"';
+    action.evidence = `AE vroeg: "${aeAsk.turn.text.slice(0, 120)}" — geen bevestiging.`;
+    action.timestamp = aeAsk.turn.timestampDisplay;
     return action;
   }
 
-  const confirm = prospectRespondsAfter(turns, recorderName, aeAsk.index, DM_CONFIRM);
-  if (confirm) {
+  // Fallback: prospect self-identifies as DM anywhere in the call
+  const selfIdentify = findTurn(turns, recorderName, 'prospect', DM_CONFIRM);
+  if (selfIdentify) {
     action.earned = true;
-    action.evidence = `DM bevestigd: "${confirm.text.slice(0, 150)}"`;
-    action.timestamp = confirm.timestampDisplay;
-  } else {
-    // DM question asked but no clear confirmation — still half credit scenario,
-    // but rules say no: must be confirmed
-    action.reason = 'Je hebt naar de DM gevraagd, maar geen duidelijke bevestiging gekregen. Push door: "Ben jij degene die dit tekent?"';
-    action.evidence = `AE vroeg: "${aeAsk.turn.text.slice(0, 120)}" — geen bevestiging.`;
-    action.timestamp = aeAsk.turn.timestampDisplay;
+    action.evidence = `Prospect identificeerde zichzelf als DM: "${selfIdentify.turn.text.slice(0, 150)}"`;
+    action.timestamp = selfIdentify.turn.timestampDisplay;
+    return action;
   }
 
+  action.reason = 'Decision maker niet besproken. Vraag: "Wie beslist hierover?" of "Ben jij degene die dit kan tekenen?"';
+  action.evidence = 'Geen DM-gesprek gevonden.';
   return action;
 }
 
-// C — Budget (5 pts)
-const BUDGET_ASK = /budget|allocat|investering|beschikbaar|wat.*uitgeeft|gereserveerd|hoeveel.*kost|financial|middelen|ruimte.*voor/i;
-const BUDGET_CONFIRM = /budget|beschikbaar|gereserveerd|kijken.*naar|investeren|ruimte.*voor|kunnen.*we|past.*binnen|akkoord.*op|geen.*probleem|dat.*lukt|is.*haalbaar/i;
+// ─── C: Budget / Allocation (5 pts) ────────────────────────────────────────
+//
+// Budget topic surfaces — either AE asks or it comes up during pricing.
+// Prospect indicates willingness to invest or discusses amounts.
+
+const BUDGET_TOPIC = /budget|allocat|investering|beschikbaar|wat.*uitgeef|gereserveerd|hoeveel.*kost|financial|middelen|ruimte.*voor|wat.*betaal.*je.*nu|wat.*geef.*je.*uit|wat.*kost.*jullie|bureau.*kost|per.*maand|euro|€|prijskaartje|wat.*zijn.*de.*kosten|tarief/i;
+
+const BUDGET_POSITIVE = /budget|beschikbaar|gereserveerd|investeren|ruimte.*voor|kunnen.*we|past.*binnen|geen.*probleem|dat.*lukt|is.*haalbaar|kan.*wel|is.*te.*doen|klinkt.*redelijk|euro.*per.*maand|betalen.*we.*nu|geven.*we.*uit|dat.*is.*prima|dat.*is.*goed|wat.*kost|zeg.*maar|kan.*ik.*doen|te.*overzien|schappelijk|meevalt|niet.*zo.*duur|best.*redelijk|verwacht/i;
 
 function detectBudget(turns: TranscriptTurn[], recorderName: string): GameAction {
   const action: GameAction = {
@@ -164,31 +255,53 @@ function detectBudget(turns: TranscriptTurn[], recorderName: string): GameAction
     points: 5, earned: false, evidence: '',
   };
 
-  const aeAsk = findTurn(turns, recorderName, 'ae', BUDGET_ASK);
-  if (!aeAsk) {
-    action.reason = 'Budget niet besproken. Vraag: "Is er budget beschikbaar?" of "Wat geeft je nu uit aan SEO/content?"';
-    action.evidence = 'Geen budget-vraag gevonden.';
+  // Check if budget topic comes up (from either side)
+  const aeBudget = findTurn(turns, recorderName, 'ae', BUDGET_TOPIC);
+  const prospectBudget = findTurn(turns, recorderName, 'prospect', BUDGET_TOPIC);
+
+  if (!aeBudget && !prospectBudget) {
+    action.reason = 'Budget niet besproken. Vraag: "Wat geef je nu uit aan SEO/content?" of "Is er budget beschikbaar?"';
+    action.evidence = 'Geen budget-gesprek gevonden.';
     return action;
   }
 
-  const confirm = prospectRespondsAfter(turns, recorderName, aeAsk.index, BUDGET_CONFIRM);
+  const startIndex = Math.min(
+    aeBudget?.index ?? Infinity,
+    prospectBudget?.index ?? Infinity,
+  );
+
+  // Check for positive budget response from prospect
+  const confirm = prospectRespondsAfter(turns, recorderName, startIndex, BUDGET_POSITIVE, 10);
   if (confirm) {
     action.earned = true;
-    action.evidence = `Budget bevestigd: "${confirm.text.slice(0, 150)}"`;
+    action.evidence = `Budget besproken: "${confirm.text.slice(0, 150)}"`;
     action.timestamp = confirm.timestampDisplay;
-  } else {
-    action.reason = 'Je hebt naar budget gevraagd maar geen bevestiging gekregen. Vraag concreter: "Is dit een investering die past binnen jullie huidige budget?"';
-    action.evidence = `AE vroeg: "${aeAsk.turn.text.slice(0, 120)}" — niet bevestigd.`;
-    action.timestamp = aeAsk.turn.timestampDisplay;
+    return action;
   }
 
+  // Prospect bringing up budget/pricing themselves is also a positive signal
+  if (prospectBudget && prospectBudget.turn.wordCount > 8) {
+    action.earned = true;
+    action.evidence = `Prospect bracht budget ter sprake: "${prospectBudget.turn.text.slice(0, 150)}"`;
+    action.timestamp = prospectBudget.turn.timestampDisplay;
+    return action;
+  }
+
+  action.reason = 'Budget werd besproken maar prospect gaf geen positief signaal. Vraag concreter: "Past dit binnen jullie budget?"';
+  action.evidence = `Budget kwam ter sprake maar geen bevestiging.`;
+  action.timestamp = (aeBudget || prospectBudget)?.turn.timestampDisplay;
   return action;
 }
 
-// D — Timeline (5 pts) — hard date WITHIN 1 WEEK
-const TIMELINE_ASK = /wanneer.*besliss|wanneer.*starten|wanneer.*duidelijk|timeline|tijdlijn|deadline|beslismoment|datum|wanneer.*weten|wanneer.*horen|wanneer.*tekenen|deze.*week|volgende.*week|morgen/i;
-const TIMELINE_CONFIRM_TIGHT = /morgen|overmorgen|vandaag|deze.*week|maandag|dinsdag|woensdag|donderdag|vrijdag|begin.*volgende.*week|uiterlijk|komende.*dagen|voor.*het.*weekend|binnen.*een.*week/i;
-const TIMELINE_CONFIRM_LOOSE = /volgende.*maand|na.*de.*zomer|over.*een.*paar.*weken|over.*twee.*weken|na.*de.*vakantie|eind.*van.*de.*maand|binnenkort|snel/i;
+// ─── D: Timeline / Game Clock (5 pts) ──────────────────────────────────────
+//
+// Hard decision date within ~1 week. AE pushes for timing.
+
+const TIMELINE_TOPIC = /wanneer|starten|besliss|duidelijk|timeline|tijdlijn|deadline|beslismoment|datum|volgende.*week|deze.*week|morgen|horen|tekenen|laten.*weten|terugkom|plannen|inplannen|agenda|moment|termijn/i;
+
+const TIMELINE_TIGHT = /morgen|overmorgen|vandaag|deze.*week|maandag|dinsdag|woensdag|donderdag|vrijdag|begin.*volgende.*week|uiterlijk|komende.*dagen|voor.*het.*weekend|binnen.*een.*week|paar.*dagen|eind.*van.*de.*week|deze.*maandag|aankomende/i;
+
+const TIMELINE_LOOSE = /volgende.*maand|na.*de.*zomer|over.*een.*paar.*weken|over.*twee.*weken|na.*de.*vakantie|eind.*van.*de.*maand|over.*een.*maand|paar.*weken|paar.*maanden|later|niet.*nu|nog.*even|op.*termijn/i;
 
 function detectTimeline(turns: TranscriptTurn[], recorderName: string): GameAction {
   const action: GameAction = {
@@ -196,41 +309,62 @@ function detectTimeline(turns: TranscriptTurn[], recorderName: string): GameActi
     points: 5, earned: false, evidence: '',
   };
 
-  const aeAsk = findTurn(turns, recorderName, 'ae', TIMELINE_ASK);
-  if (!aeAsk) {
-    action.reason = 'Geen beslismoment afgesproken. Vraag altijd: "Wanneer kunnen jullie hierover beslissen?" en push naar een harde datum binnen een week.';
-    action.evidence = 'Geen timeline-vraag gevonden.';
+  // Find timeline topic from AE
+  const aeTimeline = findTurn(turns, recorderName, 'ae', TIMELINE_TOPIC);
+  if (!aeTimeline) {
+    action.reason = 'Geen beslismoment besproken. Vraag: "Wanneer kunnen jullie hierover beslissen?" en push naar deze week.';
+    action.evidence = 'Geen timeline-gesprek gevonden.';
     return action;
   }
 
-  // Check for tight timeline first (within ~1 week)
-  const tightConfirm = prospectRespondsAfter(turns, recorderName, aeAsk.index, TIMELINE_CONFIRM_TIGHT);
+  // Check for tight timeline (within ~1 week) from prospect
+  const tightConfirm = prospectRespondsAfter(turns, recorderName, aeTimeline.index, TIMELINE_TIGHT, 10);
   if (tightConfirm) {
     action.earned = true;
-    action.evidence = `Harde datum binnen een week: "${tightConfirm.text.slice(0, 150)}"`;
+    action.evidence = `Harde datum: "${tightConfirm.text.slice(0, 150)}"`;
     action.timestamp = tightConfirm.timestampDisplay;
     return action;
   }
 
-  // Check for loose timeline (too far out = no points)
-  const looseConfirm = prospectRespondsAfter(turns, recorderName, aeAsk.index, TIMELINE_CONFIRM_LOOSE);
+  // Also check if AE states a tight timeline and prospect doesn't object
+  const aeStatesTimeline = findTurn(turns, recorderName, 'ae', TIMELINE_TIGHT, aeTimeline.index);
+  if (aeStatesTimeline) {
+    // Check if prospect doesn't push back in the next few turns
+    const pushback = prospectRespondsAfter(turns, recorderName, aeStatesTimeline.index, TIMELINE_LOOSE, 4);
+    if (!pushback) {
+      // Check for any prospect response (even short = implicit agreement)
+      const anyResponse = prospectRespondsAfter(turns, recorderName, aeStatesTimeline.index, /./i, 4);
+      if (anyResponse && !/nee|niet|moeilijk|lastig|kan.*niet/i.test(anyResponse.text)) {
+        action.earned = true;
+        action.evidence = `AE stelde tijdlijn voor: "${aeStatesTimeline.turn.text.slice(0, 100)}" — prospect stemde in.`;
+        action.timestamp = aeStatesTimeline.turn.timestampDisplay;
+        return action;
+      }
+    }
+  }
+
+  // Check for loose timeline (too far out = 0 points)
+  const looseConfirm = prospectRespondsAfter(turns, recorderName, aeTimeline.index, TIMELINE_LOOSE, 10);
   if (looseConfirm) {
-    action.reason = `Prospect noemde een beslismoment maar te ver in de toekomst: "${looseConfirm.text.slice(0, 100)}". Push naar deze week: "Wat is er nodig om deze week een beslissing te nemen?"`;
+    action.reason = `Prospect noemde een beslismoment maar te ver weg: "${looseConfirm.text.slice(0, 100)}". Push: "Wat is er nodig om deze week te beslissen?"`;
     action.evidence = `Timeline te ver weg: "${looseConfirm.text.slice(0, 150)}"`;
     action.timestamp = looseConfirm.timestampDisplay;
     return action;
   }
 
-  action.reason = 'Je hebt naar de timeline gevraagd maar geen concreet moment gekregen. Dring aan: "Kunnen we afspreken dat je uiterlijk vrijdag laat weten?"';
-  action.evidence = `AE vroeg: "${aeAsk.turn.text.slice(0, 120)}" — geen harde datum.`;
-  action.timestamp = aeAsk.turn.timestampDisplay;
+  action.reason = 'Timeline besproken maar geen concreet moment afgesproken. Dring aan: "Kunnen we afspreken dat je uiterlijk vrijdag laat weten?"';
+  action.evidence = `AE bracht timing ter sprake maar geen harde datum.`;
+  action.timestamp = aeTimeline.turn.timestampDisplay;
   return action;
 }
 
-// E — Good News Show (10 pts)
-// AE offers incentive AND prospect gives commitment back. Both sides must be present.
-const INCENTIVE_OFFER = /extra.*blog|extra.*artik|extra.*maand|korting|discount|setup.*fee|gratis|cadeau|bonus|erbij|er.*bovenop|speciale.*actie|als.*je.*nu|als.*jullie.*vandaag|alleen.*deze.*week|eenmalig/i;
-const COMMITMENT_BACK = /afgesproken|deal|akkoord|laten.*weten.*voor|beslissen.*voor|uiterlijk|tekenen.*voor|voor.*vrijdag|voor.*maandag|deze.*week|dan.*doen.*we|dan.*gaan.*we|dan.*starten|ik.*beloof|je.*hebt.*mijn.*woord/i;
+// ─── E: Good News Show / Hail Mary (10 pts) ────────────────────────────────
+//
+// AE offers incentive AND gets commitment back. Both sides of the trade.
+
+const INCENTIVE_OFFER = /extra.*blog|extra.*artik|extra.*maand|extra.*pagina|korting|discount|setup.*fee|gratis|cadeau|bonus|erbij|er.*bovenop|speciale.*actie|als.*je.*nu|als.*jullie.*vandaag|alleen.*deze.*week|eenmalig|aanbieding|weggevertje|reducti|afprijz|onboarding.*gratis|opstartkosten|geen.*setup/i;
+
+const COMMITMENT_BACK = /afgesproken|deal|akkoord|laten.*weten.*voor|beslissen.*voor|uiterlijk|tekenen.*voor|voor.*vrijdag|voor.*maandag|deze.*week|dan.*doen.*we|dan.*gaan.*we|dan.*starten|ik.*beloof|je.*hebt.*mijn.*woord|dat.*is.*goed|oké|oke|ok|prima|doe.*maar|top|klinkt.*goed|is.*goed|gaan.*we.*doen/i;
 
 function detectGoodNewsShow(turns: TranscriptTurn[], recorderName: string): GameAction {
   const action: GameAction = {
@@ -238,32 +372,34 @@ function detectGoodNewsShow(turns: TranscriptTurn[], recorderName: string): Game
     points: 10, earned: false, evidence: '',
   };
 
-  // Find AE offering an incentive
   const incentive = findTurn(turns, recorderName, 'ae', INCENTIVE_OFFER);
   if (!incentive) {
-    action.reason = 'Geen incentive aangeboden. Bied altijd iets aan in ruil voor commitment: extra blogs, korting op setup fee, of een gratis maand. Maar vraag er dan wel iets voor terug!';
+    action.reason = 'Geen incentive aangeboden. Bied altijd iets aan in ruil voor commitment: extra blogs, korting op setup fee, of een gratis maand. Vraag er iets voor terug!';
     action.evidence = 'Geen GNS (Good News Show) gevonden.';
     return action;
   }
 
-  // Check if prospect gave commitment in return
-  const commitment = prospectRespondsAfter(turns, recorderName, incentive.index, COMMITMENT_BACK, 8);
-  if (!commitment) {
-    action.reason = `Je bood een incentive aan ("${incentive.turn.text.slice(0, 80)}"), maar vroeg niet om commitment terug. GNS = ruil. Zeg: "Dit kan ik doen als jullie voor vrijdag laten weten."`;
-    action.evidence = `Incentive zonder commitment terug: "${incentive.turn.text.slice(0, 150)}"`;
+  // Check for commitment back from prospect
+  const commitment = prospectRespondsAfter(turns, recorderName, incentive.index, COMMITMENT_BACK, 10);
+  if (commitment) {
+    action.earned = true;
+    action.evidence = `Incentive: "${incentive.turn.text.slice(0, 100)}" → Commitment: "${commitment.text.slice(0, 100)}"`;
     action.timestamp = incentive.turn.timestampDisplay;
     return action;
   }
 
-  action.earned = true;
-  action.evidence = `Incentive: "${incentive.turn.text.slice(0, 100)}" → Commitment: "${commitment.text.slice(0, 100)}"`;
+  action.reason = `Je bood een incentive aan ("${incentive.turn.text.slice(0, 80)}"), maar kreeg geen commitment terug. GNS = ruil. Zeg: "Dit kan ik doen als jullie voor vrijdag laten weten."`;
+  action.evidence = `Incentive zonder commitment: "${incentive.turn.text.slice(0, 150)}"`;
   action.timestamp = incentive.turn.timestampDisplay;
   return action;
 }
 
-// F — Touchdown (30 pts)
-// Detected from outcome data, not transcript. But we also check for in-call close signals.
-const CLOSE_SIGNALS = /getekend|ondertekend|deal.*rond|akkoord|we.*gaan.*starten|stuur.*maar|contract.*verstuurd|welkom.*bij|gefeliciteerd|we.*doen.*het|laten.*we.*beginnen|ik.*teken|waar.*moet.*ik.*tekenen/i;
+// ─── F: Touchdown (30 pts) ─────────────────────────────────────────────────
+//
+// Only from outcome data. Lost deals = NEVER a touchdown.
+// Unknown outcome: only if very strong close signals in transcript.
+
+const STRONG_CLOSE = /getekend|ondertekend|deal.*rond|we.*gaan.*starten|stuur.*het.*contract|contract.*verstuurd|welkom.*bij|gefeliciteerd|we.*doen.*het|laten.*we.*beginnen|ik.*teken|waar.*moet.*ik.*tekenen|laten.*we.*starten|wanneer.*beginnen.*we|stuur.*maar.*op|laten.*we.*het.*doen/i;
 
 function detectTouchdown(turns: TranscriptTurn[], recorderName: string, outcome: string): GameAction {
   const action: GameAction = {
@@ -271,11 +407,11 @@ function detectTouchdown(turns: TranscriptTurn[], recorderName: string, outcome:
     points: 30, earned: false, evidence: '',
   };
 
+  // Won deals = automatic touchdown
   if (outcome === 'won') {
     action.earned = true;
-    action.evidence = 'Deal is closed!';
-    // Try to find the close moment in transcript
-    const closeSignal = findTurn(turns, recorderName, 'prospect', CLOSE_SIGNALS);
+    action.evidence = 'Deal geclosed!';
+    const closeSignal = findTurn(turns, recorderName, 'prospect', STRONG_CLOSE);
     if (closeSignal) {
       action.evidence = `Deal closed: "${closeSignal.turn.text.slice(0, 150)}"`;
       action.timestamp = closeSignal.turn.timestampDisplay;
@@ -283,19 +419,24 @@ function detectTouchdown(turns: TranscriptTurn[], recorderName: string, outcome:
     return action;
   }
 
-  // Check for in-call close signals even if outcome isn't 'won'
-  const signal = findTurn(turns, recorderName, 'prospect', CLOSE_SIGNALS);
+  // Lost deals = NEVER a touchdown, regardless of what's in the transcript
+  if (outcome === 'lost') {
+    action.reason = 'Deal niet gewonnen. Analyseer wat er misgegaan is tussen value confirmation en het beslismoment.';
+    action.evidence = 'Deal lost.';
+    return action;
+  }
+
+  // Unknown outcome: only from very strong in-call close signals (strict)
+  const signal = findTurn(turns, recorderName, 'prospect', STRONG_CLOSE);
   if (signal) {
     action.earned = true;
-    action.evidence = `Close signal: "${signal.turn.text.slice(0, 150)}"`;
+    action.evidence = `Close signal in call: "${signal.turn.text.slice(0, 150)}"`;
     action.timestamp = signal.turn.timestampDisplay;
     return action;
   }
 
-  action.reason = outcome === 'lost'
-    ? 'Deal niet geclosed. Analyseer wat er tussen de waarde-bevestiging en het beslismoment is misgegaan.'
-    : 'Nog geen close. Focus op de stappen hierboven om naar een Touchdown toe te werken.';
-  action.evidence = outcome === 'lost' ? 'Deal lost.' : 'Nog geen close.';
+  action.reason = 'Nog geen close. Werk toe naar een Touchdown via de stappen hierboven.';
+  action.evidence = 'Nog geen close.';
   return action;
 }
 
@@ -306,7 +447,6 @@ export function scoreGame(
   recorderName: string,
   outcome: string = 'unknown',
 ): GameScore {
-  // Score each action
   const actionA = detectValueConfirmation(turns, recorderName);
   const actionB = detectDecisionMaker(turns, recorderName);
   const actionC = detectBudget(turns, recorderName);
@@ -329,7 +469,6 @@ export function scoreGame(
   const actions = [actionA, actionB, actionC, actionD, actionE, actionF];
   const totalPoints = actions.reduce((sum, a) => sum + (a.earned ? a.points : 0), 0);
 
-  // Generate summary
   const earnedNames = actions.filter(a => a.earned).map(a => a.metaphor);
   const missedNames = actions.filter(a => !a.earned).map(a => a.id);
   let summary: string;
