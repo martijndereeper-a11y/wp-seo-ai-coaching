@@ -962,12 +962,18 @@ function callRowHTML(c, name) {
   const date = (c.created_at||'').slice(0,10);
   const dur = c.duration_seconds ? Math.round(c.duration_seconds/60)+'m' : '';
   const rid = c.recording_id || '';
-  const mtBadge = c.meeting_type === 'follow-up' ? ' <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">FU</span>' : '';
+  const gs = c.game_score || {};
+  const gsVal = gs.totalPoints !== undefined ? gs.totalPoints : '—';
+  const gsClr = gs.totalPoints >= 40 ? 'var(--green)' : gs.totalPoints >= 15 ? 'var(--orange)' : gs.totalPoints !== undefined ? 'var(--red)' : 'var(--text2)';
+  const mtBadge = c.meeting_type === 'follow-up'
+    ? ' <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">Follow-up</span>'
+    : ' <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(183,72,255,.08);color:var(--purple)">1st</span>';
   return '<tr onclick="loadCallDetail(\''+rid+'\',\''+esc(name)+'\')">'+
     '<td>'+date+'</td>'+
     '<td>'+(c.title||'Untitled')+mtBadge+'</td>'+
     '<td>'+(c.deal_name||'')+'</td>'+
     '<td><span style="color:'+qClr(cq)+';font-weight:700">'+cq+'</span></td>'+
+    '<td><span style="color:'+gsClr+';font-weight:700">'+gsVal+'</span></td>'+
     '<td>'+(c.talk_ratio != null ? c.talk_ratio : '')+'%</td>'+
     '<td>'+(c.question_count != null ? c.question_count : '')+'</td>'+
     '<td>'+dur+'</td></tr>';
@@ -1842,16 +1848,34 @@ function renderGameScorecard(gs) {
 
   const pct = Math.round((gs.totalPoints / gs.maxPoints) * 100);
   const clr = pct >= 60 ? 'var(--green)' : pct >= 30 ? 'var(--orange)' : 'var(--red)';
+  const earned = gs.actions.filter(function(a) { return a.earned; }).length;
 
-  let h = '<div class="game-card" style="border-left:3px solid '+clr+'">';
+  let h = '<div class="game-card" style="border-top:3px solid '+clr+'">';
 
-  // Header with big score
-  h += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">';
-  h += '<div><div class="game-score-big" style="color:'+clr+'">'+gs.totalPoints+'</div><div style="font-size:11px;color:var(--text2)">/ '+gs.maxPoints+' punten</div></div>';
-  h += '<div style="flex:1"><div style="font-size:14px;font-weight:700">Sales Game Score</div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+gs.summary+'</div></div>';
-  h += '</div>';
+  // Header with score + progress bar + summary
+  h += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">';
+  h += '<div style="flex-shrink:0"><div class="game-score-big" style="color:'+clr+'">'+gs.totalPoints+'</div><div style="font-size:11px;color:var(--text2);text-align:center">/ '+gs.maxPoints+'</div></div>';
+  h += '<div style="flex:1">';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:16px;font-weight:700">Sales Game</span><span style="font-size:12px;color:var(--text2)">'+earned+'/6 acties gescoord</span></div>';
+  // Progress bar
+  h += '<div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:'+clr+';border-radius:4px;transition:width .3s"></div></div>';
+  h += '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+gs.summary+'</div>';
+  h += '</div></div>';
 
-  // Actions
+  // Methodology explanation (collapsible)
+  h += '<div style="margin:12px 0 8px"><div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle(\'hidden\')" style="padding:6px 0"><span style="font-size:11px;font-weight:600;color:var(--text2)">Hoe werkt de scoring?</span> <span style="font-size:10px;color:var(--text2)">klik om te openen</span></div>';
+  h += '<div class="hidden" style="padding:10px 14px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.7">';
+  h += '<strong style="color:var(--text)">6 acties die een deal vooruit brengen:</strong><br>';
+  h += '<strong>A</strong> First Down (15 pts) — Prospect bevestigt de waarde en legt uit waarom ze willen starten<br>';
+  h += '<strong>B</strong> The Snap (5 pts) — Decision maker ge&iuml;dentificeerd en bevestigd<br>';
+  h += '<strong>C</strong> Field Position (5 pts) — Budget of allocatie bevestigd<br>';
+  h += '<strong>D</strong> Game Clock (5 pts) — Harde beslisdatum afgesproken, binnen 1 week<br>';
+  h += '<strong>E</strong> Hail Mary (10 pts) — Good News Show: incentive aangeboden EN commitment teruggekregen<br>';
+  h += '<strong>F</strong> Touchdown! (30 pts) — Deal geclosed<br><br>';
+  h += '<strong style="color:var(--text)">Belangrijk:</strong> Zonder A (waarde bevestigd) krijg je geen punten voor B, C en D. En E telt alleen als je iets aanbiedt EN iets terugkrijgt.';
+  h += '</div></div>';
+
+  // Actions — visual scorecard
   gs.actions.forEach(function(a) {
     const isBlocked = !a.earned && a.evidence && a.evidence.includes('Geblokkeerd');
     const iconCls = a.earned ? 'earned' : isBlocked ? 'blocked' : 'missed';
@@ -1861,7 +1885,7 @@ function renderGameScorecard(gs) {
     h += '<div class="game-action">';
     h += '<div class="ga-icon '+iconCls+'">'+icon+'</div>';
     h += '<div class="ga-body">';
-    h += '<div class="ga-head"><span class="ga-name">'+a.id+' — '+a.name+'</span><span class="ga-pts '+ptsCls+'">'+(a.earned ? '+'+a.points : '0')+' pts</span>';
+    h += '<div class="ga-head"><span class="ga-name">'+a.id+' — '+a.name+'</span><span class="ga-pts '+ptsCls+'">'+(a.earned ? '+'+a.points+'pts' : '0pts')+'</span>';
     if (a.timestamp) h += '<span style="font-size:10px;color:var(--text2);font-family:monospace">'+a.timestamp+'</span>';
     h += '</div>';
     h += '<div class="ga-metaphor">'+a.metaphor+'</div>';
@@ -2211,7 +2235,7 @@ async function loadAEDetail(name) {
 
       // Full calls table
       html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">All Calls</h3>';
-      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
+      html += '<table class="calls-table"><thead><tr><th>Date</th><th>Title</th><th>Deal</th><th>Quality</th><th>Game</th><th>Talk</th><th>Qs</th><th>Dur</th></tr></thead><tbody>';
       safeCalls.forEach(c => { html += callRowHTML(c, name); });
       html += '</tbody></table></div>';
     }
@@ -2460,8 +2484,12 @@ async function loadCallDetail(rid, aeName) {
       html += renderGameScorecard(gs);
     }
 
-    // Quality breakdown
-    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:8px">Quality Score Breakdown</h3>'+
+    // Quality breakdown with meeting-type context
+    const qLabel = mt === 'follow-up'
+      ? '<span style="font-size:11px;color:var(--blue);margin-left:8px">Follow-up scoring: advancement + objection handling zwaarder gewogen, minder nadruk op discovery en script</span>'
+      : '<span style="font-size:11px;color:var(--purple);margin-left:8px">First meeting scoring: discovery + gap creation + script coverage zwaarder gewogen</span>';
+    html += '<div class="card"><h3 style="font-size:14px;margin-bottom:2px">Quality Score Breakdown</h3>'+
+      '<div style="margin-bottom:8px">'+qLabel+'</div>'+
       qualityBreakdownHTML(call)+
     '</div>';
 
