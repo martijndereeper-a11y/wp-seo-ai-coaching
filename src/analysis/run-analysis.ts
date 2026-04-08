@@ -156,10 +156,10 @@ async function main() {
   console.log(`Mode: ${isFullMode ? 'FULL (re-analyze all)' : 'INCREMENTAL (new only)'}`);
   console.log('=====================\n');
 
-  // Get all recordings with transcripts (paginated — Supabase returns max 1000 per query)
+  // Get all recordings with transcripts (paginated — smaller pages to avoid timeout)
   const recordings: any[] = [];
   let from = 0;
-  const pageSize = 1000;
+  const pageSize = 200;
   while (true) {
     const { data: page, error } = await supabase
       .from('recordings')
