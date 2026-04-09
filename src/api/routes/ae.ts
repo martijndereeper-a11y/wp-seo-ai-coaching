@@ -4,6 +4,67 @@ import { supabase, avg, PILLAR_KEYS, PILLAR_NAMES } from '../shared.ts';
 
 const routes = new Hono();
 
+// AE Profile
+routes.get('/ae/:name', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  const { data, error } = await supabase
+    .from('ae_coaching_profiles')
+    .select('recorder_name, total_calls, won_calls, lost_calls, win_rate, avg_duration_won, avg_duration_lost, avg_script_adherence, avg_talk_ratio, avg_question_count, avg_longest_monologue, avg_call_quality, avg_patterns_won, avg_patterns_lost, avg_patterns_all, top_strengths, top_weaknesses, coaching_recs, updated_at')
+    .eq('recorder_name', name)
+    .single();
+  if (error) return c.json({ error: error.message }, 404);
+  return c.json(data);
+});
+
+// AE's calls
+routes.get('/ae/:name/calls', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  const limit = parseInt(c.req.query('limit') || '100');
+  const offset = parseInt(c.req.query('offset') || '0');
+  const full = c.req.query('full') === 'true';
+  const columns = full
+    ? 'recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, longest_monologue, call_quality_score, patterns, highlights, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores, smart_review'
+    : 'recording_id, recorder_name, title, deal_name, created_at, duration_seconds, recording_url, outcome, talk_ratio, question_count, script_adherence, call_quality_score, sections_hit, sections_missed, prospect_engagement, call_verdict, pillar_scores';
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select(columns)
+    .eq('recorder_name', name)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data);
+});
+
+// AE progression — rolling 5-call averages for trend charts
+routes.get('/ae/:name/trend', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select('created_at, outcome, talk_ratio, question_count, script_adherence, call_quality_score, patterns')
+    .eq('recorder_name', name)
+    .order('created_at', { ascending: true });
+  if (error) return c.json({ error: error.message }, 500);
+  if (!data || data.length < 3) return c.json([]);
+  const windowSize = 5;
+  const points = [];
+  for (let i = windowSize - 1; i < data.length; i++) {
+    const window = data.slice(i - windowSize + 1, i + 1);
+    const avgTalk = Math.round(window.reduce((s, d) => s + (d.talk_ratio || 0), 0) / windowSize);
+    const avgQs = Math.round(window.reduce((s, d) => s + (d.question_count || 0), 0) / windowSize);
+    const avgScript = Math.round(window.reduce((s, d) => s + (d.script_adherence || 0), 0) / windowSize);
+    const avgQuality = Math.round(window.reduce((s, d) => s + (d.call_quality_score || 0), 0) / windowSize);
+    points.push({
+      date: data[i].created_at?.slice(0, 10) || '',
+      callIndex: i + 1,
+      talkRatio: avgTalk,
+      questionCount: avgQs,
+      scriptAdherence: avgScript,
+      callQuality: avgQuality,
+    });
+  }
+  return c.json(points);
+});
+
 // Available months with calls for an AE
 routes.get('/ae/:name/months', async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
