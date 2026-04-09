@@ -100,7 +100,8 @@ routes.post('/timeframe/compare', async (c) => {
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   }
 
-  const calls: Array<{ turns: any[]; recorderName: string; durationSeconds: number; group: string }> = [];
+  // Pre-filter to eligible recordings and assign groups before fetching transcripts
+  const eligible: Array<{ rid: string; group: string }> = [];
   const groupCounts = new Map<string, number>();
   for (const rid of recordingIds) {
     let group: string;
@@ -109,10 +110,22 @@ routes.post('/timeframe/compare', async (c) => {
     else group = outcomeMap.get(rid) || 'unknown';
     const count = groupCounts.get(group) || 0;
     if (count >= maxPerGroup) continue;
-    const recording = await fetchParsedTranscript(rid);
-    if (!recording || recording.turns.length === 0) continue;
-    calls.push({ turns: recording.turns, recorderName: recording.recorderName, durationSeconds: recording.durationSeconds, group });
+    eligible.push({ rid, group });
     groupCounts.set(group, count + 1);
+  }
+  if (eligible.length === 0) return c.json({ error: 'No calls found for the selected periods' }, 404);
+
+  // Fetch transcripts in parallel (batches of 10 to avoid overwhelming DB)
+  const calls: Array<{ turns: any[]; recorderName: string; durationSeconds: number; group: string }> = [];
+  const BATCH = 10;
+  for (let i = 0; i < eligible.length; i += BATCH) {
+    const batch = eligible.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map(async ({ rid, group }) => {
+      const recording = await fetchParsedTranscript(rid);
+      if (!recording || recording.turns.length === 0) return null;
+      return { turns: recording.turns, recorderName: recording.recorderName, durationSeconds: recording.durationSeconds, group };
+    }));
+    for (const r of results) { if (r) calls.push(r); }
   }
   if (calls.length === 0) return c.json({ error: 'No calls with transcripts found' }, 404);
   return c.json(compareTimeframes(calls, windowArg));
