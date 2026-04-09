@@ -103,6 +103,7 @@ const TIMEFRAME_PATTERNS: Record<string, RegExp> = {
 // ─── Preset Windows ────────────────────────────────────────────────────────
 
 export const PRESET_WINDOWS: Record<string, (durationSeconds: number) => TimeWindow> = {
+  'full':     (d) => ({ startSeconds: 0, endSeconds: d, label: 'Full Call' }),
   'opening':  (d) => ({ startSeconds: 0, endSeconds: Math.min(300, d), label: 'Opening (0:00–5:00)' }),
   'discovery': (d) => ({ startSeconds: 300, endSeconds: Math.min(900, d), label: 'Discovery (5:00–15:00)' }),
   'mid':      (d) => ({ startSeconds: Math.floor(d * 0.25), endSeconds: Math.floor(d * 0.75), label: 'Middle 50%' }),

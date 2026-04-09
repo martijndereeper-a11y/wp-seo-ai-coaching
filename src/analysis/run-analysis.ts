@@ -18,6 +18,7 @@ import { scoreCallPillars } from './coaching-pillars.ts';
 import { generateSmartReview, type SmartReviewBenchmarks } from './smart-review.ts';
 import { scoreGame } from './sales-game.ts';
 import { classifyWithDealContext, classifyMeeting, type MeetingClassification } from './meeting-classifier.ts';
+import { classifyCallTier } from './call-tier.ts';
 
 const supabase = createSupabaseClient();
 const isFullMode = process.argv.includes('--full');
@@ -61,6 +62,8 @@ async function ensureTables() {
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS game_score JSONB DEFAULT '{}';
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS meeting_type TEXT DEFAULT 'first';
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS meeting_classification JSONB DEFAULT '{}';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS call_tier TEXT DEFAULT 'B';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS call_tier_classification JSONB DEFAULT '{}';
     `,
   }).catch(() => {});
 
@@ -289,6 +292,18 @@ async function main() {
         analysis.prospectEngagement, smartReview, meetingClass.type,
       ),
       game_score: scoreGame(parsed.turns, rec.recorder_name, outcome),
+      ...(() => {
+        const tierClass = classifyCallTier({
+          duration_seconds: Math.round(rec.duration_seconds || 0),
+          script_adherence: analysis.scriptAdherence,
+          question_count: analysis.questionCount,
+          call_quality_score: computeCallQualityScore(analysis, meetingClass.type),
+          game_score: scoreGame(parsed.turns, rec.recorder_name, outcome),
+          outcome,
+          meeting_type: meetingClass.type,
+        });
+        return { call_tier: tierClass.tier, call_tier_classification: tierClass };
+      })(),
       analyzed_at: new Date().toISOString(),
     };
 

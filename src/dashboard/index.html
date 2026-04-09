@@ -968,9 +968,11 @@ function callRowHTML(c, name) {
   const mtBadge = c.meeting_type === 'follow-up'
     ? ' <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">Follow-up</span>'
     : ' <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:rgba(183,72,255,.08);color:var(--purple)">1st</span>';
+  const ct = c.call_tier || '';
+  const ctBadge = ct ? tierBadge(ct) : '';
   return '<tr onclick="loadCallDetail(\''+rid+'\',\''+esc(name)+'\')">'+
     '<td>'+date+'</td>'+
-    '<td>'+(c.title||'Untitled')+mtBadge+'</td>'+
+    '<td>'+(c.title||'Untitled')+' '+mtBadge+' '+ctBadge+'</td>'+
     '<td>'+(c.deal_name||'')+'</td>'+
     '<td><span style="color:'+qClr(cq)+';font-weight:700">'+cq+'</span></td>'+
     '<td><span style="color:'+gsClr+';font-weight:700">'+gsVal+'</span></td>'+
@@ -1878,6 +1880,7 @@ async function runMonthComparison() {
       groupBy: 'period',
       periodType: 'custom',
       periods: periods,
+      tierFilter: currentTierFilter || 'AB',
     }),
   });
   if (!data || !data.groups) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">Not enough calls with transcripts to compare.</div>'; return; }
@@ -1891,6 +1894,32 @@ function setPeriodWindow(aeName, preset, btn) {
     btn.classList.add('active');
   }
   if (selectedMonthA && selectedMonthB) runMonthComparison();
+}
+
+let currentTierFilter = 'AB';
+function setTierFilter(tier, btn) {
+  currentTierFilter = tier;
+  if (btn) {
+    var parent = document.getElementById('tier-filter-select');
+    if (parent) parent.querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  if (selectedMonthA && selectedMonthB) runMonthComparison();
+}
+
+function tierBadge(tier) {
+  if (!tier) return '';
+  var clr = tier === 'A' ? 'var(--green)' : tier === 'B' ? 'var(--blue)' : 'var(--red)';
+  var bg = tier === 'A' ? 'rgba(16,185,129,.12)' : tier === 'B' ? 'rgba(59,130,246,.08)' : 'rgba(239,68,68,.08)';
+  var label = tier === 'A' ? 'Kanshebber' : tier === 'B' ? 'Full effort' : 'Troep';
+  return '<span style="padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;background:'+bg+';color:'+clr+'">'+label+'</span>';
+}
+
+async function updateCallTier(rid, tier) {
+  await api('/api/call/' + rid + '/tier', {
+    method: 'PUT',
+    body: JSON.stringify({ tier: tier }),
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -2050,13 +2079,24 @@ async function loadAEDetail(name) {
     html += '<div class="card">'+
       '<h3 style="font-size:14px;margin:0 0 4px">Performance Over Time</h3>'+
       '<div style="font-size:12px;color:var(--text2);margin-bottom:14px">Pick two months to compare. See which calls are in each and how your metrics changed.</div>'+
-      // Part of the call chips
-      '<div style="margin-bottom:14px">'+
-        '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Part of the call</div>'+
-        '<div class="tf-period-select">'+
-          '<button class="tf-period-chip active" onclick="setPeriodWindow(\''+safeName+'\',\'opening\',this)">First 5 min</button>'+
-          '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'discovery\',this)">Discovery</button>'+
-          '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'close\',this)">Last 5 min</button>'+
+      // Part of the call chips + tier filter
+      '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px">'+
+        '<div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Part of the call</div>'+
+          '<div class="tf-period-select">'+
+            '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'full\',this)">Full call</button>'+
+            '<button class="tf-period-chip active" onclick="setPeriodWindow(\''+safeName+'\',\'opening\',this)">First 5 min</button>'+
+            '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'discovery\',this)">Discovery</button>'+
+            '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'close\',this)">Last 5 min</button>'+
+          '</div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Calls filter</div>'+
+          '<div class="tf-period-select" id="tier-filter-select">'+
+            '<button class="tf-period-chip" data-tier="A" onclick="setTierFilter(\'A\',this)">Kanshebbers</button>'+
+            '<button class="tf-period-chip active" data-tier="AB" onclick="setTierFilter(\'AB\',this)">A+B</button>'+
+            '<button class="tf-period-chip" data-tier="ABC" onclick="setTierFilter(\'ABC\',this)">Alle calls</button>'+
+          '</div>'+
         '</div>'+
       '</div>'+
       // Month pickers side by side
@@ -2514,10 +2554,17 @@ async function loadCallDetail(rid, aeName) {
       ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(59,130,246,.12);color:var(--blue)">Follow-up'+(mtClass.dealSequence ? ' #'+mtClass.dealSequence : '')+'</span>'
       : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(183,72,255,.12);color:var(--purple)">First Meeting</span>';
     const mtConf = mtClass.confidence ? ' <span style="font-size:10px;color:var(--text2)">('+mtClass.confidence+' confidence)</span>' : '';
+    const callTier = call.call_tier || 'B';
+    const tierBdg = tierBadge(callTier);
+    const tierSelect = '<select onchange="updateCallTier(\''+rid+'\',this.value)" style="padding:2px 6px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:10px;cursor:pointer;margin-left:4px">'
+      + '<option value="A"'+(callTier==='A'?' selected':'')+'>A — Kanshebber</option>'
+      + '<option value="B"'+(callTier==='B'?' selected':'')+'>B — Full effort</option>'
+      + '<option value="C"'+(callTier==='C'?' selected':'')+'>C — Troep</option>'
+      + '</select>';
 
     let html = '<button class="back-btn" onclick="loadAEDetail(\''+esc(aeName)+'\')">&larr; Back to '+aeName+'</button>';
     html += '<div class="card" style="margin-bottom:20px">'+
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="font-size:18px;font-weight:700">'+(call.title||'Untitled Call')+'</div>'+mtBadge+mtConf+'</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="font-size:18px;font-weight:700">'+(call.title||'Untitled Call')+'</div>'+mtBadge+mtConf+' '+tierBdg+tierSelect+'</div>'+
       '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">'+call.recorder_name+' &middot; '+date+' &middot; '+(call.deal_name||'')+
       (outcome?' &middot; <span style="font-size:11px;color:var(--text2)">'+outcome+'</span>':'')+
       '</div>'+

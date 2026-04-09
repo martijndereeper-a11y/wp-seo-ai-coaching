@@ -54,10 +54,12 @@ routes.post('/timeframe/compare', async (c) => {
     recordingIds?: string[]; window?: string | { start: number; end: number };
     groupBy?: 'outcome' | 'ae' | 'period'; ae?: string; limit?: number;
     periodType?: 'month' | 'week' | 'custom'; periods?: Array<{ label: string; from: string; to: string }>;
+    tierFilter?: string;  // 'A' | 'AB' | 'ABC' — default 'AB' (exclude troep)
   };
   const groupBy = body.groupBy || 'outcome';
   const windowParam = body.window || 'opening';
   const maxPerGroup = body.limit || 50;
+  const tierFilter = (body.tierFilter || 'AB').toUpperCase();
 
   let windowArg: TimeWindow | string;
   if (typeof windowParam === 'string') {
@@ -73,15 +75,19 @@ routes.post('/timeframe/compare', async (c) => {
   let dateMap = new Map<string, string>();
 
   if (!recordingIds || recordingIds.length === 0) {
-    let query = supabase.from('ae_call_analysis').select('recording_id, outcome, recorder_name, created_at').order('created_at', { ascending: false }).limit(200);
+    let query = supabase.from('ae_call_analysis').select('recording_id, outcome, recorder_name, created_at, call_tier').order('created_at', { ascending: false }).limit(300);
     if (body.ae) query = query.eq('recorder_name', body.ae);
     const { data: analyses } = await query;
     if (!analyses || analyses.length === 0) return c.json({ error: 'No analyzed calls found' }, 404);
-    recordingIds = analyses.map(a => a.recording_id);
-    for (const a of analyses) { outcomeMap.set(a.recording_id, a.outcome || 'unknown'); aeMap.set(a.recording_id, a.recorder_name); if (a.created_at) dateMap.set(a.recording_id, a.created_at); }
+    // Filter by tier
+    const filtered = analyses.filter(a => tierFilter.includes((a.call_tier || 'B').toUpperCase()));
+    recordingIds = filtered.map(a => a.recording_id);
+    for (const a of filtered) { outcomeMap.set(a.recording_id, a.outcome || 'unknown'); aeMap.set(a.recording_id, a.recorder_name); if (a.created_at) dateMap.set(a.recording_id, a.created_at); }
   } else {
-    const { data: analyses } = await supabase.from('ae_call_analysis').select('recording_id, outcome, recorder_name, created_at').in('recording_id', recordingIds);
-    for (const a of (analyses || [])) { outcomeMap.set(a.recording_id, a.outcome || 'unknown'); aeMap.set(a.recording_id, a.recorder_name); if (a.created_at) dateMap.set(a.recording_id, a.created_at); }
+    const { data: analyses } = await supabase.from('ae_call_analysis').select('recording_id, outcome, recorder_name, created_at, call_tier').in('recording_id', recordingIds);
+    const filtered = (analyses || []).filter(a => tierFilter.includes((a.call_tier || 'B').toUpperCase()));
+    for (const a of filtered) { outcomeMap.set(a.recording_id, a.outcome || 'unknown'); aeMap.set(a.recording_id, a.recorder_name); if (a.created_at) dateMap.set(a.recording_id, a.created_at); }
+    recordingIds = filtered.map(a => a.recording_id);
   }
 
   function assignPeriodGroup(rid: string): string | null {
@@ -137,6 +143,21 @@ routes.get('/timeframe/presets', (c) => {
   const presets: Record<string, TimeWindow> = {};
   for (const [name, fn] of Object.entries(PRESET_WINDOWS)) presets[name] = fn(duration);
   return c.json({ durationSeconds: duration, presets });
+});
+
+// Manual tier override
+routes.put('/call/:id/tier', async (c) => {
+  const id = c.req.param('id');
+  const { tier } = await c.req.json() as { tier: string };
+  if (!['A', 'B', 'C'].includes(tier)) return c.json({ error: 'Tier must be A, B, or C' }, 400);
+  const { error } = await supabase.from('ae_call_analysis')
+    .update({
+      call_tier: tier,
+      call_tier_classification: { tier, label: tier === 'A' ? 'Kanshebber' : tier === 'B' ? 'Full effort' : 'Troep', auto: false, signals: ['Handmatig ingesteld'] },
+    })
+    .eq('recording_id', id);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ ok: true, tier });
 });
 
 // Narrative coach — generate deep review
