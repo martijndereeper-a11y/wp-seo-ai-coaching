@@ -7,6 +7,32 @@ import {
 
 const routes = new Hono();
 
+// Single call detail
+routes.get('/call/:id', async (c) => {
+  const id = c.req.param('id');
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select('*')
+    .eq('recording_id', id)
+    .single();
+  if (error) return c.json({ error: error.message }, 404);
+  return c.json(data);
+});
+
+// Evidence drill-down for a specific dimension
+routes.get('/call/:id/evidence/:dimension', async (c) => {
+  const id = c.req.param('id');
+  const dimension = c.req.param('dimension');
+  const { data, error } = await supabase
+    .from('ae_call_analysis')
+    .select('pattern_evidence')
+    .eq('recording_id', id)
+    .single();
+  if (error) return c.json({ error: error.message }, 404);
+  const evidence = (data?.pattern_evidence as Record<string, unknown[]>) || {};
+  return c.json(evidence[dimension] || []);
+});
+
 // Quality breakdown
 routes.get('/call/:id/quality-breakdown', async (c) => {
   const id = c.req.param('id');
