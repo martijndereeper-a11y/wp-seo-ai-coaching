@@ -1672,35 +1672,40 @@ async function loadTimeframe(rid, mode, btn) {
   el.innerHTML = renderTimeframeHeatmap(data.windows);
 }
 
+// ════════════════════════════════════════════════════════
+//  PERIOD COMPARISON — Month Picker + Call List + Compare
+// ════════════════════════════════════════════════════════
+
+let currentPeriodAE = '';
+let currentPeriodWindow = 'opening';
+let monthsCache = null; // cached months data from API
+let selectedMonthA = null; // sortKey like '2026-04'
+let selectedMonthB = null;
+
 function renderPeriodComparison(comparison) {
   if (!comparison || !comparison.groups || !comparison.groups.length) return '<div style="color:var(--text2);font-size:12px">Not enough data.</div>';
 
-  // Limit to last 3 groups for readability (most recent first)
   let groups = comparison.groups.slice();
-  // Sort chronologically if period names contain dates
   groups.sort((a, b) => {
     const dateA = a.name.match(/\d{4}/);
     const dateB = b.name.match(/\d{4}/);
     if (dateA && dateB) return a.name.localeCompare(b.name);
     return 0;
   });
-  // Keep only last 3 for month/week, all for outcome
   const isOutcome = groups.some(g => g.name === 'won' || g.name === 'lost');
-  if (!isOutcome && groups.length > 3) groups = groups.slice(-3);
 
   let h = '';
   const colCount = groups.length;
 
-  // Metrics to compare — the ones AEs care about
   const metrics = [
-    { key: 'talkRatio', label: 'Talk Ratio', suffix: '%', good: v => v >= 42 && v <= 58, icon: '🎙' },
-    { key: 'questionCount', label: 'Questions', suffix: '', good: v => v >= 4, icon: '❓' },
-    { key: 'prospectAvgLength', label: 'Prospect Answers', suffix: ' words', good: v => v >= 15, icon: '💬', fromEngagement: true },
-    { key: 'controlShifts', label: 'Back & Forth', suffix: '', good: v => v >= 6, icon: '🔄' },
-    { key: 'longestMonologue', label: 'Longest Monologue', suffix: ' words', good: v => v <= 80, icon: '📏' },
+    { key: 'talkRatio', label: 'Talk Ratio', suffix: '%', good: v => v >= 42 && v <= 58 },
+    { key: 'questionCount', label: 'Questions', suffix: '', good: v => v >= 4 },
+    { key: 'prospectAvgLength', label: 'Prospect Answers', suffix: ' words', good: v => v >= 15, fromEngagement: true },
+    { key: 'controlShifts', label: 'Back & Forth', suffix: '', good: v => v >= 6 },
+    { key: 'longestMonologue', label: 'Longest Monologue', suffix: ' words', good: v => v <= 80 },
   ];
 
-  // Trend summary — compare first and last group
+  // Trend summary
   if (groups.length >= 2) {
     const first = groups[0];
     const last = groups[groups.length - 1];
@@ -1713,24 +1718,17 @@ function renderPeriodComparison(comparison) {
       const lost = groups.find(g => g.name === 'lost');
       if (won && lost) {
         const parts = [];
-        const talkW = won.avgMetrics.talkRatio;
-        const talkL = lost.avgMetrics.talkRatio;
-        if (Math.abs(talkW - talkL) > 5) parts.push('You talk '+(talkW < talkL ? 'less' : 'more')+' in won calls ('+talkW+'% vs '+talkL+'%)');
-        const qW = won.avgMetrics.questionCount;
-        const qL = lost.avgMetrics.questionCount;
-        if (Math.abs(qW - qL) > 1) parts.push('you ask '+(qW > qL ? 'more' : 'fewer')+' questions when you win ('+qW+' vs '+qL+')');
-        const engW = won.avgEngagement.prospectAvgLength;
-        const engL = lost.avgEngagement.prospectAvgLength;
-        if (Math.abs(engW - engL) > 5) parts.push('prospects give '+(engW > engL ? 'longer' : 'shorter')+' answers in won calls');
+        if (Math.abs(won.avgMetrics.talkRatio - lost.avgMetrics.talkRatio) > 5) parts.push('You talk '+(won.avgMetrics.talkRatio < lost.avgMetrics.talkRatio ? 'less' : 'more')+' in won calls ('+won.avgMetrics.talkRatio+'% vs '+lost.avgMetrics.talkRatio+'%)');
+        if (Math.abs(won.avgMetrics.questionCount - lost.avgMetrics.questionCount) > 1) parts.push('you ask '+(won.avgMetrics.questionCount > lost.avgMetrics.questionCount ? 'more' : 'fewer')+' questions when you win');
+        if (Math.abs(won.avgEngagement.prospectAvgLength - lost.avgEngagement.prospectAvgLength) > 5) parts.push('prospects give '+(won.avgEngagement.prospectAvgLength > lost.avgEngagement.prospectAvgLength ? 'longer' : 'shorter')+' answers in won calls');
         if (parts.length) trendText = parts.join(', and ') + '.';
       }
     } else {
       const parts = [];
       if (Math.abs(talkDiff) > 3) parts.push('Talk ratio went '+(talkDiff > 0 ? 'up' : 'down')+' by '+Math.abs(talkDiff)+'%');
       if (Math.abs(qDiff) > 1) parts.push('questions '+(qDiff > 0 ? 'increased' : 'decreased')+' by '+Math.abs(qDiff));
-      const engFirst = first.avgEngagement.prospectAvgLength;
-      const engLast = last.avgEngagement.prospectAvgLength;
-      if (Math.abs(engLast - engFirst) > 5) parts.push('prospect engagement '+(engLast > engFirst ? 'improved' : 'dropped'));
+      const engDiff = last.avgEngagement.prospectAvgLength - first.avgEngagement.prospectAvgLength;
+      if (Math.abs(engDiff) > 5) parts.push('prospect engagement '+(engDiff > 0 ? 'improved' : 'dropped'));
       if (parts.length) trendText = 'From '+first.name+' to '+last.name+': '+parts.join(', ')+'.';
     }
     if (trendText) {
@@ -1747,7 +1745,7 @@ function renderPeriodComparison(comparison) {
   });
   h += '</div>';
 
-  // Metric rows as a clean table
+  // Metric rows
   metrics.forEach(m => {
     h += '<div style="display:grid;grid-template-columns:140px repeat('+colCount+',1fr);gap:8px;padding:8px 0;border-top:1px solid rgba(46,51,72,.3)">';
     h += '<div style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px">'+m.label+'</div>';
@@ -1755,20 +1753,16 @@ function renderPeriodComparison(comparison) {
       const val = m.fromEngagement ? (g.avgEngagement ? g.avgEngagement.prospectAvgLength : 0) : (g.avgMetrics[m.key] || 0);
       const isGood = m.good(val);
       const clr = isGood ? 'var(--green)' : 'var(--orange)';
-
-      // Trend arrow for non-first columns
       let arrow = '';
       if (i > 0) {
         const prevVal = m.fromEngagement ? (groups[i-1].avgEngagement ? groups[i-1].avgEngagement.prospectAvgLength : 0) : (groups[i-1].avgMetrics[m.key] || 0);
         const diff = val - prevVal;
-        // For longestMonologue, lower is better
         const betterWhenLower = m.key === 'longestMonologue';
         const improved = betterWhenLower ? diff < -3 : diff > 1;
         const worsened = betterWhenLower ? diff > 3 : diff < -1;
         if (improved) arrow = ' <span style="color:var(--green);font-size:10px">▲</span>';
         else if (worsened) arrow = ' <span style="color:var(--red);font-size:10px">▼</span>';
       }
-
       h += '<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:'+clr+'">'+val+(m.suffix||'')+arrow+'</div></div>';
     });
     h += '</div>';
@@ -1787,44 +1781,108 @@ function renderPeriodComparison(comparison) {
   return h;
 }
 
-async function loadPeriodComparison(aeName, windowPreset, periodType, btn) {
-  if (btn) {
-    const parent = btn.closest('.tf-period-select');
-    if (parent) parent.querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+function renderMonthCallList(calls, side) {
+  if (!calls || !calls.length) return '<div style="color:var(--text2);font-size:12px;padding:8px 0">No calls this month.</div>';
+  let h = '';
+  calls.forEach(c => {
+    const date = new Date(c.date);
+    const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const qClr = c.quality >= 60 ? 'var(--green)' : c.quality >= 35 ? 'var(--orange)' : 'var(--red)';
+    const outcomeClr = c.outcome === 'won' ? 'var(--green)' : c.outcome === 'lost' ? 'var(--red)' : 'var(--text2)';
+    const outcomeTxt = c.outcome ? c.outcome.charAt(0).toUpperCase() + c.outcome.slice(1) : '';
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(46,51,72,.15);font-size:12px">';
+    h += '<div style="min-width:50px;color:var(--text2)">'+dateStr+'</div>';
+    h += '<div style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+c.title.replace(/"/g,'&quot;')+'">'+c.title+'</div>';
+    h += '<div style="font-weight:700;color:'+qClr+';min-width:28px;text-align:right">'+c.quality+'</div>';
+    if (outcomeTxt) h += '<div style="font-size:10px;color:'+outcomeClr+';min-width:30px;text-align:right">'+outcomeTxt+'</div>';
+    h += '</div>';
+  });
+  return h;
+}
+
+async function loadMonthsData(aeName) {
+  monthsCache = await api('/api/ae/'+encodeURIComponent(aeName)+'/months');
+  if (!monthsCache || !monthsCache.length) { monthsCache = []; return; }
+
+  // Populate both dropdowns
+  ['month-select-a', 'month-select-b'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Choose month...</option>';
+    monthsCache.forEach(m => {
+      sel.innerHTML += '<option value="'+m.sortKey+'">'+m.label+' ('+m.callCount+' calls)</option>';
+    });
+    if (current) sel.value = current;
+  });
+
+  // Auto-select most recent two months
+  if (monthsCache.length >= 2) {
+    const selA = document.getElementById('month-select-a');
+    const selB = document.getElementById('month-select-b');
+    if (selA && !selA.value) { selA.value = monthsCache[1].sortKey; onMonthSelect('a'); }
+    if (selB && !selB.value) { selB.value = monthsCache[0].sortKey; onMonthSelect('b'); }
+  } else if (monthsCache.length === 1) {
+    const selA = document.getElementById('month-select-a');
+    if (selA && !selA.value) { selA.value = monthsCache[0].sortKey; onMonthSelect('a'); }
   }
+}
+
+function onMonthSelect(side) {
+  const sel = document.getElementById('month-select-' + side);
+  if (!sel) return;
+  const sortKey = sel.value;
+  if (side === 'a') selectedMonthA = sortKey || null;
+  else selectedMonthB = sortKey || null;
+
+  // Render call list for this side
+  const listEl = document.getElementById('month-calls-' + side);
+  if (listEl) {
+    if (!sortKey) { listEl.innerHTML = ''; return; }
+    const month = monthsCache ? monthsCache.find(m => m.sortKey === sortKey) : null;
+    listEl.innerHTML = month ? renderMonthCallList(month.calls, side) : '';
+  }
+
+  // If both months selected, run comparison
+  if (selectedMonthA && selectedMonthB) {
+    runMonthComparison();
+  } else {
+    const compEl = document.getElementById('period-content');
+    if (compEl) compEl.innerHTML = '<div style="color:var(--text2);font-size:12px">Select two months to compare.</div>';
+  }
+}
+
+async function runMonthComparison() {
+  if (!selectedMonthA || !selectedMonthB || !currentPeriodAE) return;
   const el = document.getElementById('period-content');
   if (!el) return;
-  el.innerHTML = '<div style="color:var(--text2);font-size:12px">Analyzing calls across periods...</div>';
+  el.innerHTML = '<div style="color:var(--text2);font-size:12px">Comparing months...</div>';
+
+  // Build date ranges from sortKeys (YYYY-MM)
+  function monthRange(sortKey) {
+    const [y, m] = sortKey.split('-').map(Number);
+    const from = new Date(y, m - 1, 1).toISOString();
+    const toDate = new Date(y, m, 1);
+    const to = toDate.toISOString();
+    const monthLabel = monthsCache ? (monthsCache.find(x => x.sortKey === sortKey) || {}).label || sortKey : sortKey;
+    return { label: monthLabel, from, to };
+  }
+
+  const periods = [monthRange(selectedMonthA), monthRange(selectedMonthB)];
 
   const data = await api('/api/timeframe/compare', {
     method: 'POST',
-    body: JSON.stringify({ ae: aeName, window: windowPreset || 'opening', groupBy: 'period', periodType: periodType || 'month' }),
+    body: JSON.stringify({
+      ae: currentPeriodAE,
+      window: currentPeriodWindow || 'opening',
+      groupBy: 'period',
+      periodType: 'custom',
+      periods: periods,
+    }),
   });
-  if (!data || !data.groups) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">Not enough calls with transcripts to compare periods.</div>'; return; }
+  if (!data || !data.groups) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">Not enough calls with transcripts to compare.</div>'; return; }
   el.innerHTML = renderPeriodComparison(data);
 }
-
-async function loadOutcomeComparison(aeName, windowPreset, btn) {
-  if (btn) {
-    const parent = btn.closest('.tf-period-select');
-    if (parent) parent.querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
-  const el = document.getElementById('period-content');
-  if (!el) return;
-  el.innerHTML = '<div style="color:var(--text2);font-size:12px">Comparing won vs lost...</div>';
-
-  const data = await api('/api/timeframe/compare', {
-    method: 'POST',
-    body: JSON.stringify({ ae: aeName, window: windowPreset || 'opening', groupBy: 'outcome' }),
-  });
-  if (!data || !data.groups) { el.innerHTML = '<div style="color:var(--text2);font-size:12px">Not enough data to compare outcomes.</div>'; return; }
-  el.innerHTML = renderPeriodComparison(data);
-}
-
-let currentPeriodAE = '';
-let currentPeriodWindow = 'opening';
 
 function setPeriodWindow(aeName, preset, btn) {
   currentPeriodWindow = preset;
@@ -1832,11 +1890,7 @@ function setPeriodWindow(aeName, preset, btn) {
     btn.closest('.tf-period-select').querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
-  // Re-run the active comparison type
-  const activeType = document.querySelector('#period-type-select .tf-period-chip.active');
-  const type = activeType ? activeType.dataset.type : 'month';
-  if (type === 'outcome') loadOutcomeComparison(aeName, preset);
-  else loadPeriodComparison(aeName, preset, type);
+  if (selectedMonthA && selectedMonthB) runMonthComparison();
 }
 
 // ════════════════════════════════════════════════════════
@@ -1991,27 +2045,39 @@ async function loadAEDetail(name) {
       '<div id="ae-deep-result"></div>'+
     '</div>';
 
-    // Timeframe Period Comparison
+    // Timeframe Period Comparison — Month Picker
     const safeName = esc(name);
     html += '<div class="card">'+
       '<h3 style="font-size:14px;margin:0 0 4px">Performance Over Time</h3>'+
-      '<div style="font-size:12px;color:var(--text2);margin-bottom:14px">See how your calls are changing. Pick a part of the call and compare across periods.</div>'+
-      // Row: phase + comparison type side by side
-      '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px">'+
-        '<div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Part of the call</div>'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:14px">Pick two months to compare. See which calls are in each and how your metrics changed.</div>'+
+      // Part of the call chips
+      '<div style="margin-bottom:14px">'+
+        '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Part of the call</div>'+
         '<div class="tf-period-select">'+
           '<button class="tf-period-chip active" onclick="setPeriodWindow(\''+safeName+'\',\'opening\',this)">First 5 min</button>'+
           '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'discovery\',this)">Discovery</button>'+
           '<button class="tf-period-chip" onclick="setPeriodWindow(\''+safeName+'\',\'close\',this)">Last 5 min</button>'+
-        '</div></div>'+
-        '<div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Compare by</div>'+
-        '<div class="tf-period-select" id="period-type-select">'+
-          '<button class="tf-period-chip active" data-type="month" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'month\',this)">Month</button>'+
-          '<button class="tf-period-chip" data-type="week" onclick="loadPeriodComparison(\''+safeName+'\',currentPeriodWindow,\'week\',this)">Week</button>'+
-          '<button class="tf-period-chip" data-type="outcome" onclick="loadOutcomeComparison(\''+safeName+'\',currentPeriodWindow,this)">Won vs Lost</button>'+
-        '</div></div>'+
+        '</div>'+
       '</div>'+
-      '<div id="period-content"><div style="color:var(--text2);font-size:12px">Loading...</div></div>'+
+      // Month pickers side by side
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
+        '<div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Month A</div>'+
+          '<select id="month-select-a" onchange="onMonthSelect(\'a\')" style="width:100%;padding:8px 10px;background:var(--bg3);color:var(--text);border:1px solid rgba(46,51,72,.4);border-radius:8px;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none">'+
+            '<option value="">Loading...</option>'+
+          '</select>'+
+          '<div id="month-calls-a" style="margin-top:8px;max-height:200px;overflow-y:auto"></div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Month B</div>'+
+          '<select id="month-select-b" onchange="onMonthSelect(\'b\')" style="width:100%;padding:8px 10px;background:var(--bg3);color:var(--text);border:1px solid rgba(46,51,72,.4);border-radius:8px;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none">'+
+            '<option value="">Loading...</option>'+
+          '</select>'+
+          '<div id="month-calls-b" style="margin-top:8px;max-height:200px;overflow-y:auto"></div>'+
+        '</div>'+
+      '</div>'+
+      // Comparison output
+      '<div id="period-content"><div style="color:var(--text2);font-size:12px">Select two months to compare.</div></div>'+
     '</div>';
 
     // How Scores Are Calculated (collapsible)
@@ -2323,10 +2389,12 @@ async function loadAEDetail(name) {
 
     $('app').innerHTML = html;
 
-    // Auto-load period comparison
+    // Auto-load month picker data
     currentPeriodAE = name;
     currentPeriodWindow = 'opening';
-    loadPeriodComparison(name, 'opening', 'month', null);
+    selectedMonthA = null;
+    selectedMonthB = null;
+    loadMonthsData(name);
 
     // Render charts after DOM is ready
     setTimeout(() => {
