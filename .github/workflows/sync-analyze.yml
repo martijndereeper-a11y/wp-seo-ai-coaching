@@ -48,3 +48,19 @@ jobs:
         env:
           API_URL: ${{ secrets.API_URL }}
           LEAD_TOKEN: ${{ secrets.LEAD_PASSWORD }}
+
+  notify-failure:
+    needs: sync-and-analyze
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Alert on pipeline failure
+        run: |
+          echo "::error::Sync & Analyze pipeline failed — coaching data may be stale"
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-type: application/json' \
+            -d "{
+              \"text\": \":rotating_light: *Sync & Analyze Failed*\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nTime: $(date -u '+%Y-%m-%d %H:%M UTC')\"
+            }" 2>/dev/null || true
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

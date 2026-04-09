@@ -65,3 +65,19 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_MARKET_INSIGHTS_PAGE_ID: ${{ secrets.NOTION_MARKET_INSIGHTS_PAGE_ID }}
+
+  notify-failure:
+    needs: digest
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Alert on digest failure
+        run: |
+          echo "::error::Digest pipeline failed — team missing market intel"
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-type: application/json' \
+            -d "{
+              \"text\": \":rotating_light: *Digest Pipeline Failed*\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nTime: $(date -u '+%Y-%m-%d %H:%M UTC')\"
+            }" 2>/dev/null || true
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

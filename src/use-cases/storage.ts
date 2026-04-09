@@ -9,52 +9,36 @@ import { fileURLToPath } from 'node:url';
 import { useCases as seedCases, type UseCase, OBJECTIONS, type Objection } from './data.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', '..', 'data');
+const ROOT = process.env.VERCEL ? process.cwd() : join(__dirname, '..');
+const DATA_DIR = join(ROOT, 'data');
 const CASES_FILE = join(DATA_DIR, 'use-cases.json');
-const PDF_DIR = join(__dirname, '..', '..', 'context', 'sales', 'use-cases');
+const PDF_DIR = join(ROOT, 'use-cases');
 
 function ensureDataDir() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// ─── In-memory cache to avoid readFileSync on every request ──────────────────
-let _casesCache: UseCase[] | null = null;
-let _addedCache: UseCase[] | null = null;
-
-/** Invalidate the cache (call after writes) */
-export function invalidateCasesCache() {
-  _casesCache = null;
-  _addedCache = null;
-}
-
-/** Load all cases: seed + user-added (cached in memory) */
+/** Load all cases: seed + user-added */
 export function loadAllCases(): UseCase[] {
-  if (_casesCache) return _casesCache;
   ensureDataDir();
-  if (!existsSync(CASES_FILE)) {
-    _casesCache = [...seedCases];
-    return _casesCache;
-  }
+  if (!existsSync(CASES_FILE)) return [...seedCases];
   try {
     const added: UseCase[] = JSON.parse(readFileSync(CASES_FILE, 'utf-8'));
-    const ids = new Set(added.map((c) => c.id));
+    // Merge: seed cases + added cases (dedupe by id)
+    const ids = new Set(added.map((c: UseCase) => c.id));
     const fromSeed = seedCases.filter((c) => !ids.has(c.id));
-    _casesCache = [...fromSeed, ...added];
-    return _casesCache;
+    return [...fromSeed, ...added];
   } catch {
-    _casesCache = [...seedCases];
-    return _casesCache;
+    return [...seedCases];
   }
 }
 
-/** Load only user-added cases (cached) */
+/** Load only user-added cases */
 function loadAddedCases(): UseCase[] {
-  if (_addedCache) return _addedCache;
   ensureDataDir();
   if (!existsSync(CASES_FILE)) return [];
   try {
-    _addedCache = JSON.parse(readFileSync(CASES_FILE, 'utf-8'));
-    return _addedCache!;
+    return JSON.parse(readFileSync(CASES_FILE, 'utf-8'));
   } catch {
     return [];
   }
@@ -68,7 +52,6 @@ export function saveCase(uc: UseCase): void {
   if (idx >= 0) added[idx] = uc;
   else added.push(uc);
   writeFileSync(CASES_FILE, JSON.stringify(added, null, 2), 'utf-8');
-  invalidateCasesCache();
 }
 
 /** Delete a user-added case by id */
@@ -78,7 +61,6 @@ export function deleteCase(id: string): boolean {
   if (filtered.length === added.length) return false;
   ensureDataDir();
   writeFileSync(CASES_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
-  invalidateCasesCache();
   return true;
 }
 

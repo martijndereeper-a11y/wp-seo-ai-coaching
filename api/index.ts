@@ -32,6 +32,7 @@ const STATIC_ROUTES: Record<string, string> = {
   '/sales-os': 'sales-os.html',
   '/use-cases': 'use-cases.html',
   '/use-cases-admin': 'use-cases-admin.html',
+  '/pipeline': 'pipeline.html',
 };
 
 export default async function handler(req: Request) {

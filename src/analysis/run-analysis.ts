@@ -323,6 +323,20 @@ async function main() {
   console.log('\nBuilding coaching profiles...');
   await buildCoachingProfiles();
 
+  // Link recordings to deals (closed-loop analytics)
+  console.log('\nLinking recordings to deals...');
+  try {
+    const { linkRecordingsToDeals, computeNarrativePerformance } = await import('./deal-intelligence.ts');
+    const linkResult = await linkRecordingsToDeals();
+    console.log(`  Linked: ${linkResult.linked}, New deals created: ${linkResult.created}`);
+    if (linkResult.linked > 0) {
+      const perf = await computeNarrativePerformance();
+      console.log(`  Narrative performance computed for ${perf.length} content items`);
+    }
+  } catch (e) {
+    console.log('  Deal linking skipped (tables may not exist yet)');
+  }
+
   console.log('\nDone!');
 }
 

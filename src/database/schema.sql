@@ -158,3 +158,131 @@ create index if not exists idx_ae_call_deal on ae_call_analysis(deal_name);
 create index if not exists idx_interventions_ae on coaching_interventions(recorder_name);
 create index if not exists idx_interventions_status on coaching_interventions(status);
 create index if not exists idx_interventions_created on coaching_interventions(created_at desc);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- USER ROLES — maps Supabase Auth users to dashboard roles
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists user_roles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  name text,
+  role text not null default 'ae',               -- ae, lead
+  ae_name text,                                   -- maps to recorder_name in call analysis
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_user_roles_email on user_roles(email);
+create index if not exists idx_user_roles_ae on user_roles(ae_name);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CLOSED-LOOP ANALYTICS — connects GTM activity to revenue outcomes
+-- "What would Noy do? Prove the ROI."
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ─── Deals ─────────────────────────────────────────────────────────────────────
+-- Single source of truth for deal lifecycle. Links calls, content, and outcomes.
+
+create table if not exists deals (
+  id text primary key,                            -- CRM deal ID or manual ID
+  company_name text not null,
+  deal_name text,
+  segment text not null default 'smb',            -- smb, midmarket
+  stage text not null default 'discovery',        -- discovery, evaluation, negotiation, closed_won, closed_lost
+  ae_name text not null,                          -- owning AE
+  arr_value numeric,                              -- deal value (ARR)
+  close_date date,                                -- expected or actual close date
+  outcome text,                                   -- won, lost, stalled
+  loss_reason text,                               -- if lost: price, competitor, timing, no_decision, etc.
+  competitor text,                                -- competing vendor if known
+  champion_name text,                             -- internal champion
+  decision_maker text,                            -- economic buyer
+
+  -- Timeline
+  created_at timestamptz not null default now(),
+  first_meeting_at timestamptz,
+  closed_at timestamptz,
+  days_in_pipeline int,                           -- computed on close
+
+  -- Scoring
+  deal_score int,                                 -- 0-100 health score (computed)
+  multi_thread_count int default 1,               -- number of contacts engaged
+  meetings_count int default 0,                   -- total meetings held
+
+  metadata jsonb default '{}'
+);
+
+-- ─── Content Attribution ───────────────────────────────────────────────────────
+-- Tracks which sales assets were used in which deals and their impact.
+
+create table if not exists content_usage (
+  id bigint generated always as identity primary key,
+  deal_id text references deals(id) on delete set null,
+  recording_id text references recordings(id) on delete set null,
+
+  -- What was used
+  content_type text not null,                     -- deck, script, one_pager, case_study, proposal
+  content_name text not null,                     -- e.g. "MM Sales Deck V6", "SMB Narrative April 2026"
+  content_version text,                           -- e.g. "v6", "v3-B2C"
+
+  -- Context
+  used_at timestamptz not null default now(),
+  used_in text,                                   -- meeting, email, follow_up, champion_enablement
+  ae_name text,
+  segment text,                                   -- smb, midmarket
+
+  -- Outcome signal (filled after deal progresses)
+  stage_before text,                              -- deal stage when content was used
+  stage_after text,                               -- deal stage at next interaction
+  advanced_deal boolean,                          -- did the deal move forward after this?
+
+  metadata jsonb default '{}'
+);
+
+-- ─── Deal Events ───────────────────────────────────────────────────────────────
+-- Timeline of significant events per deal for pipeline intelligence.
+
+create table if not exists deal_events (
+  id bigint generated always as identity primary key,
+  deal_id text not null references deals(id) on delete cascade,
+  event_type text not null,                       -- stage_change, meeting, objection, competitor_mention, champion_change, risk_flag
+  event_data jsonb not null default '{}',         -- type-specific payload
+  created_at timestamptz not null default now(),
+  source text default 'system'                    -- system, manual, sync
+);
+
+-- ─── Narrative Performance ─────────────────────────────────────────────────────
+-- Aggregated view: which narrative/deck version correlates with wins.
+
+create table if not exists narrative_performance (
+  id bigint generated always as identity primary key,
+  content_name text not null,
+  content_version text,
+  segment text not null,
+
+  -- Aggregated metrics (updated periodically)
+  times_used int default 0,
+  deals_advanced int default 0,                   -- deals that moved stage after use
+  deals_won int default 0,
+  deals_lost int default 0,
+  avg_deal_velocity_days numeric,                 -- avg days to close when this content used
+  win_rate numeric,                               -- deals_won / (deals_won + deals_lost)
+
+  last_computed_at timestamptz not null default now(),
+
+  unique (content_name, content_version, segment)
+);
+
+-- ─── Closed-loop indexes ───────────────────────────────────────────────────────
+
+create index if not exists idx_deals_ae on deals(ae_name);
+create index if not exists idx_deals_stage on deals(stage);
+create index if not exists idx_deals_segment on deals(segment);
+create index if not exists idx_deals_outcome on deals(outcome);
+create index if not exists idx_deals_created on deals(created_at desc);
+create index if not exists idx_content_usage_deal on content_usage(deal_id);
+create index if not exists idx_content_usage_content on content_usage(content_name, content_version);
+create index if not exists idx_content_usage_ae on content_usage(ae_name);
+create index if not exists idx_deal_events_deal on deal_events(deal_id);
+create index if not exists idx_deal_events_type on deal_events(event_type);
+create index if not exists idx_narrative_perf_content on narrative_performance(content_name, segment);

@@ -4,33 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WP SEO AI — Add Use Case</title>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0f042c;--bg2:#1a0e3a;--bg3:#260e49;--border:#3b1d6e;--text:#FFFFFF;--text2:#9CA3AF;--purple:#B748FF;--purple2:#7c3aed;--purple-soft:#BEB5FF;--green:#10B981;--red:#EF4444;--orange:#F59E0B;--blue:#3B82F6}
+:root{--bg:#0f1117;--bg2:#1a1d27;--bg3:#242836;--border:#2e3348;--text:#e4e6f0;--text2:#8b8fa3;--purple:#a855f7;--purple2:#7c3aed;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--blue:#3b82f6}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Archivo',sans-serif;background:#0f042c;color:var(--text);min-height:100vh;background:radial-gradient(ellipse 80% 60% at 30% 20%,#1a0e3a 0%,#0f042c 100%) fixed}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
-.topbar .logo{display:flex;align-items:center}
-.topbar .logo svg{height:22px;width:auto}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar .logo{color:var(--purple);font-weight:800;font-size:18px}
 .topbar h1{font-size:15px;font-weight:500;color:var(--text2)}
-.topbar .nav-link{margin-left:auto;font-size:13px;color:var(--text2);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:8px;transition:all .15s;font-weight:600}
+.topbar .nav-link{margin-left:auto;font-size:13px;color:var(--text2);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:6px;transition:all .15s}
 .topbar .nav-link:hover{border-color:var(--purple);color:var(--text)}
 
 /* Login overlay */
 .login-overlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center}
 .login-overlay.hidden{display:none}
 .login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:360px;text-align:center}
-.login-box .logo{display:flex;justify-content:center;margin-bottom:8px}
-.login-box .logo svg{height:26px;width:auto}
-.login-box h2{font-size:18px;font-weight:700;margin-bottom:4px}
+.login-box .logo{color:var(--purple);font-weight:800;font-size:22px;margin-bottom:4px}
+.login-box h2{font-size:18px;font-weight:600;margin-bottom:4px}
 .login-box p{color:var(--text2);font-size:13px;margin-bottom:20px}
-.login-box input{width:100%;padding:12px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:15px;outline:none;text-align:center;margin-bottom:12px;transition:border-color .15s;font-family:'Archivo',sans-serif}
+.login-box input{width:100%;padding:12px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:15px;outline:none;text-align:center;margin-bottom:12px;transition:border-color .15s}
 .login-box input:focus{border-color:var(--purple)}
-.login-box .login-btn{width:100%;padding:12px;border-radius:8px;border:none;background:var(--purple);color:white;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s;font-family:'Archivo',sans-serif}
-.login-box .login-btn:hover{background:var(--purple2)}
+.login-box .login-btn{width:100%;padding:12px;border-radius:10px;border:none;background:var(--purple2);color:white;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s}
+.login-box .login-btn:hover{background:var(--purple)}
 .login-box .login-btn:disabled{opacity:.5;cursor:default}
 .login-err{color:var(--red);font-size:13px;margin-top:8px;min-height:20px}
+.topbar .nav-link:hover{border-color:var(--purple);color:var(--text)}
 
 .container{max-width:720px;margin:0 auto;padding:32px 24px}
 h2{font-size:22px;font-weight:700;margin-bottom:6px}
@@ -38,10 +36,10 @@ h2{font-size:22px;font-weight:700;margin-bottom:6px}
 
 /* Form */
 .form-section{margin-bottom:24px}
-.form-section h3{font-size:12px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.form-section h3{font-size:13px;font-weight:600;color:var(--purple);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 
 label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:5px}
-input[type="text"],textarea,select{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;outline:none;transition:border-color .15s;font-family:'Archivo',sans-serif}
+input[type="text"],textarea,select{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;outline:none;transition:border-color .15s;font-family:inherit}
 input:focus,textarea:focus,select:focus{border-color:var(--purple)}
 textarea{resize:vertical;min-height:70px}
 select{cursor:pointer}
@@ -57,16 +55,16 @@ select{cursor:pointer}
 .upload-zone .uz-text strong{color:var(--text)}
 .upload-zone.has-file{border-color:var(--green);border-style:solid}
 .upload-zone.has-file .uz-icon{color:var(--green);opacity:1}
-.file-info{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:13px;margin-top:8px}
+.file-info{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border-radius:6px;font-size:13px;margin-top:8px}
 .file-info .fi-name{flex:1;font-weight:600}
 .file-info .fi-size{color:var(--text2);font-size:12px}
 .file-info .fi-remove{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px}
 
 /* Analyze banner */
-.analyze-bar{display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(183,72,255,.06);border:1px solid rgba(183,72,255,.2);border-radius:8px;margin-top:10px;font-size:13px}
+.analyze-bar{display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;margin-top:10px;font-size:13px}
 .analyze-bar.show{display:flex}
-.analyze-bar .ab-text{flex:1;color:var(--purple-soft)}
-.analyze-btn{padding:6px 14px;border-radius:8px;border:none;background:var(--purple);color:white;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s;font-family:'Archivo',sans-serif}
+.analyze-bar .ab-text{flex:1;color:var(--blue)}
+.analyze-btn{padding:6px 14px;border-radius:6px;border:none;background:var(--blue);color:white;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s}
 .analyze-btn:hover{opacity:.85}
 .analyze-btn:disabled{opacity:.5;cursor:default}
 
@@ -74,27 +72,27 @@ select{cursor:pointer}
 .obj-grid{display:grid;gap:6px}
 .obj-check{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);cursor:pointer;transition:all .15s;font-size:13px;line-height:1.4}
 .obj-check:hover{border-color:var(--purple)}
-.obj-check.checked{border-color:var(--purple);background:rgba(183,72,255,.08)}
+.obj-check.checked{border-color:var(--purple);background:rgba(124,58,237,.08)}
 .obj-check.suggested{border-color:var(--orange);background:rgba(245,158,11,.06)}
-.obj-check.suggested.checked{border-color:var(--purple);background:rgba(183,72,255,.08)}
+.obj-check.suggested.checked{border-color:var(--purple);background:rgba(124,58,237,.08)}
 .obj-check input{margin-top:2px;accent-color:var(--purple)}
 .obj-check .obj-label{flex:1}
-.obj-check .obj-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:9999px;background:rgba(245,158,11,.15);color:var(--orange);flex-shrink:0}
+.obj-check .obj-badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:rgba(245,158,11,.15);color:var(--orange);flex-shrink:0}
 
 /* Keywords */
 .keyword-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.kw-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:9999px;background:var(--bg3);border:1px solid var(--border);font-size:12px}
+.kw-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);font-size:12px}
 .kw-tag button{background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:0 2px}
 .kw-tag button:hover{color:var(--red)}
 .kw-add{display:flex;gap:6px;margin-top:6px}
 .kw-add input{flex:1;padding:6px 10px;font-size:12px}
-.kw-add button{padding:6px 12px;border-radius:8px;border:none;background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;border:1px solid var(--border);font-family:'Archivo',sans-serif}
+.kw-add button{padding:6px 12px;border-radius:6px;border:none;background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;border:1px solid var(--border)}
 .kw-add button:hover{border-color:var(--purple)}
 
 /* Submit */
 .submit-row{display:flex;gap:12px;align-items:center;margin-top:28px;padding-top:20px;border-top:1px solid var(--border)}
-.submit-btn{padding:12px 28px;border-radius:8px;border:none;background:var(--purple);color:white;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s;font-family:'Archivo',sans-serif}
-.submit-btn:hover{background:var(--purple2)}
+.submit-btn{padding:12px 28px;border-radius:10px;border:none;background:var(--purple2);color:white;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s}
+.submit-btn:hover{background:var(--purple)}
 .submit-btn:disabled{opacity:.5;cursor:default}
 .submit-status{font-size:13px;color:var(--text2)}
 .submit-status.ok{color:var(--green)}
@@ -103,11 +101,11 @@ select{cursor:pointer}
 /* Existing cases list */
 .cases-list{margin-top:40px}
 .cases-list h3{font-size:16px;font-weight:700;margin-bottom:14px}
-.cl-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.cl-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
 .cl-card .cl-name{font-weight:700;font-size:14px;flex:1}
 .cl-card .cl-ind{font-size:12px;color:var(--text2)}
-.cl-card .cl-type{font-size:11px;padding:4px 12px;border-radius:9999px;background:var(--purple);color:white;font-weight:600}
-.cl-card .cl-src{font-size:10px;padding:2px 6px;border-radius:9999px;background:var(--bg3);color:var(--text2)}
+.cl-card .cl-type{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(168,85,247,.1);color:var(--purple)}
+.cl-card .cl-src{font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg3);color:var(--text2)}
 </style>
 </head>
 <body>
@@ -115,7 +113,7 @@ select{cursor:pointer}
 <!-- Login overlay -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
-    <div class="logo"><svg width="1338" height="204" viewBox="0 0 1338 204" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M55.9393 204L0 12H51.3402L80.3423 137.812H81.9379L115.07 12H156.93L190.062 138.094H191.658L220.754 12H272L216.155 204H171.384L136.751 87.5625H135.249L100.616 204H55.9393Z" fill="#B748FF"/><path d="M292 204V12H371.313C385.688 12 398.094 14.8125 408.531 20.4375C419.031 26 427.125 33.7812 432.813 43.7812C438.5 53.7188 442 65.3125 442 78.5C442 91.75 438.438 103.312 432.625 113.25C426.875 123.125 418.656 130.781 407.969 136.219C397.281 141.656 384.594 144.375 369.906 144.375H320.969V107.812H361.281C368.281 107.812 374.125 106.594 378.812 104.156C383.562 101.719 387.156 98.3125 389.594 93.9375C392.031 89.5 393.25 84.3437 393.25 78.4687C393.25 72.5312 392.031 67.4062 389.594 63.0938C387.156 58.7188 383.562 55.3438 378.812 52.9688C374.062 50.5938 368.219 49.4063 361.281 49.4063H338.406V204H292Z" fill="#B748FF"/><path d="M517.547 195C528.733 200.676 542.872 204 561.036 204C579.2 204 594.22 201.275 606.097 195.824C618.148 190.374 627.142 183.165 633.081 174.198C639.194 165.055 642.25 155.121 642.25 144.396C642.25 134.725 640.329 126.725 636.486 120.396C632.819 113.89 627.928 108.703 621.816 104.835C615.703 100.791 608.891 97.6264 601.381 95.3407C594.046 92.8791 586.623 90.8571 579.113 89.2747C571.777 87.6923 564.966 86.1978 558.678 84.7912C552.565 83.2088 547.588 81.2747 543.745 78.989C540.078 76.5275 538.244 73.2747 538.244 69.2308C538.244 66.0659 539.204 63.2528 541.126 60.7912C543.047 58.3297 546.191 56.5714 550.557 54.989C554.923 53.4066 561.481 52.6154 567.848 52.6154C576.523 52.6154 581.036 53.5643 586.355 56.3021C592.568 59.5 597.08 64.5 599.748 69.2308L633.081 48.5974C617.758 19.4753 587.273 12 568.11 12C548.947 12 535.1 14.7253 523.049 20.1758C510.998 25.6264 501.916 32.8352 495.803 41.8022C489.865 50.7692 486.896 60.7912 486.896 71.8681C486.896 81.7143 488.817 89.8901 492.659 96.3956C496.502 102.725 501.479 107.912 507.592 111.956C513.705 115.824 520.429 118.989 527.765 121.451C535.275 123.912 542.697 125.934 550.033 127.517C557.543 129.099 564.354 130.681 570.467 132.264C576.58 133.846 581.558 135.868 585.4 138.33C589.243 140.791 591.164 144.132 591.164 148.352C591.164 151.341 590.116 153.978 588.02 156.264C586.099 158.374 582.955 160.132 578.589 161.538C574.222 162.769 567.678 163.385 561.298 163.385C549.448 163.385 539.42 159 532.781 154.537C525.121 149.388 521.96 141.054 517.25 132.264L478.25 154.537C483.033 167.057 501.21 186.71 517.547 195Z" fill="white"/><path d="M715.504 162.034V126.926H800.25V86.3314H715.504V53.9657H804.25V12H662.25V204H804.25V162.034H715.504Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M966.779 12.9358C949.213 22.8822 937.725 50.1214 934.705 63.5596L906.062 66.1008L895.184 98.6935L910.579 87.3298L919.161 87.4334L915.21 98.9354L935.95 119.398L947.428 116.649L947.32 125.702L939.513 140.615L965.387 130.341L969.567 99.592C980.409 96.8355 1005.76 87.3245 1020.45 71.3323C1035.14 55.3401 1034.76 17.9275 1032.73 1.2202C1001.49 -2.23709 975.745 7.59007 966.779 12.9358ZM988.115 63.6342C998.122 63.755 1006.33 55.6668 1006.45 45.5686C1006.57 35.4704 998.555 27.1862 988.548 27.0653C978.542 26.9445 970.332 35.0327 970.213 45.1309C970.093 55.2291 978.108 63.5133 988.115 63.6342Z" fill="#B748FF"/><path d="M906.422 116.154C903.306 121.506 901.157 131.169 900.472 135.332C903.972 135.053 912.147 132.008 916.752 129.754C921.357 127.499 926.368 123.132 928.31 120.268L914.165 106.623C912.882 107.57 909.537 110.802 906.422 116.154Z" fill="#B748FF"/><path fill-rule="evenodd" clip-rule="evenodd" d="M975.202 107.91C975.202 107.963 975.203 108.015 975.203 108.068C975.203 115.975 973.897 123.178 971.285 129.679C968.848 136.18 965.365 141.802 960.839 146.546C956.486 151.115 951.263 154.629 945.169 157.088C939.249 159.548 932.807 160.778 925.843 160.778C918.878 160.778 912.349 159.548 906.255 157.088C900.336 154.629 895.112 151.115 890.586 146.546C886.233 141.802 882.751 136.18 880.139 129.679C877.702 123.178 876.483 115.975 876.483 108.068C876.483 99.986 877.702 92.7823 880.139 86.4571C882.751 79.9563 886.233 74.4217 890.586 69.8535C895.112 65.1096 900.336 61.5078 906.255 59.048C912.349 56.5882 918.878 55.3583 925.843 55.3583C926.599 55.3583 927.349 55.3728 928.093 55.4018C928.798 53.5999 929.527 51.6844 930.285 49.6917C934.723 38.0257 941.76 23.7216 949.431 14.0611C942.451 12.7822 933.527 12.1363 925.843 12.1363C911.217 12.1363 897.724 14.5082 885.362 19.2521C873.001 23.996 862.206 30.7604 852.978 39.5454C843.924 48.1546 836.873 58.2574 831.824 69.8535C826.775 81.4497 824.25 94.1879 824.25 108.068C824.25 121.948 826.775 134.687 831.824 146.283C836.873 157.879 843.924 168.07 852.978 176.855C862.206 185.464 873.001 192.14 885.362 196.884C897.724 201.628 911.217 204 925.843 204C940.642 204 954.135 201.628 966.323 196.884C978.685 192.14 989.392 185.464 998.446 176.855C1007.5 168.245 1014.55 158.143 1019.6 146.546C1024.82 134.774 1027.44 121.948 1027.44 108.068C1027.44 98.5281 1026.2 89.5276 1023.73 81.0665C1014.68 91.0389 995.827 99.077 982.135 104.916C979.619 105.988 977.277 106.987 975.202 107.91Z" fill="white"/><path d="M1125.68 204H1070L1132.73 12H1203.27L1266 204H1210.32L1168.74 64.875H1167.26L1125.68 204ZM1115.29 128.25H1219.97V167.25H1115.29V128.25Z" fill="#B748FF"/><path d="M1338 12V204H1286V12H1338Z" fill="#B748FF"/></svg></div>
+    <div class="logo">WP SEO AI</div>
     <h2>Admin access</h2>
     <p>Enter the admin password to manage use cases.</p>
     <form id="loginForm">
@@ -127,9 +125,9 @@ select{cursor:pointer}
 </div>
 
 <div class="topbar">
-  <span class="logo"><svg width="1338" height="204" viewBox="0 0 1338 204" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M55.9393 204L0 12H51.3402L80.3423 137.812H81.9379L115.07 12H156.93L190.062 138.094H191.658L220.754 12H272L216.155 204H171.384L136.751 87.5625H135.249L100.616 204H55.9393Z" fill="#B748FF"/><path d="M292 204V12H371.313C385.688 12 398.094 14.8125 408.531 20.4375C419.031 26 427.125 33.7812 432.813 43.7812C438.5 53.7188 442 65.3125 442 78.5C442 91.75 438.438 103.312 432.625 113.25C426.875 123.125 418.656 130.781 407.969 136.219C397.281 141.656 384.594 144.375 369.906 144.375H320.969V107.812H361.281C368.281 107.812 374.125 106.594 378.812 104.156C383.562 101.719 387.156 98.3125 389.594 93.9375C392.031 89.5 393.25 84.3437 393.25 78.4687C393.25 72.5312 392.031 67.4062 389.594 63.0938C387.156 58.7188 383.562 55.3438 378.812 52.9688C374.062 50.5938 368.219 49.4063 361.281 49.4063H338.406V204H292Z" fill="#B748FF"/><path d="M517.547 195C528.733 200.676 542.872 204 561.036 204C579.2 204 594.22 201.275 606.097 195.824C618.148 190.374 627.142 183.165 633.081 174.198C639.194 165.055 642.25 155.121 642.25 144.396C642.25 134.725 640.329 126.725 636.486 120.396C632.819 113.89 627.928 108.703 621.816 104.835C615.703 100.791 608.891 97.6264 601.381 95.3407C594.046 92.8791 586.623 90.8571 579.113 89.2747C571.777 87.6923 564.966 86.1978 558.678 84.7912C552.565 83.2088 547.588 81.2747 543.745 78.989C540.078 76.5275 538.244 73.2747 538.244 69.2308C538.244 66.0659 539.204 63.2528 541.126 60.7912C543.047 58.3297 546.191 56.5714 550.557 54.989C554.923 53.4066 561.481 52.6154 567.848 52.6154C576.523 52.6154 581.036 53.5643 586.355 56.3021C592.568 59.5 597.08 64.5 599.748 69.2308L633.081 48.5974C617.758 19.4753 587.273 12 568.11 12C548.947 12 535.1 14.7253 523.049 20.1758C510.998 25.6264 501.916 32.8352 495.803 41.8022C489.865 50.7692 486.896 60.7912 486.896 71.8681C486.896 81.7143 488.817 89.8901 492.659 96.3956C496.502 102.725 501.479 107.912 507.592 111.956C513.705 115.824 520.429 118.989 527.765 121.451C535.275 123.912 542.697 125.934 550.033 127.517C557.543 129.099 564.354 130.681 570.467 132.264C576.58 133.846 581.558 135.868 585.4 138.33C589.243 140.791 591.164 144.132 591.164 148.352C591.164 151.341 590.116 153.978 588.02 156.264C586.099 158.374 582.955 160.132 578.589 161.538C574.222 162.769 567.678 163.385 561.298 163.385C549.448 163.385 539.42 159 532.781 154.537C525.121 149.388 521.96 141.054 517.25 132.264L478.25 154.537C483.033 167.057 501.21 186.71 517.547 195Z" fill="white"/><path d="M715.504 162.034V126.926H800.25V86.3314H715.504V53.9657H804.25V12H662.25V204H804.25V162.034H715.504Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M966.779 12.9358C949.213 22.8822 937.725 50.1214 934.705 63.5596L906.062 66.1008L895.184 98.6935L910.579 87.3298L919.161 87.4334L915.21 98.9354L935.95 119.398L947.428 116.649L947.32 125.702L939.513 140.615L965.387 130.341L969.567 99.592C980.409 96.8355 1005.76 87.3245 1020.45 71.3323C1035.14 55.3401 1034.76 17.9275 1032.73 1.2202C1001.49 -2.23709 975.745 7.59007 966.779 12.9358ZM988.115 63.6342C998.122 63.755 1006.33 55.6668 1006.45 45.5686C1006.57 35.4704 998.555 27.1862 988.548 27.0653C978.542 26.9445 970.332 35.0327 970.213 45.1309C970.093 55.2291 978.108 63.5133 988.115 63.6342Z" fill="#B748FF"/><path d="M906.422 116.154C903.306 121.506 901.157 131.169 900.472 135.332C903.972 135.053 912.147 132.008 916.752 129.754C921.357 127.499 926.368 123.132 928.31 120.268L914.165 106.623C912.882 107.57 909.537 110.802 906.422 116.154Z" fill="#B748FF"/><path fill-rule="evenodd" clip-rule="evenodd" d="M975.202 107.91C975.202 107.963 975.203 108.015 975.203 108.068C975.203 115.975 973.897 123.178 971.285 129.679C968.848 136.18 965.365 141.802 960.839 146.546C956.486 151.115 951.263 154.629 945.169 157.088C939.249 159.548 932.807 160.778 925.843 160.778C918.878 160.778 912.349 159.548 906.255 157.088C900.336 154.629 895.112 151.115 890.586 146.546C886.233 141.802 882.751 136.18 880.139 129.679C877.702 123.178 876.483 115.975 876.483 108.068C876.483 99.986 877.702 92.7823 880.139 86.4571C882.751 79.9563 886.233 74.4217 890.586 69.8535C895.112 65.1096 900.336 61.5078 906.255 59.048C912.349 56.5882 918.878 55.3583 925.843 55.3583C926.599 55.3583 927.349 55.3728 928.093 55.4018C928.798 53.5999 929.527 51.6844 930.285 49.6917C934.723 38.0257 941.76 23.7216 949.431 14.0611C942.451 12.7822 933.527 12.1363 925.843 12.1363C911.217 12.1363 897.724 14.5082 885.362 19.2521C873.001 23.996 862.206 30.7604 852.978 39.5454C843.924 48.1546 836.873 58.2574 831.824 69.8535C826.775 81.4497 824.25 94.1879 824.25 108.068C824.25 121.948 826.775 134.687 831.824 146.283C836.873 157.879 843.924 168.07 852.978 176.855C862.206 185.464 873.001 192.14 885.362 196.884C897.724 201.628 911.217 204 925.843 204C940.642 204 954.135 201.628 966.323 196.884C978.685 192.14 989.392 185.464 998.446 176.855C1007.5 168.245 1014.55 158.143 1019.6 146.546C1024.82 134.774 1027.44 121.948 1027.44 108.068C1027.44 98.5281 1026.2 89.5276 1023.73 81.0665C1014.68 91.0389 995.827 99.077 982.135 104.916C979.619 105.988 977.277 106.987 975.202 107.91Z" fill="white"/><path d="M1125.68 204H1070L1132.73 12H1203.27L1266 204H1210.32L1168.74 64.875H1167.26L1125.68 204ZM1115.29 128.25H1219.97V167.25H1115.29V128.25Z" fill="#B748FF"/><path d="M1338 12V204H1286V12H1338Z" fill="#B748FF"/></svg></span>
+  <span class="logo">WP SEO AI</span>
   <h1>Admin — Add Use Case</h1>
-  <a href="./" class="nav-link">Back to Finder</a>
+  <a href="/" class="nav-link">Back to Finder</a>
 </div>
 
 <div class="container">
@@ -265,9 +263,7 @@ let keywords = [];
 let selectedPdf = null;
 let adminToken = sessionStorage.getItem('adminToken') || '';
 
-// Detect base path
-const BASE = location.pathname.replace(/\/admin\/?$/, '');
-function apiUrl(path) { return BASE + path; }
+function apiUrl(path) { return path; }
 
 /** Wrapper for authenticated admin API calls */
 function adminFetch(url, opts = {}) {

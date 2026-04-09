@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Pipeline Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --white: #FFFFFF;
+  --light-bg: #E9EEFA;
+  --navy: #0B1F3B;
+  --blackish: #16151A;
+  --text: #615567;
+  --text-light: rgba(97,85,103,.55);
+  --purple-soft: #BEB5FF;
+  --purple3: #B748FF;
+  --purple2: #DA6BFF;
+  --pink: #FF5FC2;
+  --blue: #7B9FFF;
+  --yellow: #FFDD68;
+  --green: #2CB67D;
+  --red: #E5484D;
+  --orange: #F5A623;
+  --border: #E0DFE6;
+  --border-light: #EEEDF2;
+  --max-w: 1100px;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Archivo',sans-serif; background:var(--light-bg); color:var(--text); font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; padding:32px; }
+h1 { font-size:24px; font-weight:800; color:var(--blackish); margin-bottom:4px; }
+h2 { font-size:18px; font-weight:700; color:var(--blackish); margin-bottom:16px; }
+h3 { font-size:14px; font-weight:600; color:var(--blackish); margin-bottom:8px; }
+.subtitle { color:var(--text-light); font-size:13px; margin-bottom:24px; }
+.container { max-width:var(--max-w); margin:0 auto; }
+.grid { display:grid; gap:20px; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.card { background:var(--white); border-radius:var(--radius); padding:24px; border:1px solid var(--border-light); }
+.card-sm { padding:16px; }
+.stat { font-size:32px; font-weight:800; color:var(--blackish); }
+.stat-label { font-size:12px; font-weight:500; color:var(--text-light); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+.stat-sub { font-size:13px; color:var(--text-light); margin-top:2px; }
+.badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+.badge-green { background:#E6F7EF; color:var(--green); }
+.badge-red { background:#FDEAEA; color:var(--red); }
+.badge-yellow { background:#FFF8E0; color:#B8860B; }
+.badge-purple { background:#F0EBFF; color:var(--purple3); }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th { text-align:left; font-weight:600; color:var(--text-light); font-size:12px; text-transform:uppercase; letter-spacing:.5px; padding:8px 12px; border-bottom:2px solid var(--border); }
+td { padding:10px 12px; border-bottom:1px solid var(--border-light); }
+.bar-bg { background:var(--border-light); border-radius:4px; height:8px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:4px; transition:width .3s; }
+.bar-green { background:var(--green); }
+.bar-purple { background:var(--purple3); }
+.bar-orange { background:var(--orange); }
+.section { margin-bottom:32px; }
+.loading { text-align:center; padding:40px; color:var(--text-light); }
+.error { text-align:center; padding:40px; color:var(--red); }
+.back { display:inline-block; margin-bottom:16px; color:var(--purple3); font-size:13px; font-weight:500; text-decoration:none; }
+.back:hover { text-decoration:underline; }
+.track-form { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.track-form label { font-size:12px; font-weight:600; color:var(--text-light); display:block; margin-bottom:4px; }
+.track-form input, .track-form select { font-family:inherit; font-size:14px; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); }
+.track-form button { font-family:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:none; border-radius:var(--radius-sm); background:var(--purple3); color:var(--white); cursor:pointer; }
+.track-form button:hover { background:var(--purple2); }
+.empty { text-align:center; padding:32px; color:var(--text-light); font-size:14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back">Dashboard</a>
+  <h1>Pipeline Intelligence</h1>
+  <p class="subtitle">What would Noy do? Prove the ROI.</p>
+
+  <!-- KPI Cards -->
+  <div id="kpis" class="section">
+    <div class="loading">Loading pipeline data...</div>
+  </div>
+
+  <!-- Loss Reasons -->
+  <div id="losses" class="section"></div>
+
+  <!-- Content Performance -->
+  <div class="section">
+    <h2>Narrative Performance</h2>
+    <p class="subtitle">Which deck/script version actually wins deals?</p>
+    <div id="content-perf">
+      <div class="loading">Loading content performance...</div>
+    </div>
+  </div>
+
+  <!-- Track Content Usage -->
+  <div class="section">
+    <h2>Track Content Usage</h2>
+    <p class="subtitle">Log when you use a sales asset in a deal</p>
+    <div class="card">
+      <form class="track-form" id="track-form">
+        <div><label>Content Name</label><input name="content_name" placeholder="MM Sales Deck V6" required></div>
+        <div><label>Version</label><input name="content_version" placeholder="v6"></div>
+        <div><label>Type</label>
+          <select name="content_type">
+            <option value="deck">Deck</option>
+            <option value="script">Script</option>
+            <option value="one_pager">One Pager</option>
+            <option value="case_study">Case Study</option>
+            <option value="proposal">Proposal</option>
+          </select>
+        </div>
+        <div><label>Used In</label>
+          <select name="used_in">
+            <option value="meeting">Meeting</option>
+            <option value="email">Email</option>
+            <option value="follow_up">Follow-up</option>
+            <option value="champion_enablement">Champion Enablement</option>
+          </select>
+        </div>
+        <div><label>Deal (optional)</label><input name="deal_id" placeholder="deal name or ID"></div>
+        <div><label>Segment</label>
+          <select name="segment">
+            <option value="smb">SMB</option>
+            <option value="midmarket">Mid-Market</option>
+          </select>
+        </div>
+        <div><button type="submit">Track</button></div>
+      </form>
+      <div id="track-result" style="margin-top:12px; font-size:13px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('auth_token') || '';
+const API = window.location.origin;
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, { headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', ...opts.headers }, ...opts });
+  if (res.status === 401) { window.location.href = '/'; return null; }
+  return res.json();
+}
+
+async function loadPipeline() {
+  const data = await api('/api/pipeline');
+  if (!data) return;
+  const el = document.getElementById('kpis');
+  const l90 = data.last_90_days || {};
+  el.innerHTML = `
+    <div class="grid grid-4">
+      <div class="card card-sm">
+        <div class="stat-label">Active Deals</div>
+        <div class="stat">${data.active_deals || 0}</div>
+      </div>
+      <div class="card card-sm">
+        <div class="stat-label">Pipeline Value</div>
+        <div class="stat">&euro;${((data.pipeline_value || 0) / 1000).toFixed(0)}k</div>
+        <div class="stat-sub">ARR</div>
+      </div>
+      <div class="card card-sm">
+        <div class="stat-label">Win Rate (90d)</div>
+        <div class="stat">${l90.win_rate != null ? l90.win_rate + '%' : '--'}</div>
+        <div class="stat-sub">${l90.won || 0}W / ${l90.lost || 0}L</div>
+      </div>
+      <div class="card card-sm">
+        <div class="stat-label">Avg Cycle</div>
+        <div class="stat">${l90.avg_cycle_days || '--'}</div>
+        <div class="stat-sub">days to close</div>
+      </div>
+    </div>
+    ${l90.avg_deal_size ? `<div style="margin-top:12px; font-size:13px; color:var(--text-light);">Avg deal size: &euro;${l90.avg_deal_size?.toLocaleString() || '--'} ARR</div>` : ''}
+  `;
+
+  // Loss reasons
+  const lossEl = document.getElementById('losses');
+  if (l90.top_loss_reasons && l90.top_loss_reasons.length > 0) {
+    lossEl.innerHTML = `<h2>Top Loss Reasons (90d)</h2><div class="card"><table><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${l90.top_loss_reasons.map(([reason, count]) => `<tr><td>${reason}</td><td><span class="badge badge-red">${count}</span></td></tr>`).join('')}</tbody></table></div>`;
+  }
+}
+
+async function loadContentPerf() {
+  const data = await api('/api/content/performance');
+  const el = document.getElementById('content-perf');
+  if (!data || data.length === 0) {
+    el.innerHTML = '<div class="card empty">No content usage tracked yet. Use the form below to start logging.</div>';
+    return;
+  }
+  const sorted = data.sort((a, b) => (b.win_rate || 0) - (a.win_rate || 0));
+  el.innerHTML = `<div class="card"><table>
+    <thead><tr><th>Content</th><th>Version</th><th>Segment</th><th>Used</th><th>Advanced</th><th>Won</th><th>Lost</th><th>Win Rate</th><th>Avg Velocity</th></tr></thead>
+    <tbody>${sorted.map(p => {
+      const wr = p.win_rate != null ? p.win_rate : '--';
+      const badge = wr === '--' ? '' : wr >= 60 ? 'badge-green' : wr >= 40 ? 'badge-yellow' : 'badge-red';
+      return `<tr>
+        <td style="font-weight:600;color:var(--blackish)">${p.content_name}</td>
+        <td>${p.content_version || '--'}</td>
+        <td><span class="badge badge-purple">${p.segment}</span></td>
+        <td>${p.times_used}</td>
+        <td>${p.deals_advanced}</td>
+        <td>${p.deals_won}</td>
+        <td>${p.deals_lost}</td>
+        <td><span class="badge ${badge}">${wr}${wr !== '--' ? '%' : ''}</span></td>
+        <td>${p.avg_deal_velocity_days ? p.avg_deal_velocity_days + 'd' : '--'}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+document.getElementById('track-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const body = {
+    content_name: form.content_name.value,
+    content_version: form.content_version.value || null,
+    content_type: form.content_type.value,
+    used_in: form.used_in.value,
+    deal_id: form.deal_id.value || null,
+    segment: form.segment.value,
+    ae_name: 'lead',
+  };
+  const result = document.getElementById('track-result');
+  try {
+    const res = await api('/api/content/track', { method: 'POST', body: JSON.stringify(body) });
+    if (res?.ok) {
+      result.innerHTML = '<span style="color:var(--green)">Tracked successfully</span>';
+      form.reset();
+      loadContentPerf();
+    } else {
+      result.innerHTML = '<span style="color:var(--red)">Failed: ' + (res?.error || 'Unknown error') + '</span>';
+    }
+  } catch (err) {
+    result.innerHTML = '<span style="color:var(--red)">Error: ' + err.message + '</span>';
+  }
+});
+
+loadPipeline();
+loadContentPerf();
+</script>
+</body>
+</html>

@@ -1,22 +1,21 @@
 /**
  * Use Case Finder — Standalone server
- * Run: npx tsx src/use-cases/server.ts
+ * Run: npm run dev
  */
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { serve } from '@hono/node-server';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OBJECTIONS, OBJECTIONS_NL, painPatterns as seedPainPatterns } from './data.ts';
 import { loadAllCases, saveCase, deleteCase, generateId, pdfDir, detectObjectionsFromText } from './storage.ts';
 import type { UseCase, Objection } from './data.ts';
-import Anthropic from '@anthropic-ai/sdk';
 import { config } from 'dotenv';
 config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = process.env.VERCEL ? process.cwd() : join(__dirname, '..');
 const app = new Hono();
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wpseoai2026';
@@ -42,11 +41,8 @@ app.use('/api/admin/*', async (c, next) => {
   await next();
 });
 
-/** Rebuild derived lists from current cases (cached until cases change) */
-let _derivedCache: ReturnType<typeof buildDerived> | null = null;
-let _derivedCaseCount = -1;
-
-function buildDerived() {
+/** Rebuild derived lists from current cases */
+function getDerived() {
   const cases = loadAllCases();
   const painPatterns = [...new Set(cases.map((c) => c.painPattern))];
   const industries = [...new Set(cases.map((c) => c.industry))];
@@ -57,19 +53,21 @@ function buildDerived() {
   return { cases, painPatterns, industries, objectionCounts };
 }
 
-function getDerived() {
-  const cases = loadAllCases();
-  if (_derivedCache && _derivedCaseCount === cases.length) return _derivedCache;
-  _derivedCache = buildDerived();
-  _derivedCaseCount = cases.length;
-  return _derivedCache;
-}
+// ─── Health check ────────────────────────────────────────────────────────────
+
+app.get('/health', (c) => {
+  return c.json({ ok: true, root: ROOT, vercel: !!process.env.VERCEL });
+});
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 app.get('/api/use-cases', (c) => {
-  const { cases, painPatterns, industries, objectionCounts } = getDerived();
-  return c.json({ cases, painPatterns, industries, objections: OBJECTIONS, objectionCounts });
+  try {
+    const { cases, painPatterns, industries, objectionCounts } = getDerived();
+    return c.json({ cases, painPatterns, industries, objections: OBJECTIONS, objectionCounts });
+  } catch (err: any) {
+    return c.json({ error: err.message, stack: err.stack }, 500);
+  }
 });
 
 app.get('/api/use-cases/search', (c) => {
@@ -80,7 +78,7 @@ app.get('/api/use-cases/search', (c) => {
   const terms = q.split(/\s+/);
 
   const scored = cases.map((uc) => {
-    const nlTerms = uc.objections.map((o) => OBJECTIONS_NL[o] || '');
+    const nlTerms = uc.objections.map((o: string) => (OBJECTIONS_NL as Record<string, string>)[o] || '');
     const searchable = [
       uc.company, uc.industry, uc.painPattern, uc.headline,
       uc.outcome, uc.result, uc.summary, uc.businessType, uc.marketPosition,
@@ -90,16 +88,16 @@ app.get('/api/use-cases/search', (c) => {
     let score = 0;
     for (const term of terms) {
       if (searchable.includes(term)) score += 1;
-      if (uc.keywords.some((k) => k.includes(term))) score += 1;
+      if (uc.keywords.some((k: string) => k.includes(term))) score += 1;
       if (uc.company.toLowerCase().includes(term)) score += 2;
       if (uc.industry.toLowerCase().includes(term)) score += 2;
       if (uc.businessType.toLowerCase() === term) score += 2;
-      if (uc.objections.some((o) => o.toLowerCase().includes(term))) score += 1;
+      if (uc.objections.some((o: string) => o.toLowerCase().includes(term))) score += 1;
     }
     return { ...uc, score };
   });
 
-  const results = scored.filter((r) => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 20);
+  const results = scored.filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
   return c.json({ results });
 });
 
@@ -121,7 +119,7 @@ app.post('/api/admin/analyze-pdf', async (c) => {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { PDFParse } = await import('pdf-parse');
-    const parser = new PDFParse(new Uint8Array(buffer));
+    const parser = new PDFParse(new Uint8Array(buffer)) as any;
     await parser.load();
     const textResult = await parser.getText();
     const text = (textResult.pages || []).map((p: any) => p.text).join('\n').slice(0, 6000);
@@ -132,6 +130,7 @@ app.post('/api/admin/analyze-pdf', async (c) => {
     // Claude-based structured extraction
     let extracted: Record<string, any> = {};
     try {
+      const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic();
       const objList = OBJECTIONS.map((o, i) => `${i + 1}. ${o}`).join('\n');
 
@@ -223,6 +222,7 @@ app.post('/api/admin/cases', async (c) => {
       businessType: (formData.get('businessType') as string || 'B2B') as UseCase['businessType'],
       marketPosition: (formData.get('marketPosition') as string || 'Mainstream') as UseCase['marketPosition'],
       trustSensitive: formData.get('trustSensitive') === 'true',
+      clickTier: (formData.get('clickTier') as string || 'Small base (100-500)') as UseCase['clickTier'],
       objections,
       countries,
       keywords,
@@ -269,24 +269,14 @@ app.get('/use-cases/pdf/:filename', (c) => {
 // ─── Frontend ────────────────────────────────────────────────────────────────
 
 app.get('/', (c) => {
-  const html = readFileSync(join(__dirname, '..', 'dashboard', 'use-cases.html'), 'utf-8');
+  const html = readFileSync(join(ROOT, 'src', 'dashboard', 'index.html'), 'utf-8');
   return c.html(html);
 });
 
 app.get('/admin', (c) => {
-  const html = readFileSync(join(__dirname, '..', 'dashboard', 'use-cases-admin.html'), 'utf-8');
+  const html = readFileSync(join(ROOT, 'src', 'dashboard', 'admin.html'), 'utf-8');
   return c.html(html);
 });
-
-// ─── Start ───────────────────────────────────────────────────────────────────
-
-const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL_ENV;
-if (!isVercel) {
-const port = parseInt(process.env.PORT || '3001');
-console.log(`Use Case Finder running at http://localhost:${port}`);
-console.log(`Admin panel at http://localhost:${port}/admin`);
-serve({ fetch: app.fetch, port });
-}
 
 // ─── Export for Vercel ───────────────────────────────────────────────────────
 
