@@ -1265,8 +1265,9 @@ const SCENARIO_V2_DEFAULTS={
   directMed: [0, 0, 1, 0, 0, 0, 0, 0, 0],   // €50K each
   directBig: [0, 1, 0, 1, 1, 2, 1, 3, 4],   // €100K each
   // Headcount per month (editable)
-  aes:  [1, 1, 1, 3, 3, 4, 5, 6, 6],
-  bdrs: [1, 2, 3, 3, 4, 4, 5, 5, 5],
+  aesRamped: [1.2, 1.2, 2, 2, 2, 2, 2, 2, 2],  // Martijn(1) + Victor(0.2→1 in Jun), no ramp
+  aesNew:    [0, 0, 0, 2, 2, 3, 4, 5, 5],       // new hires, subject to ramp curve
+  bdrs:      [1, 2, 3, 3, 4, 4, 5, 5, 5],
   // Conversion assumptions
   convToMed: 40,   // % of pilots that convert to Medium
   convToBig: 10,   // % of pilots that convert to Large
@@ -1330,12 +1331,13 @@ PAGE_RENDERERS.scenarios=(el)=>{
   const p=initS.pilots||[...SCENARIO_V2_DEFAULTS.pilots];
   const dm=initS.directMed||[...SCENARIO_V2_DEFAULTS.directMed];
   const db=initS.directBig||[...SCENARIO_V2_DEFAULTS.directBig];
-  const aes=initS.aes||[...SCENARIO_V2_DEFAULTS.aes];
+  const aesR=initS.aesRamped||[...SCENARIO_V2_DEFAULTS.aesRamped];
+  const aesN=initS.aesNew||[...SCENARIO_V2_DEFAULTS.aesNew];
   const bdrsArr=initS.bdrs||[...SCENARIO_V2_DEFAULTS.bdrs];
 
   function save(){
     const s=LS.get('SCENARIO_V2')||{};
-    s.pilots=p;s.directMed=dm;s.directBig=db;s.aes=aes;s.bdrs=bdrsArr;
+    s.pilots=p;s.directMed=dm;s.directBig=db;s.aesRamped=aesR;s.aesNew=aesN;s.bdrs=bdrsArr;
     LS.set('SCENARIO_V2',s);
   }
   function sum(a){return a.reduce((s,v)=>s+(parseFloat(v)||0),0);}
@@ -1367,21 +1369,23 @@ PAGE_RENDERERS.scenarios=(el)=>{
     const aeMonthly=aeQTarget/3; // €80K/mo at full ramp
     const rampPcts=SCENARIO_V2_DEFAULTS.aeRampPct;
 
-    // Track when each AE-slot was added (month index where headcount increased)
-    const aeStartMonths=[];
-    let prevAe=0;
+    // Track when new-hire AE slots were added (for ramp curve)
+    const newAeStartMonths=[];
+    let prevNew=0;
     for(let i=0;i<MONTHS.length;i++){
-      const cur=aes[i]||0;
-      for(let n=0;n<cur-prevAe;n++) aeStartMonths.push(i);
-      prevAe=cur;
+      const cur=aesN[i]||0;
+      for(let n=0;n<cur-prevNew;n++) newAeStartMonths.push(i);
+      prevNew=cur;
     }
 
-    // Revenue capacity per month based on AE headcount + ramp
+    // Revenue capacity per month: ramped AEs (100%) + new AEs (with ramp)
     const aeCapPerMo=MONTHS.map((_,i)=>{
-      let cap=0;
-      for(const startMo of aeStartMonths){
+      // Ramped AEs produce at full capacity (no ramp)
+      let cap=(aesR[i]||0)*aeMonthly;
+      // New AEs with ramp curve
+      for(const startMo of newAeStartMonths){
         if(i>=startMo){
-          const tenure=i-startMo; // months since this AE started
+          const tenure=i-startMo;
           const pct=tenure<rampPcts.length?rampPcts[tenure]:rampPcts[rampPcts.length-1];
           cap+=aeMonthly*pct/100;
         }
@@ -1389,12 +1393,14 @@ PAGE_RENDERERS.scenarios=(el)=>{
       return Math.round(cap);
     });
 
+    const totalAePerMo=MONTHS.map((_,i)=>(aesR[i]||0)+(aesN[i]||0));
+
     // Revenue plan per month (from deal entries)
     const revPlanPerMo=MONTHS.map((_,i)=>(p[i]||0)*ARR_PILOT+(dm[i]||0)*ARR_MED+(db[i]||0)*ARR_BIG);
     const aeGapPerMo=MONTHS.map((_,i)=>revPlanPerMo[i]-aeCapPerMo[i]);
 
     // Headcount cost
-    const totalCostPerMo=MONTHS.map((_,i)=>(aes[i]||0)*AE_COST+(bdrsArr[i]||0)*BDR_COST);
+    const totalCostPerMo=MONTHS.map((_,i)=>((aesR[i]||0)+(aesN[i]||0))*AE_COST+(bdrsArr[i]||0)*BDR_COST);
     const totalCost9Mo=sum(totalCostPerMo);
 
     // Helpers
@@ -1498,11 +1504,13 @@ PAGE_RENDERERS.scenarios=(el)=>{
     </div>
 
     <div class="card"><h3>Headcount & cost</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AE: \u20AC${(AE_COST/1000).toFixed(0)}K/mo &nbsp; BDR: \u20AC${(BDR_COST/1000).toFixed(0)}K/mo</p>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AE: \u20AC${(AE_COST/1000).toFixed(0)}K/mo &nbsp; BDR: \u20AC${(BDR_COST/1000).toFixed(0)}K/mo. Ramped AEs = no ramp penalty. New hires = ${rampPcts.map((pp,i)=>i<2?pp+'% mo'+(i+1):pp+'%+').join('/')}.</p>
     <div style="overflow-x:auto"><table class="fin-table"><tr><th>Role</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
-    <tr><td>AEs<br><span style="font-size:11px;color:var(--text-light)">\u20AC${(AE_COST/1000).toFixed(0)}K/mo each</span></td>${aes.map((_,i)=>('<td>'+inp(aes,'aes',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aes)}</td></tr>
+    <tr><td>AEs (ramped)<br><span style="font-size:11px;color:var(--text-light)">No ramp penalty</span></td>${aesR.map((_,i)=>('<td>'+inp(aesR,'aesRamped',i,0.1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aesR)}</td></tr>
+    <tr><td>AEs (new hires)<br><span style="font-size:11px;color:var(--text-light)">Ramp curve applies</span></td>${aesN.map((_,i)=>('<td>'+inp(aesN,'aesNew',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aesN)}</td></tr>
+    <tr><td>Total AEs</td>${totalAePerMo.map(v=>`<td style="font-weight:600">${v}</td>`).join('')}<td style="font-weight:700">${Math.max(...totalAePerMo)}</td></tr>
     <tr><td>BDRs<br><span style="font-size:11px;color:var(--text-light)">\u20AC${(BDR_COST/1000).toFixed(0)}K/mo each</span></td>${bdrsArr.map((_,i)=>('<td>'+inp(bdrsArr,'bdrs',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...bdrsArr)}</td></tr>
-    <tr><td>Total headcount</td>${MONTHS.map((_,i)=>`<td>${(aes[i]||0)+(bdrsArr[i]||0)}</td>`).join('')}<td style="font-weight:700">${Math.max(...MONTHS.map((_,i)=>(aes[i]||0)+(bdrsArr[i]||0)))}</td></tr>
+    <tr><td>Total headcount</td>${MONTHS.map((_,i)=>`<td>${totalAePerMo[i]+(bdrsArr[i]||0)}</td>`).join('')}<td style="font-weight:700">${Math.max(...MONTHS.map((_,i)=>totalAePerMo[i]+(bdrsArr[i]||0)))}</td></tr>
     <tr class="total-row"><td>Monthly cost</td>${totalCostPerMo.map(v=>`<td>\u20AC${(v/1000).toFixed(1)}k</td>`).join('')}<td style="font-weight:700">\u20AC${(totalCost9Mo/1000).toFixed(0)}k total</td></tr>
     </table></div></div>
 
@@ -1514,7 +1522,8 @@ PAGE_RENDERERS.scenarios=(el)=>{
     if(key==='pilots')p[idx]=v;
     else if(key==='directMed')dm[idx]=v;
     else if(key==='directBig')db[idx]=v;
-    else if(key==='aes')aes[idx]=v;
+    else if(key==='aesRamped')aesR[idx]=v;
+    else if(key==='aesNew')aesN[idx]=v;
     else if(key==='bdrs')bdrsArr[idx]=v;
     save(); render();
   };
