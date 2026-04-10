@@ -1814,7 +1814,8 @@ function refreshMonthDropdowns() {
   const tier = currentTierFilter || 'AB';
   monthsCache = monthsRawCache.map(m => {
     const filtered = m.calls.filter(c => tier.includes((c.tier || 'B').toUpperCase()));
-    return { ...m, callCount: filtered.length, calls: filtered };
+    const junkCount = m.calls.filter(c => (c.tier || 'B') === 'C').length;
+    return { ...m, callCount: filtered.length, totalCount: m.calls.length, junkCount, calls: filtered };
   }).filter(m => m.callCount > 0);
 
   ['month-select-a', 'month-select-b'].forEach(id => {
@@ -1823,7 +1824,9 @@ function refreshMonthDropdowns() {
     const current = sel.value;
     sel.innerHTML = '<option value="">Choose month...</option>';
     monthsCache.forEach(m => {
-      sel.innerHTML += '<option value="'+m.sortKey+'">'+m.label+' ('+m.callCount+' calls)</option>';
+      const excluded = m.totalCount - m.callCount;
+      const suffix = excluded > 0 ? ' — '+excluded+' junk excluded' : '';
+      sel.innerHTML += '<option value="'+m.sortKey+'">'+m.label+' ('+m.callCount+' of '+m.totalCount+' calls'+suffix+')</option>';
     });
     if (current && monthsCache.some(m => m.sortKey === current)) sel.value = current;
     else sel.value = '';
@@ -2112,6 +2115,7 @@ async function loadAEDetail(name) {
             '<button class="tf-period-chip" data-tier="A" onclick="setTierFilter(\'A\',this)">Real opportunities only</button>'+
             '<button class="tf-period-chip active" data-tier="AB" onclick="setTierFilter(\'AB\',this)">Serious calls</button>'+
             '<button class="tf-period-chip" data-tier="ABC" onclick="setTierFilter(\'ABC\',this)">All (incl. junk)</button>'+
+            '<button class="tf-period-chip" data-tier="C" onclick="setTierFilter(\'C\',this)">Junk only</button>'+
           '</div>'+
         '</div>'+
       '</div>'+
