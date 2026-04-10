@@ -1802,11 +1802,21 @@ function renderMonthCallList(calls, side) {
   return h;
 }
 
-async function loadMonthsData(aeName) {
-  monthsCache = await api('/api/ae/'+encodeURIComponent(aeName)+'/months');
-  if (!monthsCache || !monthsCache.length) { monthsCache = []; return; }
+let monthsRawCache = []; // unfiltered months from API
 
-  // Populate both dropdowns
+async function loadMonthsData(aeName) {
+  monthsRawCache = await api('/api/ae/'+encodeURIComponent(aeName)+'/months') || [];
+  refreshMonthDropdowns();
+}
+
+function refreshMonthDropdowns() {
+  // Filter calls within each month by current tier filter, then rebuild counts
+  const tier = currentTierFilter || 'AB';
+  monthsCache = monthsRawCache.map(m => {
+    const filtered = m.calls.filter(c => tier.includes((c.tier || 'B').toUpperCase()));
+    return { ...m, callCount: filtered.length, calls: filtered };
+  }).filter(m => m.callCount > 0);
+
   ['month-select-a', 'month-select-b'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -1815,19 +1825,23 @@ async function loadMonthsData(aeName) {
     monthsCache.forEach(m => {
       sel.innerHTML += '<option value="'+m.sortKey+'">'+m.label+' ('+m.callCount+' calls)</option>';
     });
-    if (current) sel.value = current;
+    if (current && monthsCache.some(m => m.sortKey === current)) sel.value = current;
+    else sel.value = '';
   });
 
-  // Auto-select most recent two months
+  // Auto-select most recent two if nothing selected
   if (monthsCache.length >= 2) {
     const selA = document.getElementById('month-select-a');
     const selB = document.getElementById('month-select-b');
-    if (selA && !selA.value) { selA.value = monthsCache[1].sortKey; onMonthSelect('a'); }
-    if (selB && !selB.value) { selB.value = monthsCache[0].sortKey; onMonthSelect('b'); }
-  } else if (monthsCache.length === 1) {
-    const selA = document.getElementById('month-select-a');
-    if (selA && !selA.value) { selA.value = monthsCache[0].sortKey; onMonthSelect('a'); }
+    if (selA && !selA.value) { selA.value = monthsCache[1].sortKey; selectedMonthA = monthsCache[1].sortKey; }
+    if (selB && !selB.value) { selB.value = monthsCache[0].sortKey; selectedMonthB = monthsCache[0].sortKey; }
   }
+
+  // Refresh call lists for selected months
+  ['a', 'b'].forEach(side => {
+    const sel = document.getElementById('month-select-' + side);
+    if (sel && sel.value) onMonthSelect(side);
+  });
 }
 
 function onMonthSelect(side) {
@@ -1904,6 +1918,8 @@ function setTierFilter(tier, btn) {
     if (parent) parent.querySelectorAll('.tf-period-chip').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
+  // Refilter month dropdowns with new tier
+  if (monthsRawCache && monthsRawCache.length) refreshMonthDropdowns();
   if (selectedMonthA && selectedMonthB) runMonthComparison();
 }
 

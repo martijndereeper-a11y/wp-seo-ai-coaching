@@ -72,7 +72,7 @@ routes.get('/ae/:name/months', async (c) => {
   let from = 0;
   while (true) {
     const { data: page } = await supabase.from('ae_call_analysis')
-      .select('recording_id, title, created_at, call_quality_score, outcome, duration_seconds, talk_ratio, question_count')
+      .select('recording_id, title, created_at, call_quality_score, outcome, duration_seconds, talk_ratio, question_count, call_tier')
       .eq('recorder_name', name).order('created_at', { ascending: false }).range(from, from + 199);
     if (!page || page.length === 0) break;
     allCalls.push(...page);
@@ -98,6 +98,7 @@ routes.get('/ae/:name/months', async (c) => {
       duration: Math.round((call.duration_seconds || 0) / 60),
       talkRatio: call.talk_ratio || 0,
       questions: call.question_count || 0,
+      tier: call.call_tier || 'B',
     });
   }
 
