@@ -1383,6 +1383,9 @@ PAGE_RENDERERS.scenarios=(el)=>{
     logEl.scrollTop=logEl.scrollHeight;
   }
 
+  let pendingUpdates=null;
+  let pendingNarrative=null;
+
   window.sendScenarioChat=async function(){
     const input=document.getElementById('scenario-chat-input');
     const btn=document.getElementById('scenario-chat-send');
@@ -1397,21 +1400,49 @@ PAGE_RENDERERS.scenarios=(el)=>{
 
     try{
       const res=await api('/api/mm/scenario-chat',{method:'POST',body:JSON.stringify({
-        messages:chatHistory.slice(-10), // last 10 messages for context
+        messages:chatHistory.slice(-10),
         scenario:getFullState()
       })});
       if(!res||res.error){
         chatHistory.push({role:'assistant',content:'Error: '+(res?.error||'Failed to reach AI')});
       } else {
-        if(res.updates) applyUpdates(res.updates);
-        if(res.narrative){ scenarioNarrative=res.narrative; LS.set('SCENARIO_NARRATIVE',scenarioNarrative); }
         chatHistory.push({role:'assistant',content:res.reply||'(no response)'});
+        // Store pending updates — don't apply yet
+        if(res.updates&&Object.keys(res.updates).length>0){
+          pendingUpdates=res.updates;
+          pendingNarrative=res.narrative||null;
+        } else {
+          pendingUpdates=null;
+          pendingNarrative=null;
+          // No updates = question response or rejection. Still update narrative if provided.
+          if(res.narrative){ scenarioNarrative=res.narrative; LS.set('SCENARIO_NARRATIVE',scenarioNarrative); }
+        }
       }
     }catch(e){
       chatHistory.push({role:'assistant',content:'Error: '+e.message});
     }
     LS.set('SCENARIO_CHAT',chatHistory);
     btn.disabled=false; btn.textContent='Send';
+    render();
+    setTimeout(renderChatLog,50);
+  };
+
+  window.commitScenarioChanges=function(){
+    if(!pendingUpdates)return;
+    applyUpdates(pendingUpdates);
+    if(pendingNarrative){ scenarioNarrative=pendingNarrative; LS.set('SCENARIO_NARRATIVE',scenarioNarrative); }
+    chatHistory.push({role:'assistant',content:'Changes applied to the scenario.'});
+    LS.set('SCENARIO_CHAT',chatHistory);
+    pendingUpdates=null; pendingNarrative=null;
+    render();
+    setTimeout(renderChatLog,50);
+    toast('Scenario updated');
+  };
+
+  window.rejectScenarioChanges=function(){
+    chatHistory.push({role:'assistant',content:'Changes discarded.'});
+    LS.set('SCENARIO_CHAT',chatHistory);
+    pendingUpdates=null; pendingNarrative=null;
     render();
     setTimeout(renderChatLog,50);
   };
@@ -1502,6 +1533,11 @@ PAGE_RENDERERS.scenarios=(el)=>{
       <h3 style="margin-bottom:8px;display:flex;align-items:center;gap:8px">Strategy chat <span class="badge purple" style="font-size:10px">AI</span></h3>
       <p style="font-size:13px;color:var(--text);margin-bottom:12px">Talk through scenarios. The AI reads your current numbers, updates them, and rewrites the narrative.</p>
       <div id="scenario-chat-log" style="max-height:300px;overflow-y:auto;margin-bottom:12px;font-size:14px;line-height:1.7"></div>
+      ${pendingUpdates?`<div style="padding:12px 16px;border-radius:var(--radius-sm);background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);margin-bottom:12px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:13px;color:#8C6D1F;font-weight:600;flex:1">Proposed changes ready — apply to scenario?</span>
+        <button onclick="commitScenarioChanges()" class="qa-btn primary" style="padding:6px 16px;font-size:13px">Apply changes</button>
+        <button onclick="rejectScenarioChanges()" class="qa-btn danger" style="padding:6px 16px;font-size:13px">Discard</button>
+      </div>`:''}
       <div style="display:flex;gap:8px">
         <input id="scenario-chat-input" type="text" placeholder="e.g. What if we delay large deals to Q4 and add a 3rd AE in August?" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:'Archivo',sans-serif;color:var(--blackish);background:var(--white);outline:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendScenarioChat()}">
         <button onclick="sendScenarioChat()" class="qa-btn primary" id="scenario-chat-send" style="white-space:nowrap">Send</button>
