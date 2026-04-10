@@ -1335,12 +1335,86 @@ PAGE_RENDERERS.scenarios=(el)=>{
   const aesN=initS.aesNew||[...SCENARIO_V2_DEFAULTS.aesNew];
   const bdrsArr=initS.bdrs||[...SCENARIO_V2_DEFAULTS.bdrs];
 
+  let scenarioNarrative=LS.get('SCENARIO_NARRATIVE')||'';
+  const chatHistory=LS.get('SCENARIO_CHAT')||[];
+
   function save(){
     const s=LS.get('SCENARIO_V2')||{};
     s.pilots=p;s.directMed=dm;s.directBig=db;s.aesRamped=aesR;s.aesNew=aesN;s.bdrs=bdrsArr;
     LS.set('SCENARIO_V2',s);
   }
+  function getFullState(){
+    const s=LS.get('SCENARIO_V2')||{};
+    return {pilots:p,directMed:dm,directBig:db,aesRamped:aesR,aesNew:aesN,bdrs:bdrsArr,
+      convToMed:s.convToMed||SCENARIO_V2_DEFAULTS.convToMed,convToBig:s.convToBig||SCENARIO_V2_DEFAULTS.convToBig,
+      closePilot:s.closePilot||SCENARIO_V2_DEFAULTS.closePilot,closeMed:s.closeMed||SCENARIO_V2_DEFAULTS.closeMed,
+      closeBig:s.closeBig||SCENARIO_V2_DEFAULTS.closeBig,bdrMeetings:s.bdrMeetings||SCENARIO_V2_DEFAULTS.bdrMeetings,
+      aeQuarterlyTarget:s.aeQuarterlyTarget||SCENARIO_V2_DEFAULTS.aeQuarterlyTarget,
+      months:MONTHS,target:TARGET,arrPilot:ARR_PILOT,arrMed:ARR_MED,arrBig:ARR_BIG,convDelay:CONV_DELAY};
+  }
+  function applyUpdates(upd){
+    const s=LS.get('SCENARIO_V2')||{};
+    const arrKeys=['pilots','directMed','directBig','aesRamped','aesNew','bdrs'];
+    const paramKeys=['convToMed','convToBig','closePilot','closeMed','closeBig','bdrMeetings','aeQuarterlyTarget'];
+    for(const k of arrKeys){
+      if(upd[k]&&Array.isArray(upd[k])){
+        s[k]=upd[k];
+        if(k==='pilots')upd[k].forEach((v,i)=>{p[i]=v;});
+        if(k==='directMed')upd[k].forEach((v,i)=>{dm[i]=v;});
+        if(k==='directBig')upd[k].forEach((v,i)=>{db[i]=v;});
+        if(k==='aesRamped')upd[k].forEach((v,i)=>{aesR[i]=v;});
+        if(k==='aesNew')upd[k].forEach((v,i)=>{aesN[i]=v;});
+        if(k==='bdrs')upd[k].forEach((v,i)=>{bdrsArr[i]=v;});
+      }
+    }
+    for(const k of paramKeys){ if(upd[k]!=null) s[k]=upd[k]; }
+    LS.set('SCENARIO_V2',s);
+  }
+
   function sum(a){return a.reduce((s,v)=>s+(parseFloat(v)||0),0);}
+
+  function renderChatLog(){
+    const logEl=document.getElementById('scenario-chat-log');
+    if(!logEl)return;
+    logEl.innerHTML=chatHistory.map(m=>{
+      const isUser=m.role==='user';
+      return '<div style="margin-bottom:10px;padding:10px 14px;border-radius:var(--radius-sm);background:'+(isUser?'var(--light-bg)':'rgba(183,72,255,.04)')+';border-left:3px solid '+(isUser?'var(--border)':'var(--purple3)')+'"><div style="font-size:11px;font-weight:700;color:'+(isUser?'var(--text-light)':'var(--purple3)')+';margin-bottom:4px">'+(isUser?'You':'AI')+'</div><div style="white-space:pre-wrap">'+escapeHtml(m.content)+'</div></div>';
+    }).join('');
+    logEl.scrollTop=logEl.scrollHeight;
+  }
+
+  window.sendScenarioChat=async function(){
+    const input=document.getElementById('scenario-chat-input');
+    const btn=document.getElementById('scenario-chat-send');
+    const text=input.value.trim();
+    if(!text)return;
+    input.value='';
+    btn.disabled=true; btn.textContent='Thinking...';
+
+    chatHistory.push({role:'user',content:text});
+    LS.set('SCENARIO_CHAT',chatHistory);
+    renderChatLog();
+
+    try{
+      const res=await api('/api/mm/scenario-chat',{method:'POST',body:JSON.stringify({
+        messages:chatHistory.slice(-10), // last 10 messages for context
+        scenario:getFullState()
+      })});
+      if(!res||res.error){
+        chatHistory.push({role:'assistant',content:'Error: '+(res?.error||'Failed to reach AI')});
+      } else {
+        if(res.updates) applyUpdates(res.updates);
+        if(res.narrative){ scenarioNarrative=res.narrative; LS.set('SCENARIO_NARRATIVE',scenarioNarrative); }
+        chatHistory.push({role:'assistant',content:res.reply||'(no response)'});
+      }
+    }catch(e){
+      chatHistory.push({role:'assistant',content:'Error: '+e.message});
+    }
+    LS.set('SCENARIO_CHAT',chatHistory);
+    btn.disabled=false; btn.textContent='Send';
+    render();
+    setTimeout(renderChatLog,50);
+  };
 
   function render(){
     const s=LS.get('SCENARIO_V2')||{};
@@ -1416,6 +1490,23 @@ PAGE_RENDERERS.scenarios=(el)=>{
       <div class="kpi"><div class="kv">${totalDeals}</div><div class="kl">Deals to close</div></div>
     </div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+
+    <!-- NARRATIVE -->
+    <div id="scenario-narrative" class="card" style="margin-top:20px;${scenarioNarrative?'':'display:none'}">
+      <h3 style="margin-bottom:8px">Motion narrative</h3>
+      <div style="font-size:14px;color:var(--text);line-height:1.8;white-space:pre-wrap">${scenarioNarrative||''}</div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="card" style="margin-top:12px;margin-bottom:20px">
+      <h3 style="margin-bottom:8px;display:flex;align-items:center;gap:8px">Strategy chat <span class="badge purple" style="font-size:10px">AI</span></h3>
+      <p style="font-size:13px;color:var(--text);margin-bottom:12px">Talk through scenarios. The AI reads your current numbers, updates them, and rewrites the narrative.</p>
+      <div id="scenario-chat-log" style="max-height:300px;overflow-y:auto;margin-bottom:12px;font-size:14px;line-height:1.7"></div>
+      <div style="display:flex;gap:8px">
+        <input id="scenario-chat-input" type="text" placeholder="e.g. What if we delay large deals to Q4 and add a 3rd AE in August?" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:'Archivo',sans-serif;color:var(--blackish);background:var(--white);outline:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendScenarioChat()}">
+        <button onclick="sendScenarioChat()" class="qa-btn primary" id="scenario-chat-send" style="white-space:nowrap">Send</button>
+      </div>
+    </div>
 
     <!-- 1. DEAL PLAN -->
     <div class="card"><h3>1. Deal plan</h3>
@@ -1537,6 +1628,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
     render();
   };
   render();
+  setTimeout(renderChatLog,50);
 };
 
 // ── DEAL HEALTH SCORECARD ──

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { supabase, getCached, setCache } from '../shared.ts';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { getLlmModel } from '../../config/settings.ts';
 
 const routes = new Hono();
 
@@ -124,6 +125,90 @@ routes.get('/mm/analyses', async (c) => {
   const result = { analyses: data || [], learnings: allLearnings, learningsByCategory: byCat, totalCalls: (data || []).length, totalLearnings: allLearnings.length };
   setCache('mm-analyses', result);
   return c.json(result);
+});
+
+// ── Scenario Planner Chat ──────────────────────────────────────────────────
+
+const SCENARIO_SYSTEM = `You are the GTM strategist for WP SEO AI, a Search Visibility Platform (SEO + GEO + SEA managed service). You help the Head of GTM think through the mid-market motion roll-out by adjusting the revenue scenario and writing the narrative.
+
+CONTEXT:
+- Target: €2M NEW deal ARR by EOY 2026 (expansion revenue from pilot conversions is upside, not counted)
+- Tiers: Pilot €15K ARR (6-month term), Medium €50K ARR (12 months), Large €100K+ ARR (multi-year)
+- Pilots convert at month-5 review. Conversion rates are adjustable.
+- AE productivity: configurable €K/quarter per fully ramped AE. New hires ramp at 50%/75%/100% over 3 months.
+- Months: Apr through Dec 2026 (9 months, indices 0-8).
+
+You receive the current scenario state as JSON. When the user talks about changes ("push large deals later", "add another AE in Sep", "what if close rate drops to 7%"), you MUST respond with:
+
+1. A JSON block wrapped in <updates> tags containing ONLY the parameters that changed. Keys must match exactly:
+   - pilots, directMed, directBig: arrays of 9 numbers (deal counts per month, Apr-Dec)
+   - aesRamped, aesNew, bdrs: arrays of 9 numbers (headcount per month)
+   - convToMed, convToBig: numbers (0-100, percentage)
+   - closePilot, closeMed, closeBig: numbers (0-100, percentage)
+   - bdrMeetings: number (meetings per BDR per month)
+   - aeQuarterlyTarget: number (€K per quarter per fully ramped AE)
+   Only include keys that actually change. Example: <updates>{"pilots":[0,2,5,5,5,5,6,8,9],"closePilot":8}</updates>
+
+2. A narrative block wrapped in <narrative> tags. This is the FULL motion roll-out narrative that reflects the current scenario. It should read like an internal memo: what we're doing, why, the key bets, the risks, the timeline. 3-5 paragraphs, written for a CEO/board audience. Update it every time — don't just append.
+
+3. Your conversational reply explaining what you changed and why, and any trade-offs or risks.
+
+If the user is just asking a question (not requesting changes), skip the <updates> tags but still include the <narrative>.
+
+Be direct. No fluff. This is a revenue planning tool, not a chatbot.`;
+
+routes.post('/mm/scenario-chat', async (c) => {
+  const { messages, scenario } = await c.req.json() as {
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    scenario: Record<string, any>;
+  };
+
+  if (!messages?.length) return c.json({ error: 'No messages provided' }, 400);
+
+  const model = await getLlmModel();
+  const stateBlock = `CURRENT SCENARIO STATE:\n${JSON.stringify(scenario, null, 2)}`;
+
+  // Inject scenario state into the first user message
+  const apiMessages = messages.map((m, i) => ({
+    role: m.role as 'user' | 'assistant',
+    content: i === messages.length - 1 && m.role === 'user'
+      ? `${stateBlock}\n\nUSER: ${m.content}`
+      : m.content,
+  }));
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic();
+    const msg = await client.messages.create({
+      model, max_tokens: 3000,
+      system: SCENARIO_SYSTEM,
+      messages: apiMessages,
+    });
+
+    const text = msg.content[0].type === 'text' ? msg.content[0].text : '';
+
+    // Parse updates
+    let updates: Record<string, any> | null = null;
+    const updMatch = text.match(/<updates>([\s\S]*?)<\/updates>/);
+    if (updMatch) {
+      try { updates = JSON.parse(updMatch[1]); } catch { updates = null; }
+    }
+
+    // Parse narrative
+    let narrative: string | null = null;
+    const narMatch = text.match(/<narrative>([\s\S]*?)<\/narrative>/);
+    if (narMatch) narrative = narMatch[1].trim();
+
+    // Clean reply (remove tags)
+    const reply = text
+      .replace(/<updates>[\s\S]*?<\/updates>/g, '')
+      .replace(/<narrative>[\s\S]*?<\/narrative>/g, '')
+      .trim();
+
+    return c.json({ reply, updates, narrative });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
 });
 
 export default routes;
