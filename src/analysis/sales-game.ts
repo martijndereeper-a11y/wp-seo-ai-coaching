@@ -399,7 +399,10 @@ function detectGoodNewsShow(turns: TranscriptTurn[], recorderName: string): Game
 // Only from outcome data. Lost deals = NEVER a touchdown.
 // Unknown outcome: only if very strong close signals in transcript.
 
-const STRONG_CLOSE = /getekend|ondertekend|deal.*rond|we.*gaan.*starten|stuur.*het.*contract|contract.*verstuurd|welkom.*bij|gefeliciteerd|we.*doen.*het|laten.*we.*beginnen|ik.*teken|waar.*moet.*ik.*tekenen|laten.*we.*starten|wanneer.*beginnen.*we|stuur.*maar.*op|laten.*we.*het.*doen/i;
+const STRONG_CLOSE = /getekend|ondertekend|deal.*rond|we.*gaan.*starten|stuur.*het.*contract|contract.*verstuurd|welkom.*bij|gefeliciteerd|we.*doen.*het|ik.*teken|waar.*moet.*ik.*tekenen|stuur.*maar.*op|laten.*we.*het.*doen/i;
+
+// Phrases that sound like close signals but are just meeting openers
+const MEETING_OPENER = /laten.*we.*beginnen|laten.*we.*starten|zullen.*we.*beginnen|zullen.*we.*starten|wanneer.*beginnen.*we|dan.*begin.*ik|dan.*starten.*we|gaan.*we.*van.*start|van.*start.*gaan/i;
 
 function detectTouchdown(turns: TranscriptTurn[], recorderName: string, outcome: string): GameAction {
   const action: GameAction = {
@@ -426,13 +429,20 @@ function detectTouchdown(turns: TranscriptTurn[], recorderName: string, outcome:
     return action;
   }
 
-  // Unknown outcome: only from very strong in-call close signals (strict)
-  const signal = findTurn(turns, recorderName, 'prospect', STRONG_CLOSE);
-  if (signal) {
-    action.earned = true;
-    action.evidence = `Close signal in call: "${signal.turn.text.slice(0, 150)}"`;
-    action.timestamp = signal.turn.timestampDisplay;
-    return action;
+  // Unknown outcome: only from very strong in-call close signals in the second
+  // half of the call. Early matches are meeting openers, not deal closes.
+  const halfwayPoint = Math.floor(turns.length / 2);
+  for (let i = halfwayPoint; i < turns.length; i++) {
+    const t = turns[i];
+    if (!isProspect(t, recorderName)) continue;
+    STRONG_CLOSE.lastIndex = 0;
+    MEETING_OPENER.lastIndex = 0;
+    if (STRONG_CLOSE.test(t.text) && !MEETING_OPENER.test(t.text)) {
+      action.earned = true;
+      action.evidence = `Close signal in call: "${t.text.slice(0, 150)}"`;
+      action.timestamp = t.timestampDisplay;
+      return action;
+    }
   }
 
   action.reason = 'Nog geen close. Werk toe naar een Touchdown via de stappen hierboven.';
