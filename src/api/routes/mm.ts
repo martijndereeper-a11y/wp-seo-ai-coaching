@@ -167,7 +167,7 @@ routes.post('/mm/scenario-chat', async (c) => {
 
   if (!messages?.length) return c.json({ error: 'No messages provided' }, 400);
 
-  const model = await getLlmModel();
+  const model = 'claude-haiku-4-5-20251001'; // fast model for interactive chat
   const stateBlock = `CURRENT SCENARIO STATE:\n${JSON.stringify(scenario, null, 2)}`;
 
   // Inject scenario state into the first user message
@@ -182,7 +182,7 @@ routes.post('/mm/scenario-chat', async (c) => {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic();
     const msg = await client.messages.create({
-      model, max_tokens: 3000,
+      model, max_tokens: 1500,
       system: SCENARIO_SYSTEM,
       messages: apiMessages,
     });
