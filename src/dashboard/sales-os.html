@@ -1260,20 +1260,21 @@ const ARR_PILOT=15000,ARR_MED=50000,ARR_BIG=100000;
 const CONV_DELAY=5; // month-5 review per MM-OS
 
 const SCENARIO_V2_DEFAULTS={
-  // Deal entries per month (editable)
-  pilots:    [0, 2, 3, 4, 4, 3, 3, 2, 2],
-  directMed: [0, 0, 0, 1, 1, 1, 1, 1, 1],
-  directBig: [0, 0, 0, 0, 1, 0, 1, 1, 1],
+  // Deal entries per month — from whiteboard session
+  pilots:    [0, 2, 5, 5, 5, 5, 6, 8, 9],   // €15K each
+  directMed: [0, 0, 1, 0, 0, 0, 0, 0, 0],   // €50K each
+  directBig: [0, 1, 0, 1, 1, 2, 1, 3, 4],   // €100K each
   // Headcount per month (editable)
-  aes:  [1, 1, 1, 1, 2, 2, 2, 2, 2],
-  bdrs: [1, 2, 3, 3, 3, 4, 4, 4, 4],
+  aes:  [1, 1, 1, 3, 3, 4, 5, 6, 6],
+  bdrs: [1, 2, 3, 3, 4, 4, 5, 5, 5],
   // Conversion assumptions
   convToMed: 40,   // % of pilots that convert to Medium
   convToBig: 10,   // % of pilots that convert to Large
   // Funnel assumptions
   closePilot:10, closeMed:10, closeBig:5, bdrMeetings:15,
   // AE capacity
-  aeDealsPerMo: 5  // max active new deals an AE can work per month
+  aeQuarterlyTarget: 240,  // €K per Q per fully ramped AE
+  aeRampPct: [50, 75, 100] // month 1/2/3+ productivity %
 };
 const AE_COST=6000, BDR_COST=4000; // monthly cost per head
 
@@ -1361,20 +1362,36 @@ PAGE_RENDERERS.scenarios=(el)=>{
     const mtgPerMo=Math.ceil(mtgTotal/MONTHS.length);
     const bdrsNeeded=bdrCap>0?Math.ceil(mtgPerMo/bdrCap):0;
 
-    // AE funnel math
-    const aeCap=s.aeDealsPerMo||SCENARIO_V2_DEFAULTS.aeDealsPerMo;
-    // AE load per month: new deals entering + active pilots being managed
-    const aeLoadPerMo=MONTHS.map((_,i)=>{
-      const newDeals=(p[i]||0)+(dm[i]||0)+(db[i]||0);
-      // Active pilots: signed in prior months, still in pilot phase (not yet converted)
-      let activePilots=0;
-      for(let j=0;j<=i;j++){
-        if(i-j<CONV_DELAY) activePilots+=(p[j]||0); // still in pilot
+    // AE productivity math — €240K/Q per fully ramped AE
+    const aeQTarget=s.aeQuarterlyTarget||SCENARIO_V2_DEFAULTS.aeQuarterlyTarget;
+    const aeMonthly=aeQTarget/3; // €80K/mo at full ramp
+    const rampPcts=SCENARIO_V2_DEFAULTS.aeRampPct;
+
+    // Track when each AE-slot was added (month index where headcount increased)
+    const aeStartMonths=[];
+    let prevAe=0;
+    for(let i=0;i<MONTHS.length;i++){
+      const cur=aes[i]||0;
+      for(let n=0;n<cur-prevAe;n++) aeStartMonths.push(i);
+      prevAe=cur;
+    }
+
+    // Revenue capacity per month based on AE headcount + ramp
+    const aeCapPerMo=MONTHS.map((_,i)=>{
+      let cap=0;
+      for(const startMo of aeStartMonths){
+        if(i>=startMo){
+          const tenure=i-startMo; // months since this AE started
+          const pct=tenure<rampPcts.length?rampPcts[tenure]:rampPcts[rampPcts.length-1];
+          cap+=aeMonthly*pct/100;
+        }
       }
-      return {newDeals,activePilots,total:newDeals+activePilots};
+      return Math.round(cap);
     });
-    const peakAeLoad=Math.max(...aeLoadPerMo.map(l=>l.total));
-    const aesNeeded=aeCap>0?Math.ceil(peakAeLoad/aeCap):0;
+
+    // Revenue plan per month (from deal entries)
+    const revPlanPerMo=MONTHS.map((_,i)=>(p[i]||0)*ARR_PILOT+(dm[i]||0)*ARR_MED+(db[i]||0)*ARR_BIG);
+    const aeGapPerMo=MONTHS.map((_,i)=>revPlanPerMo[i]-aeCapPerMo[i]);
 
     // Headcount cost
     const totalCostPerMo=MONTHS.map((_,i)=>(aes[i]||0)*AE_COST+(bdrsArr[i]||0)*BDR_COST);
@@ -1466,17 +1483,17 @@ PAGE_RENDERERS.scenarios=(el)=>{
     </div>
 
     <div class="card"><h3>AE capacity math</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AEs manage new deals + active pilots in parallel.</p>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">\u20AC${aeQTarget}K/Q per fully ramped AE. Ramp: ${rampPcts.map((p,i)=>i<2?p+'% mo '+(i+1):p+'%+').join(', ')}.</p>
     <div style="display:flex;gap:10px;margin-bottom:14px">
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">AE deals/mo capacity${paramInp('aeDealsPerMo',aeCap,1)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">AE \u20ACK/quarter${paramInp('aeQuarterlyTarget',aeQTarget,10)}</label>
     </div>
     <div style="overflow-x:auto"><table class="fin-table">
-      <tr><th>Load</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
-      <tr><td>New deals</td>${aeLoadPerMo.map(l=>`<td>${l.newDeals||'-'}</td>`).join('')}<td></td></tr>
-      <tr><td>Active pilots</td>${aeLoadPerMo.map(l=>`<td>${l.activePilots||'-'}</td>`).join('')}<td></td></tr>
-      <tr class="total-row"><td>Total load</td>${aeLoadPerMo.map(l=>`<td style="color:${l.total>aeCap*Math.max(...aes)?'var(--red)':'var(--blackish)'}">${l.total||'-'}</td>`).join('')}<td style="font-weight:700">${peakAeLoad}</td></tr>
+      <tr><th>Metric</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Total</th></tr>
+      <tr><td>Revenue plan</td>${revPlanPerMo.map(v=>`<td>${v>0?fmt(v):'-'}</td>`).join('')}<td style="font-weight:700">${fmt(sum(revPlanPerMo))}</td></tr>
+      <tr><td>AE capacity<br><span style="font-size:11px;color:var(--text-light)">incl. ramp</span></td>${aeCapPerMo.map(v=>`<td style="color:var(--green)">${v>0?fmt(v):'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">${fmt(sum(aeCapPerMo))}</td></tr>
+      <tr class="total-row"><td>Gap</td>${aeGapPerMo.map(g=>`<td style="color:${g>0?'var(--red)':'var(--green)'};font-weight:700">${g>0?'-'+fmt(g):g<0?'+'+fmt(Math.abs(g)):'-'}</td>`).join('')}<td style="color:${sum(aeGapPerMo)>0?'var(--red)':'var(--green)'};font-weight:700">${sum(aeGapPerMo)>0?'-'+fmt(sum(aeGapPerMo)):'+'+fmt(Math.abs(sum(aeGapPerMo)))}</td></tr>
     </table></div>
-    <div style="font-size:14px;margin-top:10px">Peak load: ${peakAeLoad} deals &divide; ${aeCap}/AE = <strong style="color:${aesNeeded>=3?'var(--orange)':'var(--green)'}">${aesNeeded} AEs needed</strong></div>
+    <div style="font-size:13px;color:var(--text);margin-top:10px">${sum(aeGapPerMo)>0?'<span style="color:var(--red);font-weight:700">Capacity shortfall of '+fmt(sum(aeGapPerMo))+'.</span> Add AEs earlier or increase headcount in the table below.':'<span style="color:var(--green);font-weight:700">Capacity covers the plan</span> with '+fmt(Math.abs(sum(aeGapPerMo)))+' buffer.'}</div>
     </div>
     </div>
 
