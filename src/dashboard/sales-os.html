@@ -1254,143 +1254,203 @@ PAGE_RENDERERS['icp-hypotheses']=(el)=>{
 };
 
 // ── SCENARIO PLANNER ──
-const SCENARIO_DEFAULTS={
-  smb:[4500,30000,75000,75000,75000,75000,90000,115000,130000],
-  med:[0,0,50000,0,0,0,0,0,0],
-  big:[0,100000,0,100000,100000,200000,100000,300000,400000],
-  fte:[0.6,0.6,1.6,2.5,3.5,4.5,5.5,5.5,5.5],
-  closeSmb:10, closeMed:10, closeBig:5, convRate:44, bdrMeetings:15
-};
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TARGET=2000000;
+const ARR_PILOT=15000,ARR_MED=50000,ARR_BIG=100000;
+const CONV_DELAY=4; // month-4 review per MM-OS
 
-function renderFunnel(smb,med,big,saved){
-  const cr_smb=(saved.closeSmb||SCENARIO_DEFAULTS.closeSmb)/100;
-  const cr_med=(saved.closeMed||SCENARIO_DEFAULTS.closeMed)/100;
-  const cr_big=(saved.closeBig||SCENARIO_DEFAULTS.closeBig)/100;
-  const convPct=(saved.convRate!=null?saved.convRate:SCENARIO_DEFAULTS.convRate)/100;
-  const bdrCap=saved.bdrMeetings||SCENARIO_DEFAULTS.bdrMeetings;
+const SCENARIO_V2_DEFAULTS={
+  // Deal entries per month (editable)
+  pilots:    [0, 2, 3, 4, 4, 3, 3, 2, 2],
+  directMed: [0, 0, 0, 1, 1, 1, 1, 1, 1],
+  directBig: [0, 0, 0, 0, 1, 0, 1, 1, 1],
+  fte:       [0.6,0.6,1.6,2.5,3.5,4.5,5.5,5.5,5.5],
+  // Conversion assumptions
+  convToMed: 40,   // % of pilots that convert to Medium
+  convToBig: 10,   // % of pilots that convert to Large
+  // Funnel assumptions
+  closePilot:10, closeMed:10, closeBig:5, bdrMeetings:15
+};
 
-  // Count deals per month from revenue inputs
-  const ARR_SMB=15000,ARR_MED=50000,ARR_BIG=100000;
-  let totDealsSmb=0,totDealsMed=0,totDealsBig=0;
-  const dealsByMonth=MONTHS.map((_,i)=>{
-    const ds=smb[i]>0?Math.round(smb[i]/ARR_SMB*10)/10:0;
-    const dm=med[i]>0?Math.round(med[i]/ARR_MED*10)/10:0;
-    const db=big[i]>0?Math.round(big[i]/ARR_BIG*10)/10:0;
-    totDealsSmb+=ds;totDealsMed+=dm;totDealsBig+=db;
-    return {s:ds,m:dm,b:db,total:ds+dm+db};
-  });
-  const totDeals=totDealsSmb+totDealsMed+totDealsBig;
+function computeModel(s){
+  const pilots=s.pilots||[...SCENARIO_V2_DEFAULTS.pilots];
+  const dMed=s.directMed||[...SCENARIO_V2_DEFAULTS.directMed];
+  const dBig=s.directBig||[...SCENARIO_V2_DEFAULTS.directBig];
+  const cMed=(s.convToMed!=null?s.convToMed:SCENARIO_V2_DEFAULTS.convToMed)/100;
+  const cBig=(s.convToBig!=null?s.convToBig:SCENARIO_V2_DEFAULTS.convToBig)/100;
 
-  // Meetings needed (deals / close rate)
-  const mtgSmb=cr_smb>0?Math.ceil(totDealsSmb/cr_smb):0;
-  const mtgMed=cr_med>0?Math.ceil(totDealsMed/cr_med):0;
-  const mtgBig=cr_big>0?Math.ceil(totDealsBig/cr_big):0;
-  const mtgTotal=mtgSmb+mtgMed+mtgBig;
-  const mtgPerMonth=MONTHS.length>0?Math.ceil(mtgTotal/MONTHS.length):0;
+  // Per-month ARR waterfall
+  const newPilotARR=[], newMedARR=[], newBigARR=[];
+  const convMedARR=[], convBigARR=[];
+  let cumARR=0;
+  const cumLine=[];
+  let totPilots=0,totDMed=0,totDBig=0,totConvMed=0,totConvBig=0;
 
-  // BDR headcount
-  const bdrsNeeded=bdrCap>0?Math.ceil(mtgPerMonth/bdrCap):0;
-  const bdrsWithRamp=Math.ceil(bdrsNeeded*1.25);
+  for(let i=0;i<MONTHS.length;i++){
+    const p=pilots[i]||0, m=dMed[i]||0, b=dBig[i]||0;
+    totPilots+=p; totDMed+=m; totDBig+=b;
 
-  // Pilot conversions (pilots from first 4 months that can convert by EOY)
-  const earlyPilots=smb.slice(0,4).reduce((s,v)=>s+(v>0?Math.round(v/ARR_SMB*10)/10:0),0);
-  const expectedConversions=Math.round(earlyPilots*convPct*10)/10;
-  const conversionARR=Math.round(expectedConversions*(ARR_MED-ARR_SMB));
+    // New deal ARR
+    newPilotARR[i]=p*ARR_PILOT;
+    newMedARR[i]=m*ARR_MED;
+    newBigARR[i]=b*ARR_BIG;
 
-  // Monthly meetings needed
-  const mtgByMonth=dealsByMonth.map(d=>{
-    const m=Math.ceil((cr_smb>0?d.s/cr_smb:0)+(cr_med>0?d.m/cr_med:0)+(cr_big>0?d.b/cr_big:0));
-    return m;
-  });
+    // Conversions: pilots from month (i - CONV_DELAY) converting now
+    const srcIdx=i-CONV_DELAY;
+    let cM=0, cB=0;
+    if(srcIdx>=0 && pilots[srcIdx]>0){
+      cM=Math.round(pilots[srcIdx]*cMed*10)/10;
+      cB=Math.round(pilots[srcIdx]*cBig*10)/10;
+      totConvMed+=cM; totConvBig+=cB;
+    }
+    // Conversion ARR = upgrade delta (they already had pilot ARR)
+    convMedARR[i]=cM*(ARR_MED-ARR_PILOT);
+    convBigARR[i]=cB*(ARR_BIG-ARR_PILOT);
 
-  return `<div class="card"><h3>Funnel math</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:14px">Reverse-engineered from your revenue plan. Adjust close rates and BDR capacity below.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % pilot/small
-        <input type="number" value="${Math.round(cr_smb*100)}" min="1" max="100" step="1" style="width:68px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateFunnelParam('closeSmb',this.value)">
-      </label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % medium
-        <input type="number" value="${Math.round(cr_med*100)}" min="1" max="100" step="1" style="width:68px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateFunnelParam('closeMed',this.value)">
-      </label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % large
-        <input type="number" value="${Math.round(cr_big*100)}" min="1" max="100" step="1" style="width:68px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateFunnelParam('closeBig',this.value)">
-      </label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Pilot conv. %
-        <input type="number" value="${Math.round(convPct*100)}" min="0" max="100" step="5" style="width:68px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateFunnelParam('convRate',this.value)">
-      </label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">BDR mtgs/mo
-        <input type="number" value="${bdrCap}" min="1" max="50" step="1" style="width:68px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateFunnelParam('bdrMeetings',this.value)">
-      </label>
-    </div>
-    <div class="scenario-kpi">
-      <div class="kpi"><div class="kv" style="color:var(--blackish)">${Math.round(totDeals*10)/10}</div><div class="kl">Deals to close</div></div>
-      <div class="kpi"><div class="kv" style="color:var(--purple3)">${mtgTotal}</div><div class="kl">Meetings needed</div></div>
-      <div class="kpi"><div class="kv" style="color:var(--blackish)">${mtgPerMonth}</div><div class="kl">Meetings / month</div></div>
-      <div class="kpi"><div class="kv" style="color:${bdrsNeeded>=4?'var(--orange)':'var(--green)'}">${bdrsNeeded}</div><div class="kl">BDRs at full ramp</div></div>
-      <div class="kpi"><div class="kv" style="color:var(--purple3)">${bdrsWithRamp}</div><div class="kl">BDRs incl. ramp</div></div>
-    </div>
-    <div style="overflow-x:auto;margin-top:14px"><table class="fin-table">
-      <tr><th>Funnel stage</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
-      <tr><td>Deals closing</td>${dealsByMonth.map(d=>`<td>${d.total>0?Math.round(d.total*10)/10:'-'}</td>`).join('')}<td style="font-weight:700">${Math.round(totDeals*10)/10}</td></tr>
-      <tr><td>Meetings needed</td>${mtgByMonth.map(m=>`<td>${m>0?m:'-'}</td>`).join('')}<td style="font-weight:700">${mtgTotal}</td></tr>
-    </table></div>
-    ${earlyPilots>0?`<div class="callout success" style="margin-top:14px"><strong>Pilot conversion upside:</strong> ${Math.round(earlyPilots)} pilots from Apr–Jul eligible to convert by EOY at ${Math.round(convPct*100)}% rate = ~${expectedConversions} conversions = +${fmt(conversionARR)} incremental ARR (pilot upgrades to Medium).</div>`:''}
-  </div>`;
+    cumARR+=newPilotARR[i]+newMedARR[i]+newBigARR[i]+convMedARR[i]+convBigARR[i];
+    cumLine[i]=cumARR;
+  }
+  return {pilots,dMed,dBig,newPilotARR,newMedARR,newBigARR,convMedARR,convBigARR,cumLine,cumARR,
+    totPilots,totDMed,totDBig,totConvMed,totConvBig,cMed,cBig};
 }
 
 PAGE_RENDERERS.scenarios=(el)=>{
-  const initSaved=LS.get('SCENARIO')||{};
-  const smb=initSaved.smb||[...SCENARIO_DEFAULTS.smb];
-  const med=initSaved.med||[...SCENARIO_DEFAULTS.med];
-  const big=initSaved.big||[...SCENARIO_DEFAULTS.big];
-  const fte=initSaved.fte||[...SCENARIO_DEFAULTS.fte];
+  const initS=LS.get('SCENARIO_V2')||{};
+  const p=initS.pilots||[...SCENARIO_V2_DEFAULTS.pilots];
+  const dm=initS.directMed||[...SCENARIO_V2_DEFAULTS.directMed];
+  const db=initS.directBig||[...SCENARIO_V2_DEFAULTS.directBig];
+  const fte=initS.fte||[...SCENARIO_V2_DEFAULTS.fte];
 
+  function save(){
+    const s=LS.get('SCENARIO_V2')||{};
+    s.pilots=p;s.directMed=dm;s.directBig=db;s.fte=fte;
+    LS.set('SCENARIO_V2',s);
+  }
   function sum(a){return a.reduce((s,v)=>s+(parseFloat(v)||0),0);}
+
   function render(){
-    const saved=LS.get('SCENARIO')||{};
-    const total=sum(smb)+sum(med)+sum(big);
+    const s=LS.get('SCENARIO_V2')||{};
+    const M=computeModel({...s,pilots:p,directMed:dm,directBig:db});
+    const total=M.cumARR;
     const pct=Math.min(100,Math.round(total/TARGET*100));
     const gap=TARGET-total;
+    const totalDeals=M.totPilots+M.totDMed+M.totDBig;
 
-    el.innerHTML=`<div class="page-header"><h1>Scenario planner</h1><p>Interactive revenue model -- \u20AC2M MM target. Edit any yellow cell. Auto-saves.</p></div>
+    // Funnel math
+    const crP=(s.closePilot||SCENARIO_V2_DEFAULTS.closePilot)/100;
+    const crM=(s.closeMed||SCENARIO_V2_DEFAULTS.closeMed)/100;
+    const crB=(s.closeBig||SCENARIO_V2_DEFAULTS.closeBig)/100;
+    const bdrCap=s.bdrMeetings||SCENARIO_V2_DEFAULTS.bdrMeetings;
+    const mtgPilot=crP>0?Math.ceil(M.totPilots/crP):0;
+    const mtgMed=crM>0?Math.ceil(M.totDMed/crM):0;
+    const mtgBig=crB>0?Math.ceil(M.totDBig/crB):0;
+    const mtgTotal=mtgPilot+mtgMed+mtgBig;
+    const mtgPerMo=Math.ceil(mtgTotal/MONTHS.length);
+    const bdrs=bdrCap>0?Math.ceil(mtgPerMo/bdrCap):0;
+
+    // Editable input helper
+    const inp=(arr,key,i,step)=>`<input type="number" value="${arr[i]||0}" min="0" step="${step||1}" style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScen('${key}',${i},this.value)">`;
+    const paramInp=(key,val,step)=>`<input type="number" value="${val}" min="0" max="100" step="${step||1}" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScenParam('${key}',this.value)">`;
+    const ro=(v)=>v>0?fmt(v):'-';
+
+    el.innerHTML=`
+    <div class="page-header"><h1>Scenario planner</h1><p>Land-and-expand revenue model. Pilots convert at month-4 review. Edit yellow cells.</p></div>
+
     <div class="scenario-kpi">
-      <div class="kpi"><div class="kv ${total>=TARGET?'on-track':'behind'}" style="color:${total>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(total)}</div><div class="kl">Total projected ARR</div></div>
+      <div class="kpi"><div class="kv" style="color:${total>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(total)}</div><div class="kl">Projected EOY ARR</div></div>
       <div class="kpi"><div class="kv" style="color:var(--purple3)">${pct}%</div><div class="kl">of \u20AC2M target</div></div>
-      <div class="kpi"><div class="kv" style="color:${gap>0?'var(--red)':'var(--green)'}">${gap>0?fmtM(gap):'On target'}</div><div class="kl">${gap>0?'Gap to close':'Target met'}</div></div>
-      <div class="kpi"><div class="kv">${fte[fte.length-1]}</div><div class="kl">Peak FTE (Dec)</div></div>
+      <div class="kpi"><div class="kv" style="color:${gap>0?'var(--red)':'var(--green)'}">${gap>0?fmtM(gap):'Hit'}</div><div class="kl">${gap>0?'Gap to close':'Target met'}</div></div>
+      <div class="kpi"><div class="kv">${totalDeals}</div><div class="kl">Deals to close</div></div>
+      <div class="kpi"><div class="kv">${M.totConvMed+M.totConvBig}</div><div class="kl">Pilot conversions</div></div>
     </div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-    <div class="card"><h3>Revenue by tier</h3>
-    <div style="overflow-x:auto"><table class="fin-table"><tr><th style="min-width:100px">Tier</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
-    <tr><td>SMB / Small<br><span style="font-size:11px;color:var(--text-light);font-weight:400">\u20AC15K ARR</span></td>${smb.map((v,i)=>`<td><input type="number" value="${v}" step="5000" min="0" onchange="updateScenario('smb',${i},this.value)"></td>`).join('')}<td style="font-weight:700;color:var(--blackish)">${fmtM(sum(smb))}</td></tr>
-    <tr><td>MM / Med<br><span style="font-size:11px;color:var(--text-light);font-weight:400">\u20AC50K ARR</span></td>${med.map((v,i)=>`<td><input type="number" value="${v}" step="10000" min="0" onchange="updateScenario('med',${i},this.value)"></td>`).join('')}<td style="font-weight:700;color:var(--blackish)">${fmtM(sum(med))}</td></tr>
-    <tr><td>MM / Big<br><span style="font-size:11px;color:var(--text-light);font-weight:400">\u20AC100K+ ARR</span></td>${big.map((v,i)=>`<td><input type="number" value="${v}" step="50000" min="0" onchange="updateScenario('big',${i},this.value)"></td>`).join('')}<td style="font-weight:700;color:var(--blackish)">${fmtM(sum(big))}</td></tr>
-    <tr class="total-row"><td>Monthly total</td>${MONTHS.map((_,i)=>`<td>${fmt(smb[i]+med[i]+big[i])}</td>`).join('')}<td style="color:var(--purple3)">${fmtM(total)}</td></tr>
+
+    <div class="card"><h3>Deal entries per month</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">How many deals close per month, by type. Pilots that convert are tracked automatically below.</p>
+    <div style="overflow-x:auto"><table class="fin-table">
+      <tr><th style="min-width:110px">Type</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
+      <tr><td>Pilots<br><span style="font-size:11px;color:var(--text-light)">\u20AC15K ARR</span></td>${p.map((_,i)=>('<td>'+inp(p,'pilots',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totPilots}</td></tr>
+      <tr><td>Direct Medium<br><span style="font-size:11px;color:var(--text-light)">\u20AC50K ARR</span></td>${dm.map((_,i)=>('<td>'+inp(dm,'directMed',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totDMed}</td></tr>
+      <tr><td>Direct Large<br><span style="font-size:11px;color:var(--text-light)">\u20AC100K+ ARR</span></td>${db.map((_,i)=>('<td>'+inp(db,'directBig',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totDBig}</td></tr>
+      <tr class="total-row"><td>Deals closing</td>${MONTHS.map((_,i)=>`<td>${(p[i]||0)+(dm[i]||0)+(db[i]||0)||'-'}</td>`).join('')}<td>${totalDeals}</td></tr>
     </table></div></div>
-    <div class="card"><h3>FTE ramp & cost model</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">1 FTE = 2x \u20AC15K/mo + 1x \u20AC100K/yr + 1x \u20AC50K/yr. Quarterly budget: \u20AC240K.</p>
+
+    <div class="card"><h3>Pilot conversion schedule</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-4 review and convert to Medium or Large. Adjust conversion rates.</p>
+    <div style="display:flex;gap:12px;margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Medium %${paramInp('convToMed',Math.round(M.cMed*100),5)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Large %${paramInp('convToBig',Math.round(M.cBig*100),5)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Stay pilot %<span style="font-size:13px;font-weight:700;color:var(--blackish);padding:5px 0">${Math.round((1-M.cMed-M.cBig)*100)}%</span></label>
+    </div>
+    <div style="overflow-x:auto"><table class="fin-table">
+      <tr><th style="min-width:110px">Event</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
+      <tr><td>Pilots entered</td>${p.map(v=>`<td>${v||'-'}</td>`).join('')}<td style="font-weight:700">${M.totPilots}</td></tr>
+      <tr><td>Review month<br><span style="font-size:11px;color:var(--text-light)">+4 months</span></td>${MONTHS.map((_,i)=>{
+        const src=i-CONV_DELAY;
+        return '<td>'+(src>=0&&p[src]>0?'<span style="color:var(--purple3);font-weight:600">'+p[src]+' reviewed</span>':'-')+'</td>';
+      }).join('')}<td></td></tr>
+      <tr><td>&rarr; Convert to Med<br><span style="font-size:11px;color:var(--green)">\u20AC50K ARR</span></td>${MONTHS.map((_,i)=>{
+        const src=i-CONV_DELAY;
+        const c=src>=0?Math.round(p[src]*M.cMed*10)/10:0;
+        return '<td>'+(c>0?'<span style="color:var(--green);font-weight:600">'+c+'</span>':'-')+'</td>';
+      }).join('')}<td style="font-weight:700;color:var(--green)">${M.totConvMed}</td></tr>
+      <tr><td>&rarr; Convert to Large<br><span style="font-size:11px;color:var(--purple3)">\u20AC100K+ ARR</span></td>${MONTHS.map((_,i)=>{
+        const src=i-CONV_DELAY;
+        const c=src>=0?Math.round(p[src]*M.cBig*10)/10:0;
+        return '<td>'+(c>0?'<span style="color:var(--purple3);font-weight:600">'+c+'</span>':'-')+'</td>';
+      }).join('')}<td style="font-weight:700;color:var(--purple3)">${M.totConvBig}</td></tr>
+    </table></div></div>
+
+    <div class="card"><h3>ARR waterfall</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deal ARR + conversion uplift = cumulative ARR build.</p>
+    <div style="overflow-x:auto"><table class="fin-table">
+      <tr><th style="min-width:110px">Source</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
+      <tr><td>New pilots</td>${M.newPilotARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newPilotARR))}</td></tr>
+      <tr><td>Direct Medium</td>${M.newMedARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newMedARR))}</td></tr>
+      <tr><td>Direct Large</td>${M.newBigARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newBigARR))}</td></tr>
+      <tr><td style="color:var(--green)">Conv. uplift &rarr; Med<br><span style="font-size:11px;color:var(--text-light)">+\u20AC35K per convert</span></td>${M.convMedARR.map(v=>`<td>${v>0?'<span style="color:var(--green)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">+${fmt(sum(M.convMedARR))}</td></tr>
+      <tr><td style="color:var(--purple3)">Conv. uplift &rarr; Large<br><span style="font-size:11px;color:var(--text-light)">+\u20AC85K per convert</span></td>${M.convBigARR.map(v=>`<td>${v>0?'<span style="color:var(--purple3)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--purple3)">+${fmt(sum(M.convBigARR))}</td></tr>
+      <tr class="total-row"><td>Cumulative ARR</td>${M.cumLine.map(v=>`<td style="color:${v>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(v)}</td>`).join('')}<td style="color:${total>=TARGET?'var(--green)':'var(--red)'};font-size:16px">${fmtM(total)}</td></tr>
+    </table></div></div>
+
+    <div class="card"><h3>BDR funnel math</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Meetings needed to generate the deal entries above. Conversions don't require new meetings.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % pilot${paramInp('closePilot',Math.round(crP*100),1)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % medium${paramInp('closeMed',Math.round(crM*100),1)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % large${paramInp('closeBig',Math.round(crB*100),1)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">BDR mtgs/mo${paramInp('bdrMeetings',bdrCap,1)}</label>
+    </div>
+    <div class="scenario-kpi">
+      <div class="kpi"><div class="kv" style="color:var(--purple3)">${mtgTotal}</div><div class="kl">Total meetings</div></div>
+      <div class="kpi"><div class="kv">${mtgPerMo}</div><div class="kl">Meetings / month</div></div>
+      <div class="kpi"><div class="kv" style="color:${bdrs>=4?'var(--orange)':'var(--green)'}">${bdrs}</div><div class="kl">BDRs needed</div></div>
+      <div class="kpi"><div class="kv">${Math.ceil(bdrs*1.25)}</div><div class="kl">Incl. ramp buffer</div></div>
+    </div>
+    <div style="font-size:13px;color:var(--text);margin-top:8px">Pilots: ${M.totPilots} deals &divide; ${Math.round(crP*100)}% = <strong>${mtgPilot} mtgs</strong> &nbsp; Medium: ${M.totDMed} &divide; ${Math.round(crM*100)}% = <strong>${mtgMed}</strong> &nbsp; Large: ${M.totDBig} &divide; ${Math.round(crB*100)}% = <strong>${mtgBig}</strong></div>
+    </div>
+
+    <div class="card"><h3>FTE ramp & cost</h3>
     <div style="overflow-x:auto"><table class="fin-table"><tr><th>Metric</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
-    <tr><td>Total FTE<br><span style="font-size:11px;color:var(--text-light);font-weight:400">Sales, CS, LS, Testing</span></td>${fte.map((v,i)=>`<td><input type="number" value="${v}" step="0.5" min="0" style="width:56px" onchange="updateScenario('fte',${i},this.value)"></td>`).join('')}<td style="font-weight:700">${Math.max(...fte)}</td></tr>
+    <tr><td>Total FTE</td>${fte.map((_,i)=>('<td>'+inp(fte,'fte',i,0.5)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...fte)}</td></tr>
     <tr><td>Monthly cost</td>${fte.map(v=>`<td>\u20AC${Math.round(v*((2*15000)+(100000/12)+(50000/12)))/1000}k</td>`).join('')}<td></td></tr>
     </table></div></div>
-    ${renderFunnel(smb,med,big,saved)}
-    <div class="callout info"><strong>Tier definitions:</strong> Big = \u20AC100K+ ARR (multi-year). Med = \u20AC50K ARR (12 months). Small = Pilot \u20AC15K (6-month term). Revenue numbers show new ARR added per month.</div>`;
+
+    <div class="callout info"><strong>How it works:</strong> Enter deals closing per month. Pilots auto-convert at month-4 review based on conversion rates. ARR waterfall shows new deal ARR + conversion uplift. Funnel math shows BDR output needed to generate those deals. All editable, auto-saved.</div>`;
   }
-  window.updateScenario=function(tier,idx,val){
+
+  window.updateScen=function(key,idx,val){
     const v=parseFloat(val)||0;
-    const saved=LS.get('SCENARIO')||{smb:[...SCENARIO_DEFAULTS.smb],med:[...SCENARIO_DEFAULTS.med],big:[...SCENARIO_DEFAULTS.big],fte:[...SCENARIO_DEFAULTS.fte]};
-    saved[tier][idx]=v;
-    if(tier==='smb')smb[idx]=v;if(tier==='med')med[idx]=v;if(tier==='big')big[idx]=v;if(tier==='fte')fte[idx]=v;
-    LS.set('SCENARIO',saved);
-    render();
+    if(key==='pilots')p[idx]=v;
+    else if(key==='directMed')dm[idx]=v;
+    else if(key==='directBig')db[idx]=v;
+    else if(key==='fte')fte[idx]=v;
+    save(); render();
   };
-  window.updateFunnelParam=function(key,val){
+  window.updateScenParam=function(key,val){
     const v=parseFloat(val)||0;
-    const saved=LS.get('SCENARIO')||{smb:[...SCENARIO_DEFAULTS.smb],med:[...SCENARIO_DEFAULTS.med],big:[...SCENARIO_DEFAULTS.big],fte:[...SCENARIO_DEFAULTS.fte]};
-    saved[key]=v;
-    LS.set('SCENARIO',saved);
+    const s=LS.get('SCENARIO_V2')||{};
+    s[key]=v; LS.set('SCENARIO_V2',s);
     render();
   };
   render();
