@@ -1364,12 +1364,11 @@ PAGE_RENDERERS.scenarios=(el)=>{
     const mtgPerMo=Math.ceil(mtgTotal/MONTHS.length);
     const bdrsNeeded=bdrCap>0?Math.ceil(mtgPerMo/bdrCap):0;
 
-    // AE productivity math — €240K/Q per fully ramped AE
+    // AE productivity math
     const aeQTarget=s.aeQuarterlyTarget||SCENARIO_V2_DEFAULTS.aeQuarterlyTarget;
-    const aeMonthly=aeQTarget/3; // €80K/mo at full ramp
+    const aeMonthly=aeQTarget/3;
     const rampPcts=SCENARIO_V2_DEFAULTS.aeRampPct;
 
-    // Track when new-hire AE slots were added (for ramp curve)
     const newAeStartMonths=[];
     let prevNew=0;
     for(let i=0;i<MONTHS.length;i++){
@@ -1377,25 +1376,18 @@ PAGE_RENDERERS.scenarios=(el)=>{
       for(let n=0;n<cur-prevNew;n++) newAeStartMonths.push(i);
       prevNew=cur;
     }
-
-    // Revenue capacity per month: ramped AEs (100%) + new AEs (with ramp)
     const aeCapPerMo=MONTHS.map((_,i)=>{
-      // Ramped AEs produce at full capacity (no ramp)
       let cap=(aesR[i]||0)*aeMonthly;
-      // New AEs with ramp curve
       for(const startMo of newAeStartMonths){
         if(i>=startMo){
           const tenure=i-startMo;
-          const pct=tenure<rampPcts.length?rampPcts[tenure]:rampPcts[rampPcts.length-1];
-          cap+=aeMonthly*pct/100;
+          const pctR=tenure<rampPcts.length?rampPcts[tenure]:rampPcts[rampPcts.length-1];
+          cap+=aeMonthly*pctR/100;
         }
       }
       return Math.round(cap);
     });
-
     const totalAePerMo=MONTHS.map((_,i)=>(aesR[i]||0)+(aesN[i]||0));
-
-    // Revenue plan per month (from deal entries)
     const revPlanPerMo=MONTHS.map((_,i)=>(p[i]||0)*ARR_PILOT+(dm[i]||0)*ARR_MED+(db[i]||0)*ARR_BIG);
     const aeGapPerMo=MONTHS.map((_,i)=>revPlanPerMo[i]-aeCapPerMo[i]);
 
@@ -1403,13 +1395,18 @@ PAGE_RENDERERS.scenarios=(el)=>{
     const totalCostPerMo=MONTHS.map((_,i)=>((aesR[i]||0)+(aesN[i]||0))*AE_COST+(bdrsArr[i]||0)*BDR_COST);
     const totalCost9Mo=sum(totalCostPerMo);
 
+    // Per-month new deal totals (for waterfall)
+    const newDealPerMo=MONTHS.map((_,i)=>M.newPilotARR[i]+M.newMedARR[i]+M.newBigARR[i]);
+    const expansionPerMo=MONTHS.map((_,i)=>M.convMedARR[i]+M.convBigARR[i]);
+
     // Helpers
     const inp=(arr,key,i,step)=>`<input type="number" value="${arr[i]||0}" min="0" step="${step||1}" style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScen('${key}',${i},this.value)">`;
-    const paramInp=(key,val,step)=>`<input type="number" value="${val}" min="0" max="100" step="${step||1}" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScenParam('${key}',this.value)">`;
+    const pctInp=(key,val,step)=>`<input type="number" value="${val}" min="0" max="100" step="${step||1}" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScenParam('${key}',this.value)">`;
+    const numInp=(key,val,step,max)=>`<input type="number" value="${val}" min="0"${max?' max="'+max+'"':''} step="${step||1}" style="width:68px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScenParam('${key}',this.value)">`;
     const ro=(v)=>v>0?fmt(v):'-';
 
     el.innerHTML=`
-    <div class="page-header"><h1>Scenario planner</h1><p>Land-and-expand model. Target: \u20AC2M new deal ARR (excl. expansion). Pilots convert at month-5 review.</p></div>
+    <div class="page-header"><h1>Scenario planner</h1><p>Target: \u20AC2M new deal ARR by EOY (excl. expansion). Pilots convert at month-5 review.</p></div>
 
     <div class="scenario-kpi">
       <div class="kpi"><div class="kv" style="color:${newDealARR>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(newDealARR)}</div><div class="kl">New deal ARR</div></div>
@@ -1419,102 +1416,108 @@ PAGE_RENDERERS.scenarios=(el)=>{
       <div class="kpi"><div class="kv">${totalDeals}</div><div class="kl">Deals to close</div></div>
     </div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-    <div style="font-size:12px;color:var(--text-light);margin-top:4px;margin-bottom:20px">Total ARR incl. expansion: <strong style="color:var(--blackish)">${fmtM(totalARR)}</strong></div>
 
-    <div class="card"><h3>Deal entries per month</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deals closing per month. Pilot conversions are tracked separately below.</p>
+    <!-- 1. DEAL PLAN -->
+    <div class="card"><h3>1. Deal plan</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deals closing per month. Pilot conversions tracked in section 2.</p>
     <div style="overflow-x:auto"><table class="fin-table">
       <tr><th style="min-width:110px">Type</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
       <tr><td>Pilots<br><span style="font-size:11px;color:var(--text-light)">\u20AC15K ARR</span></td>${p.map((_,i)=>('<td>'+inp(p,'pilots',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totPilots}</td></tr>
       <tr><td>Direct Medium<br><span style="font-size:11px;color:var(--text-light)">\u20AC50K ARR</span></td>${dm.map((_,i)=>('<td>'+inp(dm,'directMed',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totDMed}</td></tr>
       <tr><td>Direct Large<br><span style="font-size:11px;color:var(--text-light)">\u20AC100K+ ARR</span></td>${db.map((_,i)=>('<td>'+inp(db,'directBig',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totDBig}</td></tr>
       <tr class="total-row"><td>Deals closing</td>${MONTHS.map((_,i)=>`<td>${(p[i]||0)+(dm[i]||0)+(db[i]||0)||'-'}</td>`).join('')}<td>${totalDeals}</td></tr>
+      <tr class="total-row"><td>New deal ARR /mo</td>${newDealPerMo.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(newDealPerMo))}</td></tr>
     </table></div></div>
 
-    <div class="card"><h3>Pilot conversion schedule</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-5 review. Conversion = expansion ARR (not counted toward \u20AC2M target).</p>
+    <!-- 2. PILOT CONVERSIONS (expansion upside) -->
+    <div class="card"><h3>2. Pilot conversions <span class="badge green">expansion upside</span></h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-5 review. Conversions = expansion ARR, not counted toward \u20AC2M.</p>
     <div style="display:flex;gap:12px;margin-bottom:14px">
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Medium %${paramInp('convToMed',Math.round(M.cMed*100),5)}</label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Large %${paramInp('convToBig',Math.round(M.cBig*100),5)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Medium %${pctInp('convToMed',Math.round(M.cMed*100),5)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Large %${pctInp('convToBig',Math.round(M.cBig*100),5)}</label>
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Stay pilot %<span style="font-size:13px;font-weight:700;color:var(--blackish);padding:5px 0">${Math.round((1-M.cMed-M.cBig)*100)}%</span></label>
     </div>
     <div style="overflow-x:auto"><table class="fin-table">
       <tr><th style="min-width:110px">Event</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
-      <tr><td>Pilots entered</td>${p.map(v=>`<td>${v||'-'}</td>`).join('')}<td style="font-weight:700">${M.totPilots}</td></tr>
-      <tr><td>Review month<br><span style="font-size:11px;color:var(--text-light)">+5 months</span></td>${MONTHS.map((_,i)=>{
+      <tr><td>Pilots up for review<br><span style="font-size:11px;color:var(--text-light)">signed 5 months ago</span></td>${MONTHS.map((_,i)=>{
         const src=i-CONV_DELAY;
-        return '<td>'+(src>=0&&p[src]>0?'<span style="color:var(--purple3);font-weight:600">'+p[src]+' reviewed</span>':'-')+'</td>';
+        return '<td>'+(src>=0&&p[src]>0?'<span style="color:var(--purple3);font-weight:600">'+p[src]+'</span>':'-')+'</td>';
       }).join('')}<td></td></tr>
-      <tr><td>&rarr; Convert to Med<br><span style="font-size:11px;color:var(--green)">\u20AC50K ARR</span></td>${MONTHS.map((_,i)=>{
+      <tr><td>&rarr; Convert to Med</td>${MONTHS.map((_,i)=>{
         const src=i-CONV_DELAY;
         const c=src>=0?Math.round(p[src]*M.cMed*10)/10:0;
         return '<td>'+(c>0?'<span style="color:var(--green);font-weight:600">'+c+'</span>':'-')+'</td>';
       }).join('')}<td style="font-weight:700;color:var(--green)">${M.totConvMed}</td></tr>
-      <tr><td>&rarr; Convert to Large<br><span style="font-size:11px;color:var(--purple3)">\u20AC100K+ ARR</span></td>${MONTHS.map((_,i)=>{
+      <tr><td>&rarr; Convert to Large</td>${MONTHS.map((_,i)=>{
         const src=i-CONV_DELAY;
         const c=src>=0?Math.round(p[src]*M.cBig*10)/10:0;
         return '<td>'+(c>0?'<span style="color:var(--purple3);font-weight:600">'+c+'</span>':'-')+'</td>';
       }).join('')}<td style="font-weight:700;color:var(--purple3)">${M.totConvBig}</td></tr>
+      <tr class="total-row"><td>Expansion ARR /mo</td>${expansionPerMo.map(v=>`<td>${v>0?'<span style="color:var(--green)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="color:var(--green);font-weight:700">+${fmt(sum(expansionPerMo))}</td></tr>
     </table></div></div>
 
-    <div class="card"><h3>ARR waterfall</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deal ARR counts toward target. Expansion revenue is upside.</p>
+    <!-- 3. ARR BUILD (cumulative) -->
+    <div class="card"><h3>3. Cumulative ARR build</h3>
     <div style="overflow-x:auto"><table class="fin-table">
-      <tr><th style="min-width:110px">Source</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
-      <tr><td>New pilots</td>${M.newPilotARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newPilotARR))}</td></tr>
-      <tr><td>Direct Medium</td>${M.newMedARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newMedARR))}</td></tr>
-      <tr><td>Direct Large</td>${M.newBigARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newBigARR))}</td></tr>
-      <tr class="total-row"><td>New deal ARR<br><span style="font-size:11px;font-weight:400">= target basis</span></td>${M.cumNewLine.map(v=>`<td style="color:${v>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(v)}</td>`).join('')}<td style="color:${newDealARR>=TARGET?'var(--green)':'var(--red)'};font-size:16px">${fmtM(newDealARR)}</td></tr>
-      <tr><td style="color:var(--green)">Expansion &rarr; Med<br><span style="font-size:11px;color:var(--text-light)">+\u20AC35K per convert</span></td>${M.convMedARR.map(v=>`<td>${v>0?'<span style="color:var(--green)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">+${fmt(sum(M.convMedARR))}</td></tr>
-      <tr><td style="color:var(--purple3)">Expansion &rarr; Large<br><span style="font-size:11px;color:var(--text-light)">+\u20AC85K per convert</span></td>${M.convBigARR.map(v=>`<td>${v>0?'<span style="color:var(--purple3)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--purple3)">+${fmt(sum(M.convBigARR))}</td></tr>
-      <tr style="background:var(--light-bg)"><td style="font-weight:700;color:var(--blackish)">Total incl. expansion</td>${M.cumLine.map(v=>`<td>${fmtM(v)}</td>`).join('')}<td style="font-weight:700;font-size:16px">${fmtM(totalARR)}</td></tr>
+      <tr><th style="min-width:110px">Metric</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">EOY</th></tr>
+      <tr><td>New deal ARR<br><span style="font-size:11px;color:var(--text-light)">= \u20AC2M target basis</span></td>${M.cumNewLine.map(v=>`<td style="font-weight:600;color:${v>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(v)}</td>`).join('')}<td style="color:${newDealARR>=TARGET?'var(--green)':'var(--red)'};font-weight:700;font-size:16px">${fmtM(newDealARR)}</td></tr>
+      <tr><td>+ Expansion</td>${MONTHS.map((_,i)=>{const e=M.cumLine[i]-M.cumNewLine[i];return '<td style="color:var(--green)">'+(e>0?'+'+fmt(e):'-')+'</td>';}).join('')}<td style="color:var(--green);font-weight:700">+${fmt(expansionARR)}</td></tr>
+      <tr class="total-row"><td>Total ARR</td>${M.cumLine.map(v=>`<td>${fmtM(v)}</td>`).join('')}<td style="font-weight:700;font-size:16px">${fmtM(totalARR)}</td></tr>
     </table></div></div>
 
+    <!-- 4. CAPACITY: AE + BDR side by side -->
     <div class="grid-2">
-    <div class="card"><h3>BDR funnel math</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Meetings to generate new deals. Conversions don't need new meetings.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % pilot${paramInp('closePilot',Math.round(crP*100),1)}</label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % med${paramInp('closeMed',Math.round(crM*100),1)}</label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % large${paramInp('closeBig',Math.round(crB*100),1)}</label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">BDR mtgs/mo${paramInp('bdrMeetings',bdrCap,1)}</label>
+    <div class="card"><h3>4a. BDR output needed</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % pilot${pctInp('closePilot',Math.round(crP*100),1)}</label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % med${pctInp('closeMed',Math.round(crM*100),1)}</label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % large${pctInp('closeBig',Math.round(crB*100),1)}</label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Mtgs/BDR/mo${pctInp('bdrMeetings',bdrCap,1)}</label>
     </div>
     <div style="font-size:14px;line-height:2.2">
       <div>Pilots: ${M.totPilots} &divide; ${Math.round(crP*100)}% = <strong>${mtgPilot} mtgs</strong></div>
       <div>Medium: ${M.totDMed} &divide; ${Math.round(crM*100)}% = <strong>${mtgMed} mtgs</strong></div>
       <div>Large: ${M.totDBig} &divide; ${Math.round(crB*100)}% = <strong>${mtgBig} mtgs</strong></div>
-      <div style="border-top:2px solid var(--border);padding-top:6px;margin-top:4px"><strong>${mtgTotal} total meetings</strong> &divide; 9 mo = <strong>${mtgPerMo}/mo</strong></div>
-      <div>${mtgPerMo}/mo &divide; ${bdrCap} mtgs/BDR = <strong style="color:${bdrsNeeded>=4?'var(--orange)':'var(--green)'}">${bdrsNeeded} BDRs needed</strong></div>
+      <div style="border-top:2px solid var(--border);padding-top:6px;margin-top:4px"><strong>${mtgTotal} total</strong> &divide; 9 mo = <strong>${mtgPerMo}/mo</strong></div>
+      <div>${mtgPerMo}/mo &divide; ${bdrCap}/BDR = <strong style="color:${bdrsNeeded>=4?'var(--orange)':'var(--green)'}">${bdrsNeeded} BDRs needed</strong></div>
     </div>
     </div>
 
-    <div class="card"><h3>AE capacity math</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">\u20AC${aeQTarget}K/Q per fully ramped AE. Ramp: ${rampPcts.map((p,i)=>i<2?p+'% mo '+(i+1):p+'%+').join(', ')}.</p>
-    <div style="display:flex;gap:10px;margin-bottom:14px">
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">AE \u20ACK/quarter${paramInp('aeQuarterlyTarget',aeQTarget,10)}</label>
+    <div class="card"><h3>4b. AE capacity check</h3>
+    <p style="font-size:12px;color:var(--text);margin-bottom:10px">\u20AC${aeQTarget}K/Q per ramped AE. New hires: ${rampPcts.map((pp,i)=>i<2?pp+'% mo'+(i+1):pp+'%+').join(', ')}.</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">AE \u20ACK/quarter${numInp('aeQuarterlyTarget',aeQTarget,10,1000)}</label>
     </div>
+    <div style="font-size:14px;line-height:2">
+      <div>Q3 plan: ${fmt(sum(revPlanPerMo.slice(3,6)))} &nbsp; capacity: <span style="color:var(--green)">${fmt(sum(aeCapPerMo.slice(3,6)))}</span></div>
+      <div>Q4 plan: ${fmt(sum(revPlanPerMo.slice(6,9)))} &nbsp; capacity: <span style="color:var(--green)">${fmt(sum(aeCapPerMo.slice(6,9)))}</span></div>
+      <div style="border-top:2px solid var(--border);padding-top:6px;margin-top:4px">9-mo plan: <strong>${fmt(sum(revPlanPerMo))}</strong></div>
+      <div>9-mo capacity: <strong style="color:var(--green)">${fmt(sum(aeCapPerMo))}</strong></div>
+      <div style="margin-top:4px">${sum(aeGapPerMo)>0?'<span style="color:var(--red);font-weight:700">Shortfall: '+fmt(sum(aeGapPerMo))+'</span>':'<span style="color:var(--green);font-weight:700">Covered</span> (+'+fmt(Math.abs(sum(aeGapPerMo)))+' buffer)'}</div>
+    </div>
+    </div>
+    </div>
+
+    <!-- 5. AE CAPACITY DETAIL (full width) -->
+    <div class="card"><h3>5. AE capacity vs plan (monthly)</h3>
     <div style="overflow-x:auto"><table class="fin-table">
       <tr><th>Metric</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Total</th></tr>
       <tr><td>Revenue plan</td>${revPlanPerMo.map(v=>`<td>${v>0?fmt(v):'-'}</td>`).join('')}<td style="font-weight:700">${fmt(sum(revPlanPerMo))}</td></tr>
-      <tr><td>AE capacity<br><span style="font-size:11px;color:var(--text-light)">incl. ramp</span></td>${aeCapPerMo.map(v=>`<td style="color:var(--green)">${v>0?fmt(v):'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">${fmt(sum(aeCapPerMo))}</td></tr>
-      <tr class="total-row"><td>Gap</td>${aeGapPerMo.map(g=>`<td style="color:${g>0?'var(--red)':'var(--green)'};font-weight:700">${g>0?'-'+fmt(g):g<0?'+'+fmt(Math.abs(g)):'-'}</td>`).join('')}<td style="color:${sum(aeGapPerMo)>0?'var(--red)':'var(--green)'};font-weight:700">${sum(aeGapPerMo)>0?'-'+fmt(sum(aeGapPerMo)):'+'+fmt(Math.abs(sum(aeGapPerMo)))}</td></tr>
-    </table></div>
-    <div style="font-size:13px;color:var(--text);margin-top:10px">${sum(aeGapPerMo)>0?'<span style="color:var(--red);font-weight:700">Capacity shortfall of '+fmt(sum(aeGapPerMo))+'.</span> Add AEs earlier or increase headcount in the table below.':'<span style="color:var(--green);font-weight:700">Capacity covers the plan</span> with '+fmt(Math.abs(sum(aeGapPerMo)))+' buffer.'}</div>
-    </div>
-    </div>
-
-    <div class="card"><h3>Headcount & cost</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AE: \u20AC${(AE_COST/1000).toFixed(0)}K/mo &nbsp; BDR: \u20AC${(BDR_COST/1000).toFixed(0)}K/mo. Ramped AEs = no ramp penalty. New hires = ${rampPcts.map((pp,i)=>i<2?pp+'% mo'+(i+1):pp+'%+').join('/')}.</p>
-    <div style="overflow-x:auto"><table class="fin-table"><tr><th>Role</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
-    <tr><td>AEs (ramped)<br><span style="font-size:11px;color:var(--text-light)">No ramp penalty</span></td>${aesR.map((_,i)=>('<td>'+inp(aesR,'aesRamped',i,0.1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aesR)}</td></tr>
-    <tr><td>AEs (new hires)<br><span style="font-size:11px;color:var(--text-light)">Ramp curve applies</span></td>${aesN.map((_,i)=>('<td>'+inp(aesN,'aesNew',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aesN)}</td></tr>
-    <tr><td>Total AEs</td>${totalAePerMo.map(v=>`<td style="font-weight:600">${v}</td>`).join('')}<td style="font-weight:700">${Math.max(...totalAePerMo)}</td></tr>
-    <tr><td>BDRs<br><span style="font-size:11px;color:var(--text-light)">\u20AC${(BDR_COST/1000).toFixed(0)}K/mo each</span></td>${bdrsArr.map((_,i)=>('<td>'+inp(bdrsArr,'bdrs',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...bdrsArr)}</td></tr>
-    <tr><td>Total headcount</td>${MONTHS.map((_,i)=>`<td>${totalAePerMo[i]+(bdrsArr[i]||0)}</td>`).join('')}<td style="font-weight:700">${Math.max(...MONTHS.map((_,i)=>totalAePerMo[i]+(bdrsArr[i]||0)))}</td></tr>
-    <tr class="total-row"><td>Monthly cost</td>${totalCostPerMo.map(v=>`<td>\u20AC${(v/1000).toFixed(1)}k</td>`).join('')}<td style="font-weight:700">\u20AC${(totalCost9Mo/1000).toFixed(0)}k total</td></tr>
+      <tr><td>AE capacity<br><span style="font-size:11px;color:var(--text-light)">ramped + new (w/ ramp)</span></td>${aeCapPerMo.map(v=>`<td style="color:var(--green)">${v>0?fmt(v):'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">${fmt(sum(aeCapPerMo))}</td></tr>
+      <tr class="total-row"><td>Monthly gap</td>${aeGapPerMo.map(g=>`<td style="color:${g>0?'var(--red)':'var(--green)'};font-weight:700">${g>0?'-'+fmt(g):g<0?'+'+fmt(Math.abs(g)):'-'}</td>`).join('')}<td style="color:${sum(aeGapPerMo)>0?'var(--red)':'var(--green)'};font-weight:700">${sum(aeGapPerMo)>0?'-'+fmt(sum(aeGapPerMo)):'+'+fmt(Math.abs(sum(aeGapPerMo)))}</td></tr>
     </table></div></div>
 
-    <div class="callout info"><strong>How it works:</strong> Enter deals per month. Pilots auto-convert at month-5 review (expansion upside, not counted toward \u20AC2M). BDR math = meetings to generate new deals. AE math = active deal load (new + managing pilots). Headcount = your planned ramp. All auto-saved.</div>`;
+    <!-- 6. HEADCOUNT & COST -->
+    <div class="card"><h3>6. Headcount & cost</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AE: \u20AC${(AE_COST/1000).toFixed(0)}K/mo &nbsp; BDR: \u20AC${(BDR_COST/1000).toFixed(0)}K/mo</p>
+    <div style="overflow-x:auto"><table class="fin-table"><tr><th>Role</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
+    <tr><td>AEs (ramped)<br><span style="font-size:11px;color:var(--text-light)">full productivity</span></td>${aesR.map((_,i)=>('<td>'+inp(aesR,'aesRamped',i,0.1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aesR)}</td></tr>
+    <tr><td>AEs (new hires)<br><span style="font-size:11px;color:var(--text-light)">ramp curve</span></td>${aesN.map((_,i)=>('<td>'+inp(aesN,'aesNew',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aesN)}</td></tr>
+    <tr><td>Total AEs</td>${totalAePerMo.map(v=>`<td style="font-weight:600">${v}</td>`).join('')}<td style="font-weight:700">${Math.max(...totalAePerMo)}</td></tr>
+    <tr><td>BDRs</td>${bdrsArr.map((_,i)=>('<td>'+inp(bdrsArr,'bdrs',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...bdrsArr)}</td></tr>
+    <tr><td>Total headcount</td>${MONTHS.map((_,i)=>`<td>${totalAePerMo[i]+(bdrsArr[i]||0)}</td>`).join('')}<td style="font-weight:700">${Math.max(...MONTHS.map((_,i)=>totalAePerMo[i]+(bdrsArr[i]||0)))}</td></tr>
+    <tr class="total-row"><td>Monthly cost</td>${totalCostPerMo.map(v=>`<td>\u20AC${(v/1000).toFixed(1)}k</td>`).join('')}<td style="font-weight:700">\u20AC${(totalCost9Mo/1000).toFixed(0)}k total</td></tr>
+    </table></div></div>`;
   }
 
   window.updateScen=function(key,idx,val){
