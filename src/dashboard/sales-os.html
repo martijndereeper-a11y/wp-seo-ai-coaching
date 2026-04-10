@@ -1399,10 +1399,11 @@ PAGE_RENDERERS.scenarios=(el)=>{
     renderChatLog();
 
     try{
-      const res=await api('/api/mm/scenario-chat',{method:'POST',body:JSON.stringify({
+      const raw=await apiFetch('/api/mm/scenario-chat',{method:'POST',body:JSON.stringify({
         messages:chatHistory.slice(-10),
         scenario:getFullState()
       })});
+      const res=await raw.json();
       if(!res||res.error){
         chatHistory.push({role:'assistant',content:'Error: '+(res?.error||'Failed to reach AI')});
       } else {
