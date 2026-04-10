@@ -1257,7 +1257,7 @@ PAGE_RENDERERS['icp-hypotheses']=(el)=>{
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TARGET=2000000;
 const ARR_PILOT=15000,ARR_MED=50000,ARR_BIG=100000;
-const CONV_DELAY=4; // month-4 review per MM-OS
+const CONV_DELAY=5; // month-5 review per MM-OS
 
 const SCENARIO_V2_DEFAULTS={
   // Deal entries per month (editable)
@@ -1354,7 +1354,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
     const ro=(v)=>v>0?fmt(v):'-';
 
     el.innerHTML=`
-    <div class="page-header"><h1>Scenario planner</h1><p>Land-and-expand revenue model. Pilots convert at month-4 review. Edit yellow cells.</p></div>
+    <div class="page-header"><h1>Scenario planner</h1><p>Land-and-expand revenue model. Pilots convert at month-5 review. Edit yellow cells.</p></div>
 
     <div class="scenario-kpi">
       <div class="kpi"><div class="kv" style="color:${total>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(total)}</div><div class="kl">Projected EOY ARR</div></div>
@@ -1376,7 +1376,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
     </table></div></div>
 
     <div class="card"><h3>Pilot conversion schedule</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-4 review and convert to Medium or Large. Adjust conversion rates.</p>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-5 review and convert to Medium or Large. Adjust conversion rates.</p>
     <div style="display:flex;gap:12px;margin-bottom:14px">
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Medium %${paramInp('convToMed',Math.round(M.cMed*100),5)}</label>
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Large %${paramInp('convToBig',Math.round(M.cBig*100),5)}</label>
@@ -1385,7 +1385,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
     <div style="overflow-x:auto"><table class="fin-table">
       <tr><th style="min-width:110px">Event</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
       <tr><td>Pilots entered</td>${p.map(v=>`<td>${v||'-'}</td>`).join('')}<td style="font-weight:700">${M.totPilots}</td></tr>
-      <tr><td>Review month<br><span style="font-size:11px;color:var(--text-light)">+4 months</span></td>${MONTHS.map((_,i)=>{
+      <tr><td>Review month<br><span style="font-size:11px;color:var(--text-light)">+5 months</span></td>${MONTHS.map((_,i)=>{
         const src=i-CONV_DELAY;
         return '<td>'+(src>=0&&p[src]>0?'<span style="color:var(--purple3);font-weight:600">'+p[src]+' reviewed</span>':'-')+'</td>';
       }).join('')}<td></td></tr>
@@ -1436,7 +1436,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
     <tr><td>Monthly cost</td>${fte.map(v=>`<td>\u20AC${Math.round(v*((2*15000)+(100000/12)+(50000/12)))/1000}k</td>`).join('')}<td></td></tr>
     </table></div></div>
 
-    <div class="callout info"><strong>How it works:</strong> Enter deals closing per month. Pilots auto-convert at month-4 review based on conversion rates. ARR waterfall shows new deal ARR + conversion uplift. Funnel math shows BDR output needed to generate those deals. All editable, auto-saved.</div>`;
+    <div class="callout info"><strong>How it works:</strong> Enter deals closing per month. Pilots auto-convert at month-5 review based on conversion rates. ARR waterfall shows new deal ARR + conversion uplift. Funnel math shows BDR output needed to generate those deals. All editable, auto-saved.</div>`;
   }
 
   window.updateScen=function(key,idx,val){
