@@ -27,7 +27,7 @@ routes.get('/game/leaderboard', async (c) => {
     const perfectGames = calls.filter(c => c.game_score.totalPoints === c.game_score.maxPoints).length;
 
     const actionHits: Record<string, number> = {};
-    for (const id of ['A', 'B', 'C', 'D', 'E']) {
+    for (const id of ['A', 'B', 'C', 'D', 'E', 'F']) {
       const earned = calls.filter(c => c.game_score.actions?.find((a: any) => a.id === id && a.earned)).length;
       actionHits[id] = Math.round((earned / calls.length) * 100);
     }
