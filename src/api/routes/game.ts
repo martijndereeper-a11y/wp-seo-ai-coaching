@@ -24,16 +24,15 @@ routes.get('/game/leaderboard', async (c) => {
   const leaderboard = Array.from(byAE.entries()).map(([name, calls]) => {
     const scores = calls.map(c => c.game_score.totalPoints || 0);
     const avgScore = Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length);
-    const touchdowns = calls.filter(c => c.game_score.actions?.find((a: any) => a.id === 'F' && a.earned)).length;
-    const perfectGames = calls.filter(c => c.game_score.totalPoints === 70).length;
+    const perfectGames = calls.filter(c => c.game_score.totalPoints === c.game_score.maxPoints).length;
 
     const actionHits: Record<string, number> = {};
-    for (const id of ['A', 'B', 'C', 'D', 'E', 'F']) {
+    for (const id of ['A', 'B', 'C', 'D', 'E']) {
       const earned = calls.filter(c => c.game_score.actions?.find((a: any) => a.id === id && a.earned)).length;
       actionHits[id] = Math.round((earned / calls.length) * 100);
     }
 
-    return { name, totalCalls: calls.length, avgScore, touchdowns, perfectGames, actionHitRates: actionHits, recentScores: scores.slice(0, 5) };
+    return { name, totalCalls: calls.length, avgScore, perfectGames, actionHitRates: actionHits, recentScores: scores.slice(0, 5) };
   });
 
   leaderboard.sort((a, b) => b.avgScore - a.avgScore);

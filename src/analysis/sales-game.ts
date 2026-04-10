@@ -9,7 +9,8 @@
  *   C (5 pts)  — Field Position: Budget or allocation confirmed
  *   D (5 pts)  — Game Clock: Hard decision date within ~1 week
  *   E (10 pts) — Hail Mary: Incentive traded for commitment (GNS)
- *   F (30 pts) — Touchdown: Deal closed
+ *
+ * Touchdown (F) removed — needs HubSpot deal stage data for accuracy.
  *
  * Key rule: B, C, D only count if A (value confirmation) happened first.
  * E requires BOTH an incentive from AE AND commitment back from prospect.
@@ -394,61 +395,10 @@ function detectGoodNewsShow(turns: TranscriptTurn[], recorderName: string): Game
   return action;
 }
 
-// ─── F: Touchdown (30 pts) ─────────────────────────────────────────────────
+// ─── F: Touchdown — DISABLED ──────────────────────────────────────────────
 //
-// Only from outcome data. Lost deals = NEVER a touchdown.
-// Unknown outcome: only if very strong close signals in transcript.
-
-const STRONG_CLOSE = /getekend|ondertekend|deal.*rond|we.*gaan.*starten|stuur.*het.*contract|contract.*verstuurd|welkom.*bij|gefeliciteerd|we.*doen.*het|ik.*teken|waar.*moet.*ik.*tekenen|stuur.*maar.*op|laten.*we.*het.*doen/i;
-
-// Phrases that sound like close signals but are just meeting openers
-const MEETING_OPENER = /laten.*we.*beginnen|laten.*we.*starten|zullen.*we.*beginnen|zullen.*we.*starten|wanneer.*beginnen.*we|dan.*begin.*ik|dan.*starten.*we|gaan.*we.*van.*start|van.*start.*gaan/i;
-
-function detectTouchdown(turns: TranscriptTurn[], recorderName: string, outcome: string): GameAction {
-  const action: GameAction = {
-    id: 'F', name: 'Touchdown', metaphor: 'TOUCHDOWN!',
-    points: 30, earned: false, evidence: '',
-  };
-
-  // Won deals = automatic touchdown
-  if (outcome === 'won') {
-    action.earned = true;
-    action.evidence = 'Deal geclosed!';
-    const closeSignal = findTurn(turns, recorderName, 'prospect', STRONG_CLOSE);
-    if (closeSignal) {
-      action.evidence = `Deal closed: "${closeSignal.turn.text.slice(0, 150)}"`;
-      action.timestamp = closeSignal.turn.timestampDisplay;
-    }
-    return action;
-  }
-
-  // Lost deals = NEVER a touchdown, regardless of what's in the transcript
-  if (outcome === 'lost') {
-    action.reason = 'Deal niet gewonnen. Analyseer wat er misgegaan is tussen value confirmation en het beslismoment.';
-    action.evidence = 'Deal lost.';
-    return action;
-  }
-
-  // Unknown outcome: only from very strong in-call close signals in the second
-  // half of the call. Early matches are meeting openers, not deal closes.
-  const halfwayPoint = Math.floor(turns.length / 2);
-  for (let i = halfwayPoint; i < turns.length; i++) {
-    const t = turns[i];
-    if (!isProspect(t, recorderName)) continue;
-    STRONG_CLOSE.lastIndex = 0;
-    MEETING_OPENER.lastIndex = 0;
-    if (STRONG_CLOSE.test(t.text) && !MEETING_OPENER.test(t.text)) {
-      action.earned = true;
-      action.evidence = `Close signal in call: "${t.text.slice(0, 150)}"`;
-      action.timestamp = t.timestampDisplay;
-      return action;
-    }
-  }
-
-  action.reason = 'Nog geen close. Werk toe naar een Touchdown via de stappen hierboven.';
-  action.evidence = 'Nog geen close.';
-  return action;
-}
+// Removed: transcript-based close detection is not reliable without HubSpot
+// deal stage data. Will re-enable once HubSpot integration is live.
 
 // ─── Main Scorer ───────────────────────────────────────────────────────────
 
@@ -462,7 +412,6 @@ export function scoreGame(
   const actionC = detectBudget(turns, recorderName);
   const actionD = detectTimeline(turns, recorderName);
   const actionE = detectGoodNewsShow(turns, recorderName);
-  const actionF = detectTouchdown(turns, recorderName, outcome);
 
   // Enforce sequence rule: B, C, D only count if A was earned
   const valueConfirmed = actionA.earned;
@@ -476,25 +425,26 @@ export function scoreGame(
     }
   }
 
-  const actions = [actionA, actionB, actionC, actionD, actionE, actionF];
+  const actions = [actionA, actionB, actionC, actionD, actionE];
   const totalPoints = actions.reduce((sum, a) => sum + (a.earned ? a.points : 0), 0);
+  const maxPoints = 40;
 
   const earnedNames = actions.filter(a => a.earned).map(a => a.metaphor);
   const missedNames = actions.filter(a => !a.earned).map(a => a.id);
   let summary: string;
-  if (totalPoints === 70) {
-    summary = 'Perfect game! Alle 6 acties gescoord — Touchdown!';
-  } else if (totalPoints >= 40) {
-    summary = `Sterke call (${totalPoints}/70). ${earnedNames.join(', ')}. Gemist: ${missedNames.join(', ')}.`;
+  if (totalPoints === maxPoints) {
+    summary = 'Perfect game! Alle 5 acties gescoord.';
+  } else if (totalPoints >= 25) {
+    summary = `Sterke call (${totalPoints}/${maxPoints}). ${earnedNames.join(', ')}. Gemist: ${missedNames.join(', ')}.`;
   } else if (totalPoints >= 15) {
-    summary = `Deal in beweging (${totalPoints}/70). ${earnedNames.length ? earnedNames.join(', ') + '.' : ''} Focus op: ${missedNames.join(', ')}.`;
+    summary = `Deal in beweging (${totalPoints}/${maxPoints}). ${earnedNames.length ? earnedNames.join(', ') + '.' : ''} Focus op: ${missedNames.join(', ')}.`;
   } else {
-    summary = `Vroeg stadium (${totalPoints}/70). ${!valueConfirmed ? 'Begin met waarde bevestigen (A) — zonder First Down geen punten voor B/C/D.' : 'Focus op deal advancement.'}`;
+    summary = `Vroeg stadium (${totalPoints}/${maxPoints}). ${!valueConfirmed ? 'Begin met waarde bevestigen (A) — zonder First Down geen punten voor B/C/D.' : 'Focus op deal advancement.'}`;
   }
 
   return {
     totalPoints,
-    maxPoints: 70,
+    maxPoints,
     actions,
     valueConfirmed,
     summary,

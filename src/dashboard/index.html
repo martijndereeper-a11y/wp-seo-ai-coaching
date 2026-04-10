@@ -250,7 +250,7 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
 .game-action .ga-metaphor{font-size:10px;color:var(--text2)}
 .game-action .ga-evidence{font-size:12px;color:var(--text);margin-top:4px;font-style:italic}
 .game-action .ga-reason{font-size:12px;color:var(--orange);margin-top:4px;line-height:1.5}
-.game-lb-row{display:grid;grid-template-columns:32px 1fr 60px 50px repeat(6,36px);gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(46,51,72,.3);font-size:12px}
+.game-lb-row{display:grid;grid-template-columns:32px 1fr 60px repeat(5,36px);gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(46,51,72,.3);font-size:12px}
 .game-lb-row:hover{background:var(--bg3)}
 .game-lb-row .rank{font-size:16px;font-weight:800;text-align:center}
 .game-lb-row .action-dot{width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
@@ -338,8 +338,7 @@ a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoratio
         <strong>B</strong> The Snap (5 pts) &mdash; Decision maker ge&iuml;dentificeerd<br>
         <strong>C</strong> Field Position (5 pts) &mdash; Budget bevestigd<br>
         <strong>D</strong> Game Clock (5 pts) &mdash; Harde datum binnen 1 week<br>
-        <strong>E</strong> Hail Mary (10 pts) &mdash; Incentive geruild voor commitment<br>
-        <strong>F</strong> Touchdown! (30 pts) &mdash; Deal geclosed
+        <strong>E</strong> Hail Mary (10 pts) &mdash; Incentive geruild voor commitment
       </div>
       <strong>Zonder First Down (A) geen punten voor B, C, D.</strong> Waarde moet eerst bevestigd zijn.
       <br><br>
@@ -1958,7 +1957,7 @@ function renderGameScorecard(gs) {
   h += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">';
   h += '<div style="flex-shrink:0"><div class="game-score-big" style="color:'+clr+'">'+gs.totalPoints+'</div><div style="font-size:11px;color:var(--text2);text-align:center">/ '+gs.maxPoints+'</div></div>';
   h += '<div style="flex:1">';
-  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:16px;font-weight:700">Sales Game</span><span style="font-size:12px;color:var(--text2)">'+earned+'/6 acties gescoord</span></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:16px;font-weight:700">Sales Game</span><span style="font-size:12px;color:var(--text2)">'+earned+'/5 acties gescoord</span></div>';
   // Progress bar
   h += '<div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:'+clr+';border-radius:4px;transition:width .3s"></div></div>';
   h += '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+gs.summary+'</div>';
@@ -1967,13 +1966,12 @@ function renderGameScorecard(gs) {
   // Methodology explanation (collapsible)
   h += '<div style="margin:12px 0 8px"><div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle(\'hidden\')" style="padding:6px 0"><span style="font-size:11px;font-weight:600;color:var(--text2)">Hoe werkt de scoring?</span> <span style="font-size:10px;color:var(--text2)">klik om te openen</span></div>';
   h += '<div class="hidden" style="padding:10px 14px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.7">';
-  h += '<strong style="color:var(--text)">6 acties die een deal vooruit brengen:</strong><br>';
+  h += '<strong style="color:var(--text)">5 acties die een deal vooruit brengen:</strong><br>';
   h += '<strong>A</strong> First Down (15 pts) — Prospect bevestigt de waarde en legt uit waarom ze willen starten<br>';
   h += '<strong>B</strong> The Snap (5 pts) — Decision maker ge&iuml;dentificeerd en bevestigd<br>';
   h += '<strong>C</strong> Field Position (5 pts) — Budget of allocatie bevestigd<br>';
   h += '<strong>D</strong> Game Clock (5 pts) — Harde beslisdatum afgesproken, binnen 1 week<br>';
-  h += '<strong>E</strong> Hail Mary (10 pts) — Good News Show: incentive aangeboden EN commitment teruggekregen<br>';
-  h += '<strong>F</strong> Touchdown! (30 pts) — Deal geclosed<br><br>';
+  h += '<strong>E</strong> Hail Mary (10 pts) — Good News Show: incentive aangeboden EN commitment teruggekregen<br><br>';
   h += '<strong style="color:var(--text)">Belangrijk:</strong> Zonder A (waarde bevestigd) krijg je geen punten voor B, C en D. En E telt alleen als je iets aanbiedt EN iets terugkrijgt.';
   h += '</div></div>';
 
@@ -2011,8 +2009,8 @@ async function loadGameLeaderboard() {
 
   // Header row
   h += '<div class="game-lb-row" style="border-bottom:2px solid var(--border);font-weight:600;color:var(--text2)">';
-  h += '<div>#</div><div>AE</div><div style="text-align:right">Avg</div><div style="text-align:right">TD</div>';
-  h += '<div style="text-align:center;font-size:10px">A</div><div style="text-align:center;font-size:10px">B</div><div style="text-align:center;font-size:10px">C</div><div style="text-align:center;font-size:10px">D</div><div style="text-align:center;font-size:10px">E</div><div style="text-align:center;font-size:10px">F</div>';
+  h += '<div>#</div><div>AE</div><div style="text-align:right">Avg</div>';
+  h += '<div style="text-align:center;font-size:10px">A</div><div style="text-align:center;font-size:10px">B</div><div style="text-align:center;font-size:10px">C</div><div style="text-align:center;font-size:10px">D</div><div style="text-align:center;font-size:10px">E</div>';
   h += '</div>';
 
   lb.forEach(function(ae, i) {
@@ -2021,9 +2019,8 @@ async function loadGameLeaderboard() {
     h += '<div class="rank" style="color:'+(i<3?'var(--purple)':'var(--text2)')+'">'+( i+1)+'</div>';
     h += '<div><div style="font-weight:600">'+ae.name+'</div><div style="font-size:10px;color:var(--text2)">'+ae.totalCalls+' calls</div></div>';
     h += '<div style="text-align:right;font-weight:700;color:'+clr+'">'+ae.avgScore+'</div>';
-    h += '<div style="text-align:right;font-weight:600">'+ae.touchdowns+'</div>';
 
-    var actionIds = ['A','B','C','D','E','F'];
+    var actionIds = ['A','B','C','D','E'];
     actionIds.forEach(function(id) {
       var rate = ae.actionHitRates[id] || 0;
       var bg = rate >= 60 ? 'rgba(16,185,129,.15)' : rate >= 30 ? 'rgba(245,158,11,.12)' : 'rgba(239,68,68,.08)';
