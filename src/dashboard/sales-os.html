@@ -1599,7 +1599,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
       <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % pilot${pctInp('closePilot',Math.round(crP*100),1)}</label>
       <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % med${pctInp('closeMed',Math.round(crM*100),1)}</label>
       <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % large${pctInp('closeBig',Math.round(crB*100),1)}</label>
-      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Mtgs/BDR/mo${pctInp('bdrMeetings',bdrCap,1)}</label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Mtgs/BDR/mo${numInp('bdrMeetings',bdrCap,1,50)}</label>
     </div>
     <div style="font-size:14px;line-height:2.2">
       <div>Pilots: ${M.totPilots} &divide; ${Math.round(crP*100)}% = <strong>${mtgPilot} mtgs</strong></div>
