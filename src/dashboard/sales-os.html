@@ -1264,13 +1264,18 @@ const SCENARIO_V2_DEFAULTS={
   pilots:    [0, 2, 3, 4, 4, 3, 3, 2, 2],
   directMed: [0, 0, 0, 1, 1, 1, 1, 1, 1],
   directBig: [0, 0, 0, 0, 1, 0, 1, 1, 1],
-  fte:       [0.6,0.6,1.6,2.5,3.5,4.5,5.5,5.5,5.5],
+  // Headcount per month (editable)
+  aes:  [1, 1, 1, 1, 2, 2, 2, 2, 2],
+  bdrs: [1, 2, 3, 3, 3, 4, 4, 4, 4],
   // Conversion assumptions
   convToMed: 40,   // % of pilots that convert to Medium
   convToBig: 10,   // % of pilots that convert to Large
   // Funnel assumptions
-  closePilot:10, closeMed:10, closeBig:5, bdrMeetings:15
+  closePilot:10, closeMed:10, closeBig:5, bdrMeetings:15,
+  // AE capacity
+  aeDealsPerMo: 5  // max active new deals an AE can work per month
 };
+const AE_COST=6000, BDR_COST=4000; // monthly cost per head
 
 function computeModel(s){
   const pilots=s.pilots||[...SCENARIO_V2_DEFAULTS.pilots];
@@ -1282,8 +1287,8 @@ function computeModel(s){
   // Per-month ARR waterfall
   const newPilotARR=[], newMedARR=[], newBigARR=[];
   const convMedARR=[], convBigARR=[];
-  let cumARR=0;
-  const cumLine=[];
+  let cumARR=0, cumNewDeal=0;
+  const cumLine=[], cumNewLine=[];
   let totPilots=0,totDMed=0,totDBig=0,totConvMed=0,totConvBig=0;
 
   for(let i=0;i<MONTHS.length;i++){
@@ -1307,10 +1312,15 @@ function computeModel(s){
     convMedARR[i]=cM*(ARR_MED-ARR_PILOT);
     convBigARR[i]=cB*(ARR_BIG-ARR_PILOT);
 
-    cumARR+=newPilotARR[i]+newMedARR[i]+newBigARR[i]+convMedARR[i]+convBigARR[i];
+    const newDealARR=newPilotARR[i]+newMedARR[i]+newBigARR[i];
+    const expansionARR=convMedARR[i]+convBigARR[i];
+    cumNewDeal+=newDealARR;
+    cumARR+=newDealARR+expansionARR;
     cumLine[i]=cumARR;
+    cumNewLine[i]=cumNewDeal;
   }
-  return {pilots,dMed,dBig,newPilotARR,newMedARR,newBigARR,convMedARR,convBigARR,cumLine,cumARR,
+  return {pilots,dMed,dBig,newPilotARR,newMedARR,newBigARR,convMedARR,convBigARR,
+    cumLine,cumARR,cumNewLine,cumNewDeal,
     totPilots,totDMed,totDBig,totConvMed,totConvBig,cMed,cBig};
 }
 
@@ -1319,11 +1329,12 @@ PAGE_RENDERERS.scenarios=(el)=>{
   const p=initS.pilots||[...SCENARIO_V2_DEFAULTS.pilots];
   const dm=initS.directMed||[...SCENARIO_V2_DEFAULTS.directMed];
   const db=initS.directBig||[...SCENARIO_V2_DEFAULTS.directBig];
-  const fte=initS.fte||[...SCENARIO_V2_DEFAULTS.fte];
+  const aes=initS.aes||[...SCENARIO_V2_DEFAULTS.aes];
+  const bdrsArr=initS.bdrs||[...SCENARIO_V2_DEFAULTS.bdrs];
 
   function save(){
     const s=LS.get('SCENARIO_V2')||{};
-    s.pilots=p;s.directMed=dm;s.directBig=db;s.fte=fte;
+    s.pilots=p;s.directMed=dm;s.directBig=db;s.aes=aes;s.bdrs=bdrsArr;
     LS.set('SCENARIO_V2',s);
   }
   function sum(a){return a.reduce((s,v)=>s+(parseFloat(v)||0),0);}
@@ -1331,12 +1342,14 @@ PAGE_RENDERERS.scenarios=(el)=>{
   function render(){
     const s=LS.get('SCENARIO_V2')||{};
     const M=computeModel({...s,pilots:p,directMed:dm,directBig:db});
-    const total=M.cumARR;
-    const pct=Math.min(100,Math.round(total/TARGET*100));
-    const gap=TARGET-total;
+    const newDealARR=M.cumNewDeal;
+    const totalARR=M.cumARR;
+    const expansionARR=totalARR-newDealARR;
+    const pct=Math.min(100,Math.round(newDealARR/TARGET*100));
+    const gap=TARGET-newDealARR;
     const totalDeals=M.totPilots+M.totDMed+M.totDBig;
 
-    // Funnel math
+    // BDR funnel math
     const crP=(s.closePilot||SCENARIO_V2_DEFAULTS.closePilot)/100;
     const crM=(s.closeMed||SCENARIO_V2_DEFAULTS.closeMed)/100;
     const crB=(s.closeBig||SCENARIO_V2_DEFAULTS.closeBig)/100;
@@ -1346,27 +1359,47 @@ PAGE_RENDERERS.scenarios=(el)=>{
     const mtgBig=crB>0?Math.ceil(M.totDBig/crB):0;
     const mtgTotal=mtgPilot+mtgMed+mtgBig;
     const mtgPerMo=Math.ceil(mtgTotal/MONTHS.length);
-    const bdrs=bdrCap>0?Math.ceil(mtgPerMo/bdrCap):0;
+    const bdrsNeeded=bdrCap>0?Math.ceil(mtgPerMo/bdrCap):0;
 
-    // Editable input helper
+    // AE funnel math
+    const aeCap=s.aeDealsPerMo||SCENARIO_V2_DEFAULTS.aeDealsPerMo;
+    // AE load per month: new deals entering + active pilots being managed
+    const aeLoadPerMo=MONTHS.map((_,i)=>{
+      const newDeals=(p[i]||0)+(dm[i]||0)+(db[i]||0);
+      // Active pilots: signed in prior months, still in pilot phase (not yet converted)
+      let activePilots=0;
+      for(let j=0;j<=i;j++){
+        if(i-j<CONV_DELAY) activePilots+=(p[j]||0); // still in pilot
+      }
+      return {newDeals,activePilots,total:newDeals+activePilots};
+    });
+    const peakAeLoad=Math.max(...aeLoadPerMo.map(l=>l.total));
+    const aesNeeded=aeCap>0?Math.ceil(peakAeLoad/aeCap):0;
+
+    // Headcount cost
+    const totalCostPerMo=MONTHS.map((_,i)=>(aes[i]||0)*AE_COST+(bdrsArr[i]||0)*BDR_COST);
+    const totalCost9Mo=sum(totalCostPerMo);
+
+    // Helpers
     const inp=(arr,key,i,step)=>`<input type="number" value="${arr[i]||0}" min="0" step="${step||1}" style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScen('${key}',${i},this.value)">`;
     const paramInp=(key,val,step)=>`<input type="number" value="${val}" min="0" max="100" step="${step||1}" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:'Archivo',sans-serif;text-align:right;background:rgba(255,242,204,.4)" onchange="updateScenParam('${key}',this.value)">`;
     const ro=(v)=>v>0?fmt(v):'-';
 
     el.innerHTML=`
-    <div class="page-header"><h1>Scenario planner</h1><p>Land-and-expand revenue model. Pilots convert at month-5 review. Edit yellow cells.</p></div>
+    <div class="page-header"><h1>Scenario planner</h1><p>Land-and-expand model. Target: \u20AC2M new deal ARR (excl. expansion). Pilots convert at month-5 review.</p></div>
 
     <div class="scenario-kpi">
-      <div class="kpi"><div class="kv" style="color:${total>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(total)}</div><div class="kl">Projected EOY ARR</div></div>
+      <div class="kpi"><div class="kv" style="color:${newDealARR>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(newDealARR)}</div><div class="kl">New deal ARR</div></div>
       <div class="kpi"><div class="kv" style="color:var(--purple3)">${pct}%</div><div class="kl">of \u20AC2M target</div></div>
       <div class="kpi"><div class="kv" style="color:${gap>0?'var(--red)':'var(--green)'}">${gap>0?fmtM(gap):'Hit'}</div><div class="kl">${gap>0?'Gap to close':'Target met'}</div></div>
+      <div class="kpi"><div class="kv" style="color:var(--green)">${fmtM(expansionARR)}</div><div class="kl">Expansion upside</div></div>
       <div class="kpi"><div class="kv">${totalDeals}</div><div class="kl">Deals to close</div></div>
-      <div class="kpi"><div class="kv">${M.totConvMed+M.totConvBig}</div><div class="kl">Pilot conversions</div></div>
     </div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+    <div style="font-size:12px;color:var(--text-light);margin-top:4px;margin-bottom:20px">Total ARR incl. expansion: <strong style="color:var(--blackish)">${fmtM(totalARR)}</strong></div>
 
     <div class="card"><h3>Deal entries per month</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">How many deals close per month, by type. Pilots that convert are tracked automatically below.</p>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deals closing per month. Pilot conversions are tracked separately below.</p>
     <div style="overflow-x:auto"><table class="fin-table">
       <tr><th style="min-width:110px">Type</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
       <tr><td>Pilots<br><span style="font-size:11px;color:var(--text-light)">\u20AC15K ARR</span></td>${p.map((_,i)=>('<td>'+inp(p,'pilots',i,1)+'</td>')).join('')}<td style="font-weight:700">${M.totPilots}</td></tr>
@@ -1376,7 +1409,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
     </table></div></div>
 
     <div class="card"><h3>Pilot conversion schedule</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-5 review and convert to Medium or Large. Adjust conversion rates.</p>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Pilots hit month-5 review. Conversion = expansion ARR (not counted toward \u20AC2M target).</p>
     <div style="display:flex;gap:12px;margin-bottom:14px">
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Medium %${paramInp('convToMed',Math.round(M.cMed*100),5)}</label>
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Conv. to Large %${paramInp('convToBig',Math.round(M.cBig*100),5)}</label>
@@ -1402,41 +1435,61 @@ PAGE_RENDERERS.scenarios=(el)=>{
     </table></div></div>
 
     <div class="card"><h3>ARR waterfall</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deal ARR + conversion uplift = cumulative ARR build.</p>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">New deal ARR counts toward target. Expansion revenue is upside.</p>
     <div style="overflow-x:auto"><table class="fin-table">
       <tr><th style="min-width:110px">Source</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th style="color:var(--purple3)">Total</th></tr>
       <tr><td>New pilots</td>${M.newPilotARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newPilotARR))}</td></tr>
       <tr><td>Direct Medium</td>${M.newMedARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newMedARR))}</td></tr>
       <tr><td>Direct Large</td>${M.newBigARR.map(v=>`<td>${ro(v)}</td>`).join('')}<td style="font-weight:700">${fmt(sum(M.newBigARR))}</td></tr>
-      <tr><td style="color:var(--green)">Conv. uplift &rarr; Med<br><span style="font-size:11px;color:var(--text-light)">+\u20AC35K per convert</span></td>${M.convMedARR.map(v=>`<td>${v>0?'<span style="color:var(--green)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">+${fmt(sum(M.convMedARR))}</td></tr>
-      <tr><td style="color:var(--purple3)">Conv. uplift &rarr; Large<br><span style="font-size:11px;color:var(--text-light)">+\u20AC85K per convert</span></td>${M.convBigARR.map(v=>`<td>${v>0?'<span style="color:var(--purple3)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--purple3)">+${fmt(sum(M.convBigARR))}</td></tr>
-      <tr class="total-row"><td>Cumulative ARR</td>${M.cumLine.map(v=>`<td style="color:${v>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(v)}</td>`).join('')}<td style="color:${total>=TARGET?'var(--green)':'var(--red)'};font-size:16px">${fmtM(total)}</td></tr>
+      <tr class="total-row"><td>New deal ARR<br><span style="font-size:11px;font-weight:400">= target basis</span></td>${M.cumNewLine.map(v=>`<td style="color:${v>=TARGET?'var(--green)':'var(--blackish)'}">${fmtM(v)}</td>`).join('')}<td style="color:${newDealARR>=TARGET?'var(--green)':'var(--red)'};font-size:16px">${fmtM(newDealARR)}</td></tr>
+      <tr><td style="color:var(--green)">Expansion &rarr; Med<br><span style="font-size:11px;color:var(--text-light)">+\u20AC35K per convert</span></td>${M.convMedARR.map(v=>`<td>${v>0?'<span style="color:var(--green)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--green)">+${fmt(sum(M.convMedARR))}</td></tr>
+      <tr><td style="color:var(--purple3)">Expansion &rarr; Large<br><span style="font-size:11px;color:var(--text-light)">+\u20AC85K per convert</span></td>${M.convBigARR.map(v=>`<td>${v>0?'<span style="color:var(--purple3)">+'+fmt(v)+'</span>':'-'}</td>`).join('')}<td style="font-weight:700;color:var(--purple3)">+${fmt(sum(M.convBigARR))}</td></tr>
+      <tr style="background:var(--light-bg)"><td style="font-weight:700;color:var(--blackish)">Total incl. expansion</td>${M.cumLine.map(v=>`<td>${fmtM(v)}</td>`).join('')}<td style="font-weight:700;font-size:16px">${fmtM(totalARR)}</td></tr>
     </table></div></div>
 
+    <div class="grid-2">
     <div class="card"><h3>BDR funnel math</h3>
-    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Meetings needed to generate the deal entries above. Conversions don't require new meetings.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">Meetings to generate new deals. Conversions don't need new meetings.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % pilot${paramInp('closePilot',Math.round(crP*100),1)}</label>
-      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % medium${paramInp('closeMed',Math.round(crM*100),1)}</label>
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % med${paramInp('closeMed',Math.round(crM*100),1)}</label>
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">Close % large${paramInp('closeBig',Math.round(crB*100),1)}</label>
       <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">BDR mtgs/mo${paramInp('bdrMeetings',bdrCap,1)}</label>
     </div>
-    <div class="scenario-kpi">
-      <div class="kpi"><div class="kv" style="color:var(--purple3)">${mtgTotal}</div><div class="kl">Total meetings</div></div>
-      <div class="kpi"><div class="kv">${mtgPerMo}</div><div class="kl">Meetings / month</div></div>
-      <div class="kpi"><div class="kv" style="color:${bdrs>=4?'var(--orange)':'var(--green)'}">${bdrs}</div><div class="kl">BDRs needed</div></div>
-      <div class="kpi"><div class="kv">${Math.ceil(bdrs*1.25)}</div><div class="kl">Incl. ramp buffer</div></div>
+    <div style="font-size:14px;line-height:2.2">
+      <div>Pilots: ${M.totPilots} &divide; ${Math.round(crP*100)}% = <strong>${mtgPilot} mtgs</strong></div>
+      <div>Medium: ${M.totDMed} &divide; ${Math.round(crM*100)}% = <strong>${mtgMed} mtgs</strong></div>
+      <div>Large: ${M.totDBig} &divide; ${Math.round(crB*100)}% = <strong>${mtgBig} mtgs</strong></div>
+      <div style="border-top:2px solid var(--border);padding-top:6px;margin-top:4px"><strong>${mtgTotal} total meetings</strong> &divide; 9 mo = <strong>${mtgPerMo}/mo</strong></div>
+      <div>${mtgPerMo}/mo &divide; ${bdrCap} mtgs/BDR = <strong style="color:${bdrsNeeded>=4?'var(--orange)':'var(--green)'}">${bdrsNeeded} BDRs needed</strong></div>
     </div>
-    <div style="font-size:13px;color:var(--text);margin-top:8px">Pilots: ${M.totPilots} deals &divide; ${Math.round(crP*100)}% = <strong>${mtgPilot} mtgs</strong> &nbsp; Medium: ${M.totDMed} &divide; ${Math.round(crM*100)}% = <strong>${mtgMed}</strong> &nbsp; Large: ${M.totDBig} &divide; ${Math.round(crB*100)}% = <strong>${mtgBig}</strong></div>
     </div>
 
-    <div class="card"><h3>FTE ramp & cost</h3>
-    <div style="overflow-x:auto"><table class="fin-table"><tr><th>Metric</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
-    <tr><td>Total FTE</td>${fte.map((_,i)=>('<td>'+inp(fte,'fte',i,0.5)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...fte)}</td></tr>
-    <tr><td>Monthly cost</td>${fte.map(v=>`<td>\u20AC${Math.round(v*((2*15000)+(100000/12)+(50000/12)))/1000}k</td>`).join('')}<td></td></tr>
+    <div class="card"><h3>AE capacity math</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AEs manage new deals + active pilots in parallel.</p>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:3px">AE deals/mo capacity${paramInp('aeDealsPerMo',aeCap,1)}</label>
+    </div>
+    <div style="overflow-x:auto"><table class="fin-table">
+      <tr><th>Load</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
+      <tr><td>New deals</td>${aeLoadPerMo.map(l=>`<td>${l.newDeals||'-'}</td>`).join('')}<td></td></tr>
+      <tr><td>Active pilots</td>${aeLoadPerMo.map(l=>`<td>${l.activePilots||'-'}</td>`).join('')}<td></td></tr>
+      <tr class="total-row"><td>Total load</td>${aeLoadPerMo.map(l=>`<td style="color:${l.total>aeCap*Math.max(...aes)?'var(--red)':'var(--blackish)'}">${l.total||'-'}</td>`).join('')}<td style="font-weight:700">${peakAeLoad}</td></tr>
+    </table></div>
+    <div style="font-size:14px;margin-top:10px">Peak load: ${peakAeLoad} deals &divide; ${aeCap}/AE = <strong style="color:${aesNeeded>=3?'var(--orange)':'var(--green)'}">${aesNeeded} AEs needed</strong></div>
+    </div>
+    </div>
+
+    <div class="card"><h3>Headcount & cost</h3>
+    <p style="font-size:13px;color:var(--text);margin-bottom:12px">AE: \u20AC${(AE_COST/1000).toFixed(0)}K/mo &nbsp; BDR: \u20AC${(BDR_COST/1000).toFixed(0)}K/mo</p>
+    <div style="overflow-x:auto"><table class="fin-table"><tr><th>Role</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th>Peak</th></tr>
+    <tr><td>AEs<br><span style="font-size:11px;color:var(--text-light)">\u20AC${(AE_COST/1000).toFixed(0)}K/mo each</span></td>${aes.map((_,i)=>('<td>'+inp(aes,'aes',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...aes)}</td></tr>
+    <tr><td>BDRs<br><span style="font-size:11px;color:var(--text-light)">\u20AC${(BDR_COST/1000).toFixed(0)}K/mo each</span></td>${bdrsArr.map((_,i)=>('<td>'+inp(bdrsArr,'bdrs',i,1)+'</td>')).join('')}<td style="font-weight:700">${Math.max(...bdrsArr)}</td></tr>
+    <tr><td>Total headcount</td>${MONTHS.map((_,i)=>`<td>${(aes[i]||0)+(bdrsArr[i]||0)}</td>`).join('')}<td style="font-weight:700">${Math.max(...MONTHS.map((_,i)=>(aes[i]||0)+(bdrsArr[i]||0)))}</td></tr>
+    <tr class="total-row"><td>Monthly cost</td>${totalCostPerMo.map(v=>`<td>\u20AC${(v/1000).toFixed(1)}k</td>`).join('')}<td style="font-weight:700">\u20AC${(totalCost9Mo/1000).toFixed(0)}k total</td></tr>
     </table></div></div>
 
-    <div class="callout info"><strong>How it works:</strong> Enter deals closing per month. Pilots auto-convert at month-5 review based on conversion rates. ARR waterfall shows new deal ARR + conversion uplift. Funnel math shows BDR output needed to generate those deals. All editable, auto-saved.</div>`;
+    <div class="callout info"><strong>How it works:</strong> Enter deals per month. Pilots auto-convert at month-5 review (expansion upside, not counted toward \u20AC2M). BDR math = meetings to generate new deals. AE math = active deal load (new + managing pilots). Headcount = your planned ramp. All auto-saved.</div>`;
   }
 
   window.updateScen=function(key,idx,val){
@@ -1444,7 +1497,8 @@ PAGE_RENDERERS.scenarios=(el)=>{
     if(key==='pilots')p[idx]=v;
     else if(key==='directMed')dm[idx]=v;
     else if(key==='directBig')db[idx]=v;
-    else if(key==='fte')fte[idx]=v;
+    else if(key==='aes')aes[idx]=v;
+    else if(key==='bdrs')bdrsArr[idx]=v;
     save(); render();
   };
   window.updateScenParam=function(key,val){
