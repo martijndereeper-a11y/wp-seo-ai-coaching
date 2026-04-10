@@ -31,7 +31,7 @@ interface CallData {
 
 const TIER_LABELS: Record<CallTier, string> = {
   A: 'Kanshebber',
-  B: 'Full effort',
+  B: 'Full effort, low chance',
   C: 'Troep',
 };
 

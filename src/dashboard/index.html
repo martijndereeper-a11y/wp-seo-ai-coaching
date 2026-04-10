@@ -1911,7 +1911,7 @@ function tierBadge(tier) {
   if (!tier) return '';
   var clr = tier === 'A' ? 'var(--green)' : tier === 'B' ? 'var(--blue)' : 'var(--red)';
   var bg = tier === 'A' ? 'rgba(16,185,129,.12)' : tier === 'B' ? 'rgba(59,130,246,.08)' : 'rgba(239,68,68,.08)';
-  var label = tier === 'A' ? 'Kanshebber' : tier === 'B' ? 'Full effort' : 'Troep';
+  var label = tier === 'A' ? 'Kanshebber' : tier === 'B' ? 'Full effort, low chance' : 'Troep';
   return '<span style="padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;background:'+bg+';color:'+clr+'">'+label+'</span>';
 }
 
@@ -2091,11 +2091,11 @@ async function loadAEDetail(name) {
           '</div>'+
         '</div>'+
         '<div>'+
-          '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Calls filter</div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600">Welke calls meenemen?</div>'+
           '<div class="tf-period-select" id="tier-filter-select">'+
-            '<button class="tf-period-chip" data-tier="A" onclick="setTierFilter(\'A\',this)">Kanshebbers</button>'+
-            '<button class="tf-period-chip active" data-tier="AB" onclick="setTierFilter(\'AB\',this)">A+B</button>'+
-            '<button class="tf-period-chip" data-tier="ABC" onclick="setTierFilter(\'ABC\',this)">Alle calls</button>'+
+            '<button class="tf-period-chip" data-tier="A" onclick="setTierFilter(\'A\',this)">Alleen kanshebbers</button>'+
+            '<button class="tf-period-chip active" data-tier="AB" onclick="setTierFilter(\'AB\',this)">Serieuze calls</button>'+
+            '<button class="tf-period-chip" data-tier="ABC" onclick="setTierFilter(\'ABC\',this)">Alles (incl. troep)</button>'+
           '</div>'+
         '</div>'+
       '</div>'+
