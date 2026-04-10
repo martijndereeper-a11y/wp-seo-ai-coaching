@@ -1471,7 +1471,7 @@ PAGE_RENDERERS.scenarios=(el)=>{
 
     // AE productivity math
     const aeQTarget=s.aeQuarterlyTarget||SCENARIO_V2_DEFAULTS.aeQuarterlyTarget;
-    const aeMonthly=aeQTarget/3;
+    const aeMonthly=aeQTarget*1000/3; // convert €K quarterly to € monthly
     const rampPcts=SCENARIO_V2_DEFAULTS.aeRampPct;
 
     const newAeStartMonths=[];
