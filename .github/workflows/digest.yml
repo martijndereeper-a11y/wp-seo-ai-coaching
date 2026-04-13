@@ -56,8 +56,7 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          DIGEST_TO: ${{ secrets.DIGEST_TO }}
-          DIGEST_CC: ${{ secrets.DIGEST_CC }}
+          DIGEST_TO: martijn.dereeper@wpseoai.com
 
       - name: Sync to Notion
         if: steps.schedule.outputs.skip != 'true'

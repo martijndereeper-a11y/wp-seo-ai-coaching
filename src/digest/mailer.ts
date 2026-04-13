@@ -45,8 +45,9 @@ async function main() {
     process.exit(1);
   }
 
-  const to = isTest ? user : (process.env.DIGEST_TO || user);
-  const cc = isTest ? "" : (process.env.DIGEST_CC || "");
+  // Testing phase: send only to Martijn until pitch-alignment filter is validated
+  const to = isTest ? user : (process.env.DIGEST_TO || "martijn.dereeper@wpseoai.com");
+  const cc = "";
 
   const info = await transport.sendMail({
     from: `"WP SEO AI Sales Intel" <${user}>`,

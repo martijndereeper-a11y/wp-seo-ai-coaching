@@ -7,6 +7,7 @@
  * Quality gates:
  * - Only articles published within the last 7 days
  * - Relevance threshold 8/10 — only golden nuggets
+ * - Pitch-alignment filter: every article must map to one of 5 SMB script moments
  * - All talk tracks in the edition's native language
  * - Only authoritative, vetted sources (see context/sales/media-outlets.md)
  */
@@ -56,6 +57,7 @@ interface DigestArticle extends Article {
   ae_hook: string;
   use_in: string;
   relevance_score: number;
+  pitch_moment: string;
 }
 
 // ── HTTP fetch via curl (avoids Anthropic SDK fetch conflict) ────────────────
@@ -218,23 +220,38 @@ The business owner cares about: getting found online, getting more leads, not lo
 ## Articles to evaluate:
 ${articleList}
 
-## Scoring rules — be RUTHLESS:
-- 10/10 = Directly about how AI search changes the way customers find businesses — a perfect conversation opener with a business owner
-- 9/10 = Search/SEO shift that creates urgency: "if you don't act, your competitors will show up instead of you"
-- 8/10 = Strong business case or data showing ROI of being visible in search, or real-world examples of businesses winning/losing because of search changes
-- 7/10 or below = Interesting but not a golden nugget. EXCLUDE.
-- Enterprise-only topics, pure technical SEO, social media, advertising, e-commerce logistics, unrelated tech = 0. EXCLUDE.
+## PITCH-ALIGNMENT FILTER — MANDATORY
 
-Only return articles scoring 8 or higher. These must be articles an AE can directly use to start a conversation with an SMB owner.
+Every article MUST naturally lead an AE into one of these five pitch moments from our sales script. If it doesn't connect to at least one, KILL IT regardless of how interesting it is.
+
+| Pitch Moment | What the article should reinforce |
+|---|---|
+| "96.55% of content gets zero traffic" | Market data proving content waste — most businesses throw time/money at content that never works |
+| "3-4 hours per article" | Evidence that DIY or agency content is a massive time sink with poor ROI |
+| "Trawl net vs fishing rod" | Why scale + low cost per article beats manual, expensive approaches |
+| "First mover in AI search" | AI search (ChatGPT, AI Overviews, Perplexity) is here, nobody owns it yet, act now |
+| "We do it for you" | Why managed service beats tools, platforms, or hiring — no learning curve |
+
+For each article, ask: "Can the AE use this to naturally steer toward our script?" If the answer is no — even if the article is fascinating — score it 0.
+
+## Scoring rules — be RUTHLESS:
+- 10/10 = Directly maps to a pitch moment AND creates urgency for a business owner
+- 9/10 = Strong connection to a pitch moment with a clear conversation opener
+- 8/10 = Connects to a pitch moment with supporting data or proof
+- 7/10 or below = Doesn't clearly map to a pitch moment. EXCLUDE.
+- AUTOMATIC KILL (score 0): Enterprise-only topics, pure technical SEO, social media strategy, paid advertising (SEA/PPC), e-commerce logistics, multilingual strategy, metrics/analytics philosophy, generic AI tips that don't connect to visibility. These topics lead AEs off-script.
+
+Only return articles scoring 8 or higher. These must be articles an AE can use to start a conversation that naturally flows into our sales pitch.
 
 ## For each keeper, write:
-- ae_hook: 2-3 sentences. A specific talk track the AE can use in a call with a business owner. Include a question they can ask. Keep it simple, concrete, outcome-focused. No marketing jargon — talk like a human explaining why this matters for their business.
+- ae_hook: 2-3 sentences. A specific talk track the AE can use in a call with a business owner. The hook MUST steer toward one of the five pitch moments above. Include a question they can ask. Keep it simple, concrete, outcome-focused. No marketing jargon — talk like a human explaining why this matters for their business.
 - use_in: one of "pre-call" | "discovery" | "nurture" | "objection-handler"
+- pitch_moment: which of the 5 pitch moments this article connects to (use the short label: "content-waste" | "time-sink" | "scale-beats-manual" | "first-mover-ai" | "managed-service")
 
 LANGUAGE REQUIREMENT: Write ALL ae_hook values in ${talkTrackLang}. The AEs speak ${talkTrackLang} with prospects. Write natural, fluent, idiomatic ${talkTrackLang} — as a native speaker would say it in a real sales call. Do NOT translate from English.
 
 Return ONLY valid JSON, no markdown fences:
-[{"index": 0, "relevance_score": 9, "ae_hook": "...", "use_in": "discovery"}]
+[{"index": 0, "relevance_score": 9, "ae_hook": "...", "use_in": "discovery", "pitch_moment": "first-mover-ai"}]
 
 If nothing scores 8+, return: []`
     }]
@@ -244,7 +261,7 @@ If nothing scores 8+, return: []`
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return [];
 
-  let scored: Array<{ index: number; relevance_score: number; ae_hook: string; use_in: string }>;
+  let scored: Array<{ index: number; relevance_score: number; ae_hook: string; use_in: string; pitch_moment: string }>;
   try {
     scored = JSON.parse(jsonMatch[0]);
   } catch {
@@ -258,7 +275,8 @@ If nothing scores 8+, return: []`
       ...articles[s.index],
       ae_hook: s.ae_hook,
       use_in: s.use_in,
-      relevance_score: s.relevance_score
+      relevance_score: s.relevance_score,
+      pitch_moment: s.pitch_moment || "first-mover-ai"
     }))
     .sort((a, b) => b.relevance_score - a.relevance_score)
     .slice(0, MAX_ARTICLES_PER_SECTION);
@@ -278,9 +296,18 @@ function formatDigest(
     de: "🇩🇪 Deutschland"
   };
 
+  const pitchMomentLabel: Record<string, string> = {
+    "content-waste": "→ 96.55% gets zero traffic",
+    "time-sink": "→ 3-4 hours per article",
+    "scale-beats-manual": "→ Trawl net vs fishing rod",
+    "first-mover-ai": "→ First mover in AI search",
+    "managed-service": "→ We do it for you"
+  };
+
   const formatArticle = (a: DigestArticle, i: number) => `
 ### ${i + 1}. ${a.title}
 **Source:** ${a.source} | **Score:** ${"★".repeat(Math.round(a.relevance_score / 2))} (${a.relevance_score}/10) | **Published:** ${a.date}
+**Pitch moment:** ${pitchMomentLabel[a.pitch_moment] || a.pitch_moment}
 **Link:** ${a.url}
 
 > ${a.summary}
@@ -334,9 +361,18 @@ function formatCombinedEmailHtml(
     "objection-handler": "#DC2626"
   };
 
+  const pitchMomentHtml: Record<string, string> = {
+    "content-waste": "96.55% gets zero traffic",
+    "time-sink": "3-4 hours per article",
+    "scale-beats-manual": "Trawl net vs fishing rod",
+    "first-mover-ai": "First mover in AI search",
+    "managed-service": "We do it for you"
+  };
+
   function renderArticle(a: DigestArticle, isFirst: boolean) {
     const bg = isFirst ? "background:#faf6ff;border-left:4px solid #B748FF;" : "border:1px solid #f0e8f8;";
     const stars = "&#9733;".repeat(Math.round(a.relevance_score / 2)) + "&#9734;".repeat(5 - Math.round(a.relevance_score / 2));
+    const pitchLabel = pitchMomentHtml[a.pitch_moment] || a.pitch_moment;
     return `
     <tr>
       <td style="padding:${isFirst ? "20" : "16"}px 40px 0;">
@@ -345,6 +381,7 @@ function formatCombinedEmailHtml(
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr><td>
                 <span style="background:${tagColor[a.use_in] || "#B748FF"};color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;text-transform:uppercase;">${a.use_in}</span>
+                <span style="background:#f0e8f8;color:#6B21A8;font-size:10px;font-weight:600;padding:3px 10px;border-radius:12px;margin-left:6px;">&#8594; ${pitchLabel}</span>
                 <span style="color:#999;font-size:12px;margin-left:8px;">${a.source} &middot; ${a.date}</span>
                 <span style="float:right;color:#B748FF;font-size:13px;font-weight:700;">${stars}</span>
               </td></tr>
@@ -408,7 +445,7 @@ function formatCombinedEmailHtml(
 
   <!-- Intro -->
   <tr><td style="padding:28px 40px 12px;">
-    <p style="font-size:15px;color:#444;line-height:1.6;margin:0;">Hey team — here are this period's golden nuggets on AI Search, SEO shifts, and market signals across all our markets. Each article comes with a ready-to-use talk track for your calls.</p>
+    <p style="font-size:15px;color:#444;line-height:1.6;margin:0;">Hey team — here are this period's golden nuggets on AI Search, SEO shifts, and market signals across all our markets. Each article is pitch-aligned and comes with a ready-to-use talk track for your calls.</p>
   </td></tr>
 
   <!-- Stats Bar -->
