@@ -211,49 +211,85 @@ async function filterAndEnrich(articles: Article[], talkTrackLanguage: string): 
     max_tokens: 4000,
     messages: [{
       role: "user",
-      content: `You are a senior Sales Intel analyst for WP SEO AI, a Search Visibility Platform (€10.5M ARR, 180% growth).
+      content: `You are a strict Sales Intel gatekeeper for WP SEO AI.
 
-WP SEO AI helps SMB business owners understand how their business shows up in Google and AI search (Google AI Overviews, ChatGPT, Perplexity). Our AEs sell to business owners in a single-call close motion — not enterprise, not CMOs.
+## WHAT WP SEO AI ACTUALLY SELLS — memorize this before scoring anything
 
-The business owner cares about: getting found online, getting more leads, not losing customers to competitors, understanding what AI search means for their business.
+WP SEO AI is a MANAGED SERVICE (not a tool, not a platform you log into). We do SEO content for SMB business owners. Here is exactly what we do:
+
+1. We RESEARCH what questions their target audience types into Google and ChatGPT
+2. We CREATE traffic-generating blog content at scale using AI (not thought leadership — traffic-generating content that answers search queries)
+3. We PUBLISH it automatically into the customer's WordPress sitemap (hidden from visitors, visible to Google and AI search engines)
+4. We MEASURE via Google Search Console — if an article gets zero traction after 3 months, we auto-remove it
+5. We NOTIFY the customer when an article starts ranking — they review it, improve it, approve it, and we move it to their live blog
+6. We build TOPIC CLUSTERS: supporting blog articles that link back to the customer's money-making pillar pages, boosting those pages in Google and AI search
+7. The customer does NOT need to learn any tool or hire anyone — our team operates everything
+
+KEY STATS from our pitch:
+- 96.55% of ALL content worldwide gets zero visitors — 9 out of 10 hours spent on content are wasted
+- Making one article takes 3-4 hours (research → write → optimize → publish → measure → iterate)
+- You need 10+ articles/month because 9/10 fail — that's 30+ hours/month for maybe 1 winner
+- Our cost per article is so low that targeting long-tail queries (7-8 word searches, low individual volume but high buying intent) becomes economically viable for the first time
+- Long-tail searches doubled between 2022-2025
+- Topic clusters compound: supporting content boosts pillar pages AND ranks in ChatGPT/AI Overviews
+- First mover advantage in AI search: like Google in 1999, nobody owns this space yet
+- We are the trawl net (scale, low cost, keep winners, discard losers) vs the fishing rod (manual, expensive, hope one article works)
+
+Our AEs sell to SMB BUSINESS OWNERS in a single-call close. NOT enterprise, NOT CMOs, NOT marketers.
 
 ## Articles to evaluate:
 ${articleList}
 
-## PITCH-ALIGNMENT FILTER — MANDATORY
+## THE FILTER — would Noy (our CRO) approve this article?
 
-Every article MUST naturally lead an AE into one of these five pitch moments from our sales script. If it doesn't connect to at least one, KILL IT regardless of how interesting it is.
+For EACH article, answer these three questions. ALL THREE must be YES or the article is killed:
 
-| Pitch Moment | What the article should reinforce |
+1. **Does this article's topic directly connect to something WP SEO AI does?** (content creation, SEO visibility, AI search visibility, content ROI, content waste, managed vs DIY, topic clusters, blog-driven lead generation)
+2. **Can an AE read this article and naturally transition into our pitch within 2 sentences?** Not "this is vaguely related to search" — can they literally say "and that's exactly why we do X" where X is something from our pitch above?
+3. **Would a Dutch/Finnish/German SMB business owner care about this?** Not a CMO, not a marketer, not a developer — a business owner who wants more customers from online.
+
+If ANY answer is NO → score 0, kill it.
+
+## AUTOMATIC KILL — these topics NEVER pass regardless of quality:
+- Paid advertising / SEA / PPC / Google Ads (we don't sell this)
+- Social media strategy / LinkedIn / Instagram (not what we do)
+- E-commerce / webshop optimization (wrong ICP)
+- Multilingual / international content strategy (not our pitch)
+- Marketing metrics / analytics philosophy (we don't sell analytics)
+- Technical SEO / site speed / Core Web Vitals (we explicitly say we skip this in our pitch)
+- Backlink strategies (we explicitly skip this in our pitch)
+- Enterprise / B2B marketing strategy at CMO level (wrong audience)
+- Generic "AI is changing everything" articles without a specific connection to content/visibility
+- Tool reviews or "how to use X tool" (we are anti-tool — we do it for you)
+- Brand building / brand authority concepts (too abstract, doesn't connect to our pitch)
+
+## Pitch moments — each surviving article must map to exactly one:
+| Label | What it reinforces |
 |---|---|
-| "96.55% of content gets zero traffic" | Market data proving content waste — most businesses throw time/money at content that never works |
-| "3-4 hours per article" | Evidence that DIY or agency content is a massive time sink with poor ROI |
-| "Trawl net vs fishing rod" | Why scale + low cost per article beats manual, expensive approaches |
-| "First mover in AI search" | AI search (ChatGPT, AI Overviews, Perplexity) is here, nobody owns it yet, act now |
-| "We do it for you" | Why managed service beats tools, platforms, or hiring — no learning curve |
+| content-waste | Data proving most content fails (96.55% stat, wasted hours/budget, content ROI problems) |
+| time-sink | Evidence that creating good SEO content manually is slow, expensive, or unsustainable |
+| scale-beats-manual | Why publishing at volume with low cost per article beats manual approaches (trawl net vs fishing rod) |
+| first-mover-ai | Specific evidence that businesses showing up in ChatGPT/AI Overviews/Perplexity are winning customers RIGHT NOW — not "AI is coming" but "AI is here and your competitors are already in it" |
+| managed-service | Why doing it yourself or hiring doesn't work — you need someone to run the whole loop for you |
 
-For each article, ask: "Can the AE use this to naturally steer toward our script?" If the answer is no — even if the article is fascinating — score it 0.
+## Scoring — be BRUTAL:
+- 9-10 = Article is practically written for our pitch. An AE reads it and immediately knows which slide to reference.
+- 8 = Strong connection, clear path to pitch. Business owner would find this directly relevant.
+- 7 or below = Interesting but the AE would have to stretch to connect it. KILL IT.
+- It is BETTER to return an empty list than to include a weak article. An off-pitch article is worse than no article — it sends AEs off-script.
 
-## Scoring rules — be RUTHLESS:
-- 10/10 = Directly maps to a pitch moment AND creates urgency for a business owner
-- 9/10 = Strong connection to a pitch moment with a clear conversation opener
-- 8/10 = Connects to a pitch moment with supporting data or proof
-- 7/10 or below = Doesn't clearly map to a pitch moment. EXCLUDE.
-- AUTOMATIC KILL (score 0): Enterprise-only topics, pure technical SEO, social media strategy, paid advertising (SEA/PPC), e-commerce logistics, multilingual strategy, metrics/analytics philosophy, generic AI tips that don't connect to visibility. These topics lead AEs off-script.
+## For each survivor (8+), write:
+- ae_hook: 2-3 sentences. Talk track that steers DIRECTLY into our pitch. Must reference something specific from our pitch (e.g., the 96.55% stat, the sitemap approach, the trawl net, the first mover window). Include one question. No jargon.
+- use_in: "pre-call" | "discovery" | "nurture" | "objection-handler"
+- pitch_moment: "content-waste" | "time-sink" | "scale-beats-manual" | "first-mover-ai" | "managed-service"
 
-Only return articles scoring 8 or higher. These must be articles an AE can use to start a conversation that naturally flows into our sales pitch.
-
-## For each keeper, write:
-- ae_hook: 2-3 sentences. A specific talk track the AE can use in a call with a business owner. The hook MUST steer toward one of the five pitch moments above. Include a question they can ask. Keep it simple, concrete, outcome-focused. No marketing jargon — talk like a human explaining why this matters for their business.
-- use_in: one of "pre-call" | "discovery" | "nurture" | "objection-handler"
-- pitch_moment: which of the 5 pitch moments this article connects to (use the short label: "content-waste" | "time-sink" | "scale-beats-manual" | "first-mover-ai" | "managed-service")
-
-LANGUAGE REQUIREMENT: Write ALL ae_hook values in ${talkTrackLang}. The AEs speak ${talkTrackLang} with prospects. Write natural, fluent, idiomatic ${talkTrackLang} — as a native speaker would say it in a real sales call. Do NOT translate from English.
+LANGUAGE: Write ALL ae_hook values in ${talkTrackLang}. Native, fluent, idiomatic — as spoken in a real sales call. Do NOT translate from English.
 
 Return ONLY valid JSON, no markdown fences:
 [{"index": 0, "relevance_score": 9, "ae_hook": "...", "use_in": "discovery", "pitch_moment": "first-mover-ai"}]
 
-If nothing scores 8+, return: []`
+If nothing scores 8+, return: []
+RETURNING AN EMPTY LIST IS FINE. Do not force articles through.`
     }]
   });
 
