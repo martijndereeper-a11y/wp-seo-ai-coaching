@@ -204,7 +204,7 @@ async function fetchAndStoreRecording(
 
 // ─── Sync ───────────────────────────────────────────────────────────────────────
 
-async function syncChannel(channelId: string, channelName: string, fullSync: boolean) {
+async function syncChannel(channelId: string, channelName: string, fullSync: boolean, sinceDate?: string) {
   const claap = createClaapClient();
   const supabase = createSupabaseClient();
 
@@ -216,12 +216,12 @@ async function syncChannel(channelId: string, channelName: string, fullSync: boo
     console.log(`  ${existingIds.size} recordings already in database`);
   }
 
-  // List all recordings from Claap and find new ones
+  // List recordings from Claap (optionally filtered by date) and find new ones
   const newRecordingIds: string[] = [];
   let cursor: string | undefined;
 
   do {
-    const response = await claap.listRecordings({ channelId, limit: 100, cursor });
+    const response = await claap.listRecordings({ channelId, limit: 100, cursor, createdAfter: sinceDate });
     const recordings = response.result.recordings;
 
     if (recordings.length === 0) break;
@@ -262,7 +262,7 @@ async function syncChannel(channelId: string, channelName: string, fullSync: boo
 
 // ─── Sync personal meetings (by recorder email, across all channels) ─────────
 
-async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean) {
+async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean, sinceDate?: string) {
   const claap = createClaapClient();
   const supabase = createSupabaseClient();
 
@@ -288,12 +288,12 @@ async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean) {
     console.log(`  ${existingIds.size} personal recordings already in database`);
   }
 
-  // List all recordings by this recorder
+  // List recordings by this recorder (optionally filtered by date)
   const newRecordingIds: string[] = [];
   let cursor: string | undefined;
 
   do {
-    const response = await claap.listRecordings({ recorderEmail, limit: 100, cursor });
+    const response = await claap.listRecordings({ recorderEmail, limit: 100, cursor, createdAfter: sinceDate });
     const recordings = response.result.recordings;
 
     if (recordings.length === 0) break;
@@ -336,19 +336,29 @@ async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean) {
 async function main() {
   const fullSync = process.argv.includes('--full');
 
+  // --since YYYY-MM-DD  → only sync recordings created after this date
+  // Default: 30 days ago (keeps daily cron fast, catches weekends/holidays)
+  const sinceArg = process.argv.find(a => a.startsWith('--since='))?.split('=')[1];
+  const defaultSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const sinceDate = fullSync ? undefined : (sinceArg ?? defaultSince);
+
   console.log('Claap → Supabase Sync');
-  console.log(fullSync ? 'Mode: FULL (re-syncing all recordings)' : 'Mode: INCREMENTAL (new recordings only)');
+  if (fullSync) {
+    console.log('Mode: FULL (re-syncing all recordings)');
+  } else {
+    console.log(`Mode: INCREMENTAL (recordings since ${sinceDate})`);
+  }
   console.log('=====================');
 
   let total = 0;
 
   // Sync channel-based recordings
   for (const [channelId, channelName] of Object.entries(TARGET_CHANNELS)) {
-    total += await syncChannel(channelId, channelName, fullSync);
+    total += await syncChannel(channelId, channelName, fullSync, sinceDate);
   }
 
   // Sync personal meetings (catches recordings in any channel)
-  total += await syncPersonalMeetings(PERSONAL_RECORDER_EMAIL, fullSync);
+  total += await syncPersonalMeetings(PERSONAL_RECORDER_EMAIL, fullSync, sinceDate);
 
   console.log(`\nSync complete: ${total} new recordings added`);
 }
