@@ -219,21 +219,31 @@ async function syncChannel(channelId: string, channelName: string, fullSync: boo
   // List recordings from Claap (optionally filtered by date) and find new ones
   const newRecordingIds: string[] = [];
   let cursor: string | undefined;
+  let rateLimited = false;
 
-  do {
-    const response = await claap.listRecordings({ channelId, limit: 100, cursor, createdAfter: sinceDate });
-    const recordings = response.result.recordings;
+  try {
+    do {
+      const response = await claap.listRecordings({ channelId, limit: 100, cursor, createdAfter: sinceDate });
+      const recordings = response.result.recordings;
 
-    if (recordings.length === 0) break;
+      if (recordings.length === 0) break;
 
-    for (const rec of recordings) {
-      if (!existingIds.has(rec.id)) {
-        newRecordingIds.push(rec.id);
+      for (const rec of recordings) {
+        if (!existingIds.has(rec.id)) {
+          newRecordingIds.push(rec.id);
+        }
       }
-    }
 
-    cursor = response.result.pagination.nextCursor;
-  } while (cursor);
+      cursor = response.result.pagination.nextCursor;
+    } while (cursor);
+  } catch (err) {
+    if ((err as { status?: number }).status === 429) {
+      console.warn(`  Rate limited while listing recordings — proceeding with ${newRecordingIds.length} found so far`);
+      rateLimited = true;
+    } else {
+      throw err;
+    }
+  }
 
   if (newRecordingIds.length === 0) {
     console.log('  No new recordings to sync');
@@ -252,11 +262,16 @@ async function syncChannel(channelId: string, channelName: string, fullSync: boo
         if (synced % 10 === 0) console.log(`  Progress: ${synced}/${newRecordingIds.length}`);
       }
     } catch (err) {
+      if ((err as { status?: number }).status === 429) {
+        console.warn(`  Rate limited after syncing ${synced}/${newRecordingIds.length} — will resume next run`);
+        rateLimited = true;
+        break;
+      }
       console.error(`  Error processing recording ${id}:`, (err as Error).message);
     }
   }
 
-  console.log(`  Done: ${synced} new recordings added for ${channelName}`);
+  console.log(`  Done: ${synced} new recordings added for ${channelName}${rateLimited ? ' (partial — rate limited)' : ''}`);
   return synced;
 }
 
@@ -291,21 +306,31 @@ async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean, si
   // List recordings by this recorder (optionally filtered by date)
   const newRecordingIds: string[] = [];
   let cursor: string | undefined;
+  let rateLimited = false;
 
-  do {
-    const response = await claap.listRecordings({ recorderEmail, limit: 100, cursor, createdAfter: sinceDate });
-    const recordings = response.result.recordings;
+  try {
+    do {
+      const response = await claap.listRecordings({ recorderEmail, limit: 100, cursor, createdAfter: sinceDate });
+      const recordings = response.result.recordings;
 
-    if (recordings.length === 0) break;
+      if (recordings.length === 0) break;
 
-    for (const rec of recordings) {
-      if (!existingIds.has(rec.id)) {
-        newRecordingIds.push(rec.id);
+      for (const rec of recordings) {
+        if (!existingIds.has(rec.id)) {
+          newRecordingIds.push(rec.id);
+        }
       }
-    }
 
-    cursor = response.result.pagination.nextCursor;
-  } while (cursor);
+      cursor = response.result.pagination.nextCursor;
+    } while (cursor);
+  } catch (err) {
+    if ((err as { status?: number }).status === 429) {
+      console.warn(`  Rate limited while listing recordings — proceeding with ${newRecordingIds.length} found so far`);
+      rateLimited = true;
+    } else {
+      throw err;
+    }
+  }
 
   if (newRecordingIds.length === 0) {
     console.log('  No new personal recordings to sync');
@@ -323,11 +348,16 @@ async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean, si
         if (synced % 10 === 0) console.log(`  Progress: ${synced}/${newRecordingIds.length}`);
       }
     } catch (err) {
+      if ((err as { status?: number }).status === 429) {
+        console.warn(`  Rate limited after syncing ${synced}/${newRecordingIds.length} — will resume next run`);
+        rateLimited = true;
+        break;
+      }
       console.error(`  Error processing recording ${id}:`, (err as Error).message);
     }
   }
 
-  console.log(`  Done: ${synced} new personal recordings added`);
+  console.log(`  Done: ${synced} new personal recordings added${rateLimited ? ' (partial — rate limited)' : ''}`);
   return synced;
 }
 
