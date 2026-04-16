@@ -202,12 +202,22 @@ select{cursor:pointer}
           <div class="hint">Comma-separated. E.g. "Finland" or "Netherlands, International"</div>
         </div>
         <div class="field">
-          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;margin-top:22px">
-            <input type="checkbox" id="trustSensitive" name="trustSensitive" style="accent-color:var(--purple)">
-            Trust-sensitive sector
-          </label>
-          <div class="hint">Regulated or trust-critical industry (medical, legal, finance).</div>
+          <label for="clickTier">Starting click range</label>
+          <select id="clickTier" name="clickTier">
+            <option value="Starting near zero (0-100)">Starting near zero (0-100)</option>
+            <option value="Small base (100-500)" selected>Small base (100-500)</option>
+            <option value="Medium base (500-1,500)">Medium base (500-1,500)</option>
+            <option value="Established (1,500+)">Established (1,500+)</option>
+          </select>
+          <div class="hint">Organic clicks/month before WP SEO AI started.</div>
         </div>
+      </div>
+      <div class="field">
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="trustSensitive" name="trustSensitive" style="accent-color:var(--purple)">
+          Trust-sensitive sector
+        </label>
+        <div class="hint">Regulated or trust-critical industry (medical, legal, finance).</div>
       </div>
     </div>
 
@@ -454,6 +464,7 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
     if (ex.businessType) document.getElementById('businessType').value = ex.businessType;
     if (ex.marketPosition) document.getElementById('marketPosition').value = ex.marketPosition;
     if (ex.trustSensitive) document.getElementById('trustSensitive').checked = ex.trustSensitive;
+    if (ex.clickTier) document.getElementById('clickTier').value = ex.clickTier;
     if (Array.isArray(ex.countries)) document.getElementById('countries').value = ex.countries.join(', ');
 
     // Auto-fill keywords
@@ -586,6 +597,7 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
   fd.append('businessType', document.getElementById('businessType').value);
   fd.append('marketPosition', document.getElementById('marketPosition').value);
   fd.append('trustSensitive', document.getElementById('trustSensitive').checked ? 'true' : 'false');
+  fd.append('clickTier', document.getElementById('clickTier').value);
   fd.append('headline', document.getElementById('headline').value.trim());
   fd.append('outcome', document.getElementById('outcome').value.trim());
   fd.append('result', document.getElementById('result').value.trim());
