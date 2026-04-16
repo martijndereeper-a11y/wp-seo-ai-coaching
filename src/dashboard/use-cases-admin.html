@@ -158,6 +158,14 @@ select{cursor:pointer}
         <label for="company">Company name *</label>
         <input type="text" id="company" name="company" placeholder="e.g. Schulte Energie & Techniek" required>
       </div>
+      <div class="field">
+        <label for="companyUrl">Company website</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="companyUrl" name="companyUrl" placeholder="e.g. https://schulte-energie.nl" style="flex:1">
+          <button type="button" class="analyze-btn" id="enrichBtn" style="white-space:nowrap">Enrich with AI</button>
+        </div>
+        <div class="hint">Paste the company URL to auto-enrich industry, keywords, and business context.</div>
+      </div>
       <div class="field-row">
         <div class="field">
           <label for="industry">Industry / sector</label>
@@ -472,6 +480,58 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Scan PDF';
+  }
+});
+
+// ─── Enrich from URL ────────────────────────────────────────────────────────
+
+document.getElementById('enrichBtn').addEventListener('click', async () => {
+  const urlInput = document.getElementById('companyUrl');
+  const url = urlInput.value.trim();
+  if (!url) { alert('Enter a company URL first.'); return; }
+  const btn = document.getElementById('enrichBtn');
+  btn.disabled = true;
+  btn.textContent = 'Enriching...';
+
+  try {
+    const res = await adminFetch(apiUrl('/api/admin/enrich-url'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    const ex = data.enriched || {};
+    // Only fill empty fields — don't overwrite PDF-extracted data
+    const fill = (id, val) => { if (val && !document.getElementById(id).value.trim()) document.getElementById(id).value = val; };
+    fill('company', ex.company);
+    fill('industry', ex.industry);
+    fill('summary', ex.summary);
+    fill('countries', Array.isArray(ex.countries) ? ex.countries.join(', ') : ex.countries);
+
+    if (ex.businessType && !document.getElementById('businessType').value) {
+      document.getElementById('businessType').value = ex.businessType;
+    }
+    if (ex.marketPosition && !document.getElementById('marketPosition').value) {
+      document.getElementById('marketPosition').value = ex.marketPosition;
+    }
+
+    // Merge keywords
+    if (Array.isArray(ex.keywords)) {
+      for (const kw of ex.keywords) {
+        const k = kw.toLowerCase().trim();
+        if (k && !keywords.includes(k)) keywords.push(k);
+      }
+      renderKeywords();
+    }
+
+    btn.textContent = '✓ Enriched';
+    setTimeout(() => { btn.textContent = 'Enrich with AI'; }, 2000);
+  } catch (err) {
+    alert('Failed to enrich: ' + err.message);
+  } finally {
+    btn.disabled = false;
   }
 });
 

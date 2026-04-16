@@ -289,6 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (path === '/api/admin/cases' && method === 'GET') return handleUseCases(req, res);
     if (path === '/api/admin/cases' && method === 'POST') return handleAdminSaveCase(req, res);
     if (path === '/api/admin/analyze-pdf' && method === 'POST') return handleAnalyzePdf(req, res);
+    if (path === '/api/admin/enrich-url' && method === 'POST') return handleEnrichUrl(req, res);
     const adminDeleteMatch = matchRoute(path, '/api/admin/cases/:id');
     if (adminDeleteMatch && method === 'DELETE') return handleAdminDeleteCase(req, res, adminDeleteMatch.id);
 
@@ -582,32 +583,149 @@ async function handleUseCaseByObjection(req: VercelRequest, res: VercelResponse)
   return json(res, { results });
 }
 
-async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  if (!body?.company) return json(res, { error: 'Company name required' }, 400);
+/** Parse form fields from multipart body or JSON */
+function parseFormFields(req: VercelRequest): Record<string, string> {
+  const body = req.body;
+  if (!body) return {};
+  if (typeof body === 'string') {
+    try { return JSON.parse(body); } catch { return {}; }
+  }
+  if (typeof body === 'object' && !Buffer.isBuffer(body)) return body;
 
-  const id = body.id || body.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  // Multipart: parse text fields from raw buffer
+  const raw = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  const contentType = req.headers['content-type'] || '';
+  const boundaryMatch = contentType.match(/boundary=(.+)/);
+  if (!boundaryMatch) return {};
+
+  const fields: Record<string, string> = {};
+  const boundary = '--' + boundaryMatch[1].trim();
+  const parts = raw.toString('binary').split(boundary);
+  for (const part of parts) {
+    const headerEnd = part.indexOf('\r\n\r\n');
+    if (headerEnd === -1) continue;
+    const header = part.substring(0, headerEnd);
+    const nameMatch = header.match(/name="([^"]+)"/);
+    if (!nameMatch) continue;
+    // Skip file fields
+    if (header.includes('filename=')) continue;
+    const value = part.substring(headerEnd + 4).replace(/\r\n$/, '');
+    fields[nameMatch[1]] = value;
+  }
+  return fields;
+}
+
+async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
+  const fields = parseFormFields(req);
+  const company = fields.company?.trim();
+  if (!company) return json(res, { error: 'Company name required' }, 400);
+
+  // Parse objections (pipe-separated from form) or JSON array
+  let objections: string[] = [];
+  if (fields.objections) {
+    objections = fields.objections.includes('|||')
+      ? fields.objections.split('|||').filter(Boolean)
+      : (Array.isArray(fields.objections) ? fields.objections : [fields.objections]);
+  }
+
+  // Parse keywords (comma-separated) and countries
+  const keywords = fields.keywords ? fields.keywords.split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean) : [];
+  const countries = fields.countries ? fields.countries.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
+
+  const id = fields.id || company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
   const useCase = {
     id,
-    company: body.company,
-    industry: body.industry || 'General',
-    painPattern: body.painPattern || 'Other',
-    headline: body.headline || '',
-    outcome: body.outcome || '',
-    result: body.result || '',
-    summary: body.summary || '',
-    businessType: body.businessType || 'B2B',
-    marketPosition: body.marketPosition || 'Mainstream',
-    trustSensitive: body.trustSensitive || false,
-    clickTier: body.clickTier || 'Small base (100-500)',
-    objections: body.objections || [],
-    countries: body.countries || [],
-    keywords: body.keywords || [],
-    pdfFile: body.pdfFile || null,
+    company,
+    industry: fields.industry || 'General',
+    painPattern: fields.painPattern || 'Other',
+    headline: fields.headline || '',
+    outcome: fields.outcome || '',
+    result: fields.result || '',
+    summary: fields.summary || '',
+    businessType: fields.businessType || 'B2B',
+    marketPosition: fields.marketPosition || 'Mainstream',
+    trustSensitive: fields.trustSensitive === 'true',
+    clickTier: fields.clickTier || 'Small base (100-500)',
+    objections,
+    countries,
+    keywords,
+    pdfFile: fields.pdfFile || null,
   };
 
   await saveAdminCase(useCase);
   return json(res, { ok: true, id, case: useCase });
+}
+
+async function handleEnrichUrl(req: VercelRequest, res: VercelResponse) {
+  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  const url = body?.url?.trim();
+  if (!url) return json(res, { error: 'URL is required' }, 400);
+
+  try {
+    // Fetch the page (follow redirects, handle HTTPS)
+    const fetchUrl = url.startsWith('http') ? url : 'https://' + url;
+    const response = await fetch(fetchUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) return json(res, { error: `Website returned ${response.status}` }, 400);
+    const html = await response.text();
+
+    // Strip HTML tags, keep text
+    const textContent = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 4000);
+
+    // Extract meta description and title
+    const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+    const metaMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+    const pageTitle = titleMatch?.[1] || '';
+    const metaDesc = metaMatch?.[1] || '';
+
+    // Send to Claude for enrichment
+    const AnthropicMod = await import('@anthropic-ai/sdk');
+    const Anthropic = AnthropicMod.default || AnthropicMod;
+    const anthropic = new Anthropic();
+
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `Analyze this company website and extract structured data. Return ONLY valid JSON.
+
+URL: ${url}
+Page title: ${pageTitle}
+Meta description: ${metaDesc}
+Page text (first 4000 chars):
+${textContent}
+
+Return this JSON:
+{
+  "company": "official company name",
+  "industry": "industry in 2-4 words, e.g. Energy / Installation Services",
+  "summary": "2-3 sentence description of what this company does, their market, and scale",
+  "businessType": "B2B or B2C or Mix",
+  "marketPosition": "Niche or Mainstream",
+  "countries": ["country/countries they operate in"],
+  "keywords": ["5-8 lowercase keywords relevant for finding this company as a use case"]
+}`,
+      }],
+    });
+
+    let responseText = msg.content[0].type === 'text' ? msg.content[0].text : '';
+    // Strip markdown code fences if present
+    responseText = responseText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+    const enriched = JSON.parse(responseText);
+    return json(res, { enriched });
+  } catch (err: any) {
+    return json(res, { error: 'Enrichment failed: ' + err.message }, 500);
+  }
 }
 
 async function handleAdminDeleteCase(req: VercelRequest, res: VercelResponse, id: string) {
@@ -733,7 +851,8 @@ Return this exact JSON structure:
           ],
         }],
       });
-      const responseText = msg.content[0].type === 'text' ? msg.content[0].text : '';
+      let responseText = msg.content[0].type === 'text' ? msg.content[0].text : '';
+      responseText = responseText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
       extracted = JSON.parse(responseText);
       text = extracted.fullText || '';
       delete extracted.fullText;
