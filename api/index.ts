@@ -266,10 +266,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // ── Static HTML routes ─────────────────────────────────────────────
-    if (path === '/' && method === 'GET') return serveDashboard(res, 'index.html');
+    if (path === '/' && method === 'GET') return serveDashboard(res, 'use-cases.html');
+    if (path === '/admin' && method === 'GET') return serveDashboard(res, 'use-cases-admin.html');
+    if (path === '/dashboard' && method === 'GET') return serveDashboard(res, 'index.html');
     if (path === '/sales-os' && method === 'GET') return serveDashboard(res, 'sales-os.html');
     if (path === '/pipeline' && method === 'GET') return serveDashboard(res, 'pipeline.html');
     if (path === '/use-cases' && method === 'GET') return serveDashboard(res, 'use-cases.html');
+
+    // ── Use Case Finder API (unauthenticated) ──────────────────────────
+    if (path === '/api/use-cases' && method === 'GET') return handleUseCases(req, res);
+    if (path === '/api/use-cases/search' && method === 'GET') return handleUseCaseSearch(req, res);
+    if (path === '/api/use-cases/by-objection' && method === 'GET') return handleUseCaseByObjection(req, res);
+    if (path === '/health' && method === 'GET') return json(res, { ok: true });
 
     // ── Health (unauthenticated) ───────────────────────────────────────
     if (path === '/api/health' && method === 'GET') return handleHealth(req, res);
@@ -454,6 +462,75 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // ROUTE HANDLERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+
+// ── Use Case Finder ───────────────────────────────────────────────────────
+
+function loadUseCaseData(): any[] {
+  const dataFile = join(process.cwd(), 'data', 'use-cases-data.json');
+  if (existsSync(dataFile)) {
+    try { return JSON.parse(readFileSync(dataFile, 'utf-8')); } catch {}
+  }
+  return [];
+}
+
+const USE_CASE_OBJECTIONS = [
+  'Niche market, too specific for online marketing',
+  'B2B sector, nobody searches for our services',
+  'Our sector is too technical or complex for AI content',
+  'Trust-sensitive sector where mistakes are not allowed',
+  'We are too small for this kind of approach',
+  'We tried it before and it didn\'t work',
+  'It takes too long before you see results',
+  'Our customers are not online',
+  'We get everything from word of mouth',
+  'We already do Google Ads, why also SEO',
+];
+
+function handleUseCases(_req: VercelRequest, res: VercelResponse) {
+  const cases = loadUseCaseData();
+  const painPatterns = [...new Set(cases.map((c: any) => c.painPattern))];
+  const industries = [...new Set(cases.map((c: any) => c.industry))];
+  const objectionCounts = USE_CASE_OBJECTIONS.map((obj) => ({
+    objection: obj,
+    count: cases.filter((c: any) => c.objections?.includes(obj)).length,
+  }));
+  return json(res, { cases, painPatterns, industries, objections: USE_CASE_OBJECTIONS, objectionCounts });
+}
+
+function handleUseCaseSearch(req: VercelRequest, res: VercelResponse) {
+  const q = ((req.query?.q as string) || '').toLowerCase().trim();
+  const cases = loadUseCaseData();
+  if (!q) return json(res, { results: cases });
+
+  const terms = q.split(/\s+/);
+  const scored = cases.map((uc: any) => {
+    const searchable = [
+      uc.company, uc.industry, uc.painPattern, uc.headline,
+      uc.outcome, uc.result, uc.summary, uc.businessType, uc.marketPosition,
+      ...(uc.keywords || []), ...(uc.objections || []), ...(uc.countries || []),
+    ].join(' ').toLowerCase();
+
+    let score = 0;
+    for (const term of terms) {
+      if (searchable.includes(term)) score += 1;
+      if ((uc.keywords || []).some((k: string) => k.includes(term))) score += 1;
+      if (uc.company?.toLowerCase().includes(term)) score += 2;
+      if (uc.industry?.toLowerCase().includes(term)) score += 2;
+      if (uc.businessType?.toLowerCase() === term) score += 2;
+      if ((uc.objections || []).some((o: string) => o.toLowerCase().includes(term))) score += 1;
+    }
+    return { ...uc, score };
+  });
+
+  const results = scored.filter((r: any) => r.score > 0).sort((a: any, b: any) => b.score - a.score);
+  return json(res, { results });
+}
+
+function handleUseCaseByObjection(req: VercelRequest, res: VercelResponse) {
+  const obj = (req.query?.objection as string) || '';
+  const results = loadUseCaseData().filter((uc: any) => (uc.objections || []).includes(obj));
+  return json(res, { results });
+}
 
 // ── Health ─────────────────────────────────────────────────────────────────
 
