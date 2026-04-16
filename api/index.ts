@@ -583,40 +583,139 @@ async function handleUseCaseByObjection(req: VercelRequest, res: VercelResponse)
   return json(res, { results });
 }
 
-/** Parse form fields from multipart body or JSON */
-function parseFormFields(req: VercelRequest): Record<string, string> {
-  const body = req.body;
-  if (!body) return {};
-  if (typeof body === 'string') {
-    try { return JSON.parse(body); } catch { return {}; }
-  }
-  if (typeof body === 'object' && !Buffer.isBuffer(body)) return body;
+/** Read raw body from request stream */
+async function getRawBody(req: VercelRequest): Promise<Buffer> {
+  // Vercel may have pre-parsed into req.body
+  if (Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req.body === 'string') return Buffer.from(req.body);
 
-  // Multipart: parse text fields from raw buffer
-  const raw = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  // Read from stream
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    (req as any).on('data', (chunk: Buffer) => chunks.push(chunk));
+    (req as any).on('end', () => resolve(Buffer.concat(chunks)));
+    (req as any).on('error', reject);
+  });
+}
+
+/** Parse multipart form fields from raw body (stream-based for Vercel) */
+async function parseMultipartFields(req: VercelRequest): Promise<Record<string, string>> {
   const contentType = req.headers['content-type'] || '';
+
+  // JSON — simple case
+  if (contentType.includes('application/json')) {
+    if (typeof req.body === 'string') { try { return JSON.parse(req.body); } catch { return {}; } }
+    if (typeof req.body === 'object' && req.body && !Buffer.isBuffer(req.body)) return req.body;
+    return {};
+  }
+
+  // Vercel may have parsed it into an object
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    const fields: Record<string, string> = {};
+    for (const [key, val] of Object.entries(req.body)) {
+      if (typeof val === 'string') fields[key] = val;
+    }
+    if (Object.keys(fields).length > 0) return fields;
+  }
+
+  // Read raw body from stream
+  const raw = await getRawBody(req);
+  if (!raw || raw.length === 0) return {};
+
+  // URL-encoded
+  if (contentType.includes('urlencoded')) {
+    const fields: Record<string, string> = {};
+    for (const pair of raw.toString().split('&')) {
+      const [k, v] = pair.split('=');
+      if (k) fields[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    }
+    return fields;
+  }
+
+  // Multipart — parse from raw buffer
   const boundaryMatch = contentType.match(/boundary=(.+)/);
   if (!boundaryMatch) return {};
 
   const fields: Record<string, string> = {};
   const boundary = '--' + boundaryMatch[1].trim();
-  const parts = raw.toString('binary').split(boundary);
+  const rawStr = raw.toString('utf-8');
+  const parts = rawStr.split(boundary);
   for (const part of parts) {
     const headerEnd = part.indexOf('\r\n\r\n');
     if (headerEnd === -1) continue;
     const header = part.substring(0, headerEnd);
     const nameMatch = header.match(/name="([^"]+)"/);
     if (!nameMatch) continue;
-    // Skip file fields
     if (header.includes('filename=')) continue;
-    const value = part.substring(headerEnd + 4).replace(/\r\n$/, '');
+    let value = part.substring(headerEnd + 4);
+    if (value.endsWith('\r\n')) value = value.slice(0, -2);
+    fields[nameMatch[1]] = value;
+  }
+  return fields;
+}
+
+/** Parse form fields from multipart body, URL-encoded, or JSON (sync version for non-stream) */
+function parseFormFields(req: VercelRequest): Record<string, string> {
+  const body = req.body;
+  const contentType = req.headers['content-type'] || '';
+
+  if (!body) return {};
+
+  // JSON body
+  if (contentType.includes('application/json')) {
+    if (typeof body === 'string') { try { return JSON.parse(body); } catch { return {}; } }
+    if (typeof body === 'object' && !Buffer.isBuffer(body)) return body;
+  }
+
+  // Vercel may have already parsed multipart into an object
+  if (typeof body === 'object' && !Buffer.isBuffer(body) && !Array.isArray(body)) {
+    // Vercel parsed it — fields are strings, files are objects
+    const fields: Record<string, string> = {};
+    for (const [key, val] of Object.entries(body)) {
+      if (typeof val === 'string') fields[key] = val;
+    }
+    if (Object.keys(fields).length > 0) return fields;
+  }
+
+  // Raw buffer — parse multipart manually
+  const raw = Buffer.isBuffer(body) ? body : (typeof body === 'string' ? Buffer.from(body) : null);
+  if (!raw) return {};
+
+  // URL-encoded
+  if (contentType.includes('urlencoded')) {
+    const fields: Record<string, string> = {};
+    for (const pair of raw.toString().split('&')) {
+      const [k, v] = pair.split('=');
+      if (k) fields[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    }
+    return fields;
+  }
+
+  // Multipart
+  const boundaryMatch = contentType.match(/boundary=(.+)/);
+  if (!boundaryMatch) return {};
+
+  const fields: Record<string, string> = {};
+  const boundary = '--' + boundaryMatch[1].trim();
+  const rawStr = raw.toString('utf-8');
+  const parts = rawStr.split(boundary);
+  for (const part of parts) {
+    const headerEnd = part.indexOf('\r\n\r\n');
+    if (headerEnd === -1) continue;
+    const header = part.substring(0, headerEnd);
+    const nameMatch = header.match(/name="([^"]+)"/);
+    if (!nameMatch) continue;
+    if (header.includes('filename=')) continue;
+    let value = part.substring(headerEnd + 4);
+    // Trim trailing \r\n before next boundary
+    if (value.endsWith('\r\n')) value = value.slice(0, -2);
     fields[nameMatch[1]] = value;
   }
   return fields;
 }
 
 async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
-  const fields = parseFormFields(req);
+  const fields = await parseMultipartFields(req);
   const company = fields.company?.trim();
   if (!company) return json(res, { error: 'Company name required' }, 400);
 
