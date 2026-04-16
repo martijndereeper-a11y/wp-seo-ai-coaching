@@ -1,0 +1,1126 @@
+[
+  {
+    "id": "kinwell",
+    "company": "Kinwell",
+    "industry": "B2B ICT / Technology",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "No capacity for SEO",
+    "outcome": "Freed capacity",
+    "result": "Grew from ~550 to ~1,100 clicks/month in 4 months. 51% of organic clicks from AI content. +1,250 total clicks.",
+    "summary": "Kinwell is a Dutch ICT and communications partner for SMEs, providing connectivity, telecom, security, and modern workplace solutions. They had existing domain authority and in-house SEO knowledge but lacked the capacity to scale content in a competitive B2B ICT market. WP SEO AI automated their content and optimization workflow, letting them compete online without adding headcount.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": true,
+    "objections": [
+      "We are too small for this kind of approach",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "no time",
+      "capacity",
+      "busy",
+      "resource",
+      "team too small",
+      "bandwidth",
+      "no one available",
+      "health",
+      "wellness"
+    ],
+    "pdfFile": "No capacity for SEO - Kinwell - Success case.pdf"
+  },
+  {
+    "id": "roelands",
+    "company": "Roelands Boomkwekerijen",
+    "industry": "Agriculture / Nursery",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "No time & capacity for SEO",
+    "outcome": "Freed capacity",
+    "result": "Grew from 218 to 892 clicks/month (+309%) in 4-6 months. Traffic value €1,284.",
+    "summary": "Roelands Boomkwekerijen is a tree nursery in Zundert, Noord-Brabant, founded in 1974, specializing in forest and hedge plants with 50% of sales exported to Germany, Denmark, the UK, and Switzerland. As a B2B wholesaler with no marketing team, they had zero online visibility. WP SEO AI handled SEO end-to-end, letting the owners focus on growing and selling plants while gaining traction in a niche international market.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "B2B sector, nobody searches for our services",
+      "Our customers are not online"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "no time",
+      "capacity",
+      "agriculture",
+      "nursery",
+      "plants",
+      "grower",
+      "horticulture"
+    ],
+    "pdfFile": "No time & capacity - Roelands Boomkwekerijen - Success case.pdf"
+  },
+  {
+    "id": "mydearbeer",
+    "company": "My Dear Beer",
+    "industry": "F&B / Retail",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Too little time for SEO",
+    "outcome": "Freed capacity",
+    "result": "Grew from 837 to ~4,400 clicks/month (+226%) in ~10 months. 500K+ impressions.",
+    "summary": "My Dear Beer is an online specialty craft beer store in Nijmegen offering curated subscriptions, gift boxes, and rare brews, with both B2C and B2B corporate gifting channels. As a small team juggling curation, sustainable packaging, and bicycle delivery, they had no time for SEO. WP SEO AI automated product page optimization and content creation, driving organic traffic growth to the webshop.",
+    "businessType": "B2C",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "We are too small for this kind of approach",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "no time",
+      "capacity",
+      "food",
+      "beverage",
+      "retail",
+      "drinks",
+      "beer",
+      "ecommerce",
+      "webshop"
+    ],
+    "pdfFile": "Too little time for SEO  - My Dear Beer - Success case.pdf"
+  },
+  {
+    "id": "verdonk",
+    "company": "Autobedrijven Verdonk",
+    "industry": "Automotive",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Too little time for SEO",
+    "outcome": "Freed capacity",
+    "result": "Grew from 270 to 1,341 clicks/month (+396%) in 4 months. SEO AI clicks: 13 to 1,064 (+8,085%).",
+    "summary": "Autobedrijven Verdonk is a family-run used car dealership in Veldhoven with over 95 years of history, specializing in French brands like Renault, Peugeot, and Citroen. With no marketing team and a legacy reputation built offline, they had no time for SEO. WP SEO AI optimized their local presence and content, driving leads while the team focused on selling cars.",
+    "businessType": "B2C",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work",
+      "We get everything from word of mouth"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "no time",
+      "capacity",
+      "automotive",
+      "car",
+      "cars",
+      "dealer",
+      "garage",
+      "vehicles"
+    ],
+    "pdfFile": "Too little time for SEO - Autobedrijven Verdonk - Success case.pdf"
+  },
+  {
+    "id": "searchx",
+    "company": "SearchX",
+    "industry": "Recruitment / IT Staffing",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Too little time for SEO",
+    "outcome": "Freed capacity",
+    "result": "Grew from ~3,100 to 6,344 clicks/month (doubled) in 12 months. Leads +54%. Traffic value €101K.",
+    "summary": "SearchX is a Dutch recruitment agency founded in 2013, specializing in placing IT, AI, Renewable Energy, and Engineering professionals with startups to multinationals. They had a complete keyword strategy with 600+ topics but lacked the time and manpower to execute at scale. WP SEO AI doubled their organic traffic within 12 months, increasing leads by 54% with a traffic value of €101K.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "Our sector is too technical or complex for AI content"
+    ],
+    "clickTier": "Established (1,500+)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "recruitment",
+      "staffing",
+      "werving",
+      "selectie",
+      "it recruitment",
+      "tech recruitment",
+      "ai recruitment",
+      "engineering recruitment",
+      "renewable energy",
+      "no time",
+      "capacity"
+    ],
+    "pdfFile": "Too little time for SEO - SearchX - Success case.pdf"
+  },
+  {
+    "id": "berendijk",
+    "company": "Timmerbedrijf Berendijk",
+    "industry": "Construction",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Too little time for SEO",
+    "outcome": "Freed capacity",
+    "result": "Grew from ~40 to ~670 clicks/month in 10 months. From 0 to 621 monthly clicks. 93% of traffic from AI content. Traffic value €6,989.",
+    "summary": "Timmerbedrijf Berendijk is a small Dutch construction and carpentry firm that relied entirely on word of mouth with zero online presence. They had no time or expertise to build a digital channel. WP SEO AI automated their local SEO and content, opening a new inbound lead channel for the first time.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "Our customers are not online",
+      "We get everything from word of mouth"
+    ],
+    "clickTier": "Starting near zero (0-100)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "no time",
+      "capacity",
+      "construction",
+      "building",
+      "contractor",
+      "timber"
+    ],
+    "pdfFile": "Too little time for SEO - Timmerbedrijf Berendijk - Success case.pdf"
+  },
+  {
+    "id": "eleven",
+    "company": "ELEVEN",
+    "industry": "Health & Fitness / Sports",
+    "painPattern": "Underperforming agency / high SEO cost",
+    "headline": "Underperforming agency, no in-house team, AI search advantage",
+    "outcome": "Replaced agency, AI search advantage",
+    "result": "Grew from 368 to 1,253 clicks/month (+241%) in 5 months. Top 1-3 rankings: 97 to 1,813 (+1,769%).",
+    "summary": "ELEVEN (elevenmovement.nl) is a Dutch sports and fitness business focused on injury recovery, exercise, and movement. They were spending over €10,000/month on an external SEO agency and Google Ads with limited organic impact and no in-house marketing team. WP SEO AI replaced the agency, growing organic clicks from 368 to 1,253 (+241%) in 5 months while achieving strong visibility in AI Overviews and ChatGPT.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "agency",
+      "underperforming",
+      "bad agency",
+      "no results",
+      "expensive",
+      "no marketing team",
+      "ai search",
+      "in-house"
+    ],
+    "pdfFile": "Underperforming Agency - AI Search - No Inhouse Marketing Team -ELEVEN - .pdf"
+  },
+  {
+    "id": "vleesandco",
+    "company": "Vlees & Co",
+    "industry": "F&B / Restaurant",
+    "painPattern": "Underperforming agency / high SEO cost",
+    "headline": "Underperforming agency",
+    "outcome": "Replaced agency",
+    "result": "Grew from 2,416 to 3,477 clicks/month (+44%) in 4 months. Featured snippet rankings above high-authority competitors.",
+    "summary": "Vlees & Co is a premium steak restaurant and butcher in Amsterdam, founded in 2015, focused on grass-fed and premium beef. Their external SEO agency was delivering flat rankings and stagnant traffic despite ongoing fees. WP SEO AI replaced the agency, growing clicks 44% in 4 months with featured snippet rankings above high-authority competitor sites.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work",
+      "B2B sector, nobody searches for our services"
+    ],
+    "clickTier": "Established (1,500+)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "agency",
+      "underperforming",
+      "bad agency",
+      "food",
+      "meat",
+      "wholesale"
+    ],
+    "pdfFile": "Underperforming agency - Vlees & Co  - Success case .pdf"
+  },
+  {
+    "id": "broekman",
+    "company": "Broekman",
+    "industry": "Fashion Retail",
+    "painPattern": "Underperforming agency / high SEO cost",
+    "headline": "High SEO cost with limited impact",
+    "outcome": "Reduced cost, better results",
+    "result": "Grew from 1,708 to 3,472 clicks/month (+103%) in 9 months. Top 1-3 rankings: 641 to 5,019 (+683%).",
+    "summary": "Broekman is a multi-generational premium menswear retailer founded in 1808, with stores in Utrecht and Huissen carrying brands like Polo Ralph Lauren, Lardini, and Incotex plus made-to-measure tailoring. They were paying high agency fees for SEO with minimal ROI. WP SEO AI delivered better traffic and conversions at a fraction of the cost.",
+    "businessType": "B2C",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work",
+      "We already do Google Ads, why also SEO"
+    ],
+    "clickTier": "Established (1,500+)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "expensive",
+      "cost",
+      "high cost",
+      "roi",
+      "agency",
+      "retail",
+      "limited impact",
+      "wasting money"
+    ],
+    "pdfFile": "High SEO cost with limited impact - Broekman - Success case - Retail .pdf"
+  },
+  {
+    "id": "kruijdenberg",
+    "company": "Kruijdenberg",
+    "industry": "Healthcare / Physiotherapy",
+    "painPattern": "AI / LLM search opportunity",
+    "headline": "AI curiosity & LLM search advantage",
+    "outcome": "LLM search visibility",
+    "result": "Grew from 270 to 1,619 clicks/month (+600%) in 5 months. 80.2% of clicks from AI content.",
+    "summary": "Kruijdenberg is a Dutch physiotherapy and fitness centre (Centrum voor Fysiotherapie en Fysiofit), run by Kasper Kruijdenberg, with a knowledge-driven website covering movement, fitness, injuries, and recovery. As an early adopter curious about generative search, WP SEO AI structured their expertise content for LLM visibility, resulting in early presence in AI-generated answers.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "B2B sector, nobody searches for our services",
+      "Our sector is too technical or complex for AI content"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "ai",
+      "llm",
+      "chatgpt",
+      "ai search",
+      "ai overviews",
+      "future",
+      "innovation",
+      "curious",
+      "industrial",
+      "manufacturing"
+    ],
+    "pdfFile": "Ai curiosity & LLM search advantage - Kruijdenberg - Success case.pdf"
+  },
+  {
+    "id": "wijzijntop",
+    "company": "Wijzijntop",
+    "industry": "Recruitment / Staffing",
+    "painPattern": "AI / LLM search opportunity",
+    "headline": "AI curiosity but no strategy",
+    "outcome": "AI strategy implemented",
+    "result": "Grew from 84 to 1,092 clicks/month (+562%) in 90 days. Ranked above FNV for competitive searches.",
+    "summary": "Wijzijntop Personeelsdiensten is a Dutch staffing agency based in Leek, Groningen, specializing in production, industry, engineering, logistics, and finance roles. With zero SEO experience and no marketing department, they relied entirely on referrals. WP SEO AI built their content strategy targeting CAO wage rates and temp work regulations, ranking them above FNV (major Dutch trade union) for competitive searches.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Starting near zero (0-100)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "recruitment",
+      "staffing",
+      "uitzendbureau",
+      "detachering",
+      "personeel",
+      "hr",
+      "talent",
+      "ai",
+      "llm",
+      "chatgpt",
+      "strategy",
+      "ai search",
+      "production",
+      "logistics",
+      "engineering"
+    ],
+    "pdfFile": "AI curiosity but no strategy - Wijzijntop- Success case.pdf"
+  },
+  {
+    "id": "catermonkey",
+    "company": "Catermonkey",
+    "industry": "SaaS / Catering Tech",
+    "painPattern": "AI / LLM search opportunity",
+    "headline": "Insane lead flow from ChatGPT & other LLMs",
+    "outcome": "Lead flow from LLMs",
+    "result": "Grew from 1,041 to 1,684 clicks/month (+53%) in 4 months. 7 leads from ChatGPT, 1 customer from Perplexity.",
+    "summary": "Catermonkey is a Dutch-Belgian all-in-one SaaS platform for party professionals and catering companies, covering event management, quotes, kitchen administration, invoicing, and payments — with 1,000+ customers across the Benelux and expanding internationally. WP SEO AI optimized their content for LLM discoverability, generating 60-70 blog leads including 7 directly from ChatGPT and one customer via Perplexity.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "ai",
+      "llm",
+      "chatgpt",
+      "leads",
+      "lead generation",
+      "catering",
+      "food",
+      "events"
+    ],
+    "pdfFile": "Insane lead flow from Chat-gpt & other LLM_s - Catermonkey - Success case.pdf"
+  },
+  {
+    "id": "vandenakker",
+    "company": "Autobedrijf Van den Akker",
+    "industry": "Automotive",
+    "painPattern": "Relied on single channel",
+    "headline": "Relied on word of mouth",
+    "outcome": "Diversified acquisition",
+    "result": "Grew from 511 to 4,147 clicks/month (+711%) in 3 months. 90% of clicks from AI content. Traffic value €3,468.",
+    "summary": "Autobedrijf Van den Akker is an official Honda dealership in Veghel, North Brabant, founded in 1982 and a Honda dealer since 1987. As a single-location SMB, they depended entirely on word of mouth for new customers. WP SEO AI built their organic search presence from scratch, creating a second acquisition channel that generates leads independently.",
+    "businessType": "B2C",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We get everything from word of mouth",
+      "Our customers are not online"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "word of mouth",
+      "referral",
+      "one channel",
+      "single channel",
+      "automotive",
+      "car",
+      "dealer"
+    ],
+    "pdfFile": "Relied on word of mouth - Autobedrijf Van den Akker - Success case.pdf"
+  },
+  {
+    "id": "schulte-wom",
+    "company": "Schulte Energie & Techniek",
+    "industry": "Energy / Installation",
+    "painPattern": "Relied on single channel",
+    "headline": "Relied on word of mouth",
+    "outcome": "Diversified acquisition",
+    "result": "Grew from 294 to 1,036 clicks/month (+252%) in 6 months. Top 1-3 rankings: 101 to 3,468 (+3,300%).",
+    "summary": "Schulte Energie & Techniek is an installation company in Denekamp, Twente, with 30+ years of experience and over 10,000 solar systems installed, also offering heat pumps, home batteries, and charging stations. They relied solely on word of mouth for new business. WP SEO AI created an online presence that attracts customers outside their existing referral network.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "We get everything from word of mouth",
+      "Niche market, too specific for online marketing",
+      "Our customers are not online"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "word of mouth",
+      "referral",
+      "energy",
+      "sustainability",
+      "green",
+      "solar",
+      "techniek",
+      "installation",
+      "hvac",
+      "heating",
+      "renewable"
+    ],
+    "pdfFile": "Relied on word of mouth - Schulte Energie & Techniek - Success case.pdf"
+  },
+  {
+    "id": "ckactive",
+    "company": "CK Active",
+    "industry": "Health & Fitness",
+    "painPattern": "Relied on single channel",
+    "headline": "Relied heavily on SEA / Google Ads",
+    "outcome": "Reduced SEA dependency",
+    "result": "Grew from 325 to 2,343 clicks/month (+620%) in 6 months. Turned off all paid ads entirely. 90% AI content clicks.",
+    "summary": "CK Active is a boutique personal training and private gym studio in Made, Noord-Brabant, offering customized training plans. They were spending heavily on Google Ads with no organic presence to fall back on. WP SEO AI built their SEO foundation so they could reduce ad spend without losing leads.",
+    "businessType": "B2C",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We already do Google Ads, why also SEO",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "google ads",
+      "sea",
+      "paid",
+      "ads",
+      "advertising",
+      "ppc",
+      "adwords",
+      "ad spend",
+      "sports",
+      "fitness"
+    ],
+    "pdfFile": "Relied heaviliy on SEA - CK Active - Success case.pdf"
+  },
+  {
+    "id": "sillegallery",
+    "company": "Sille Gallery",
+    "industry": "Retail / Art",
+    "painPattern": "Lack of control / visibility",
+    "headline": "Lack of control over SEO",
+    "outcome": "Gained SEO control",
+    "result": "Grew from 1,951 to 2,939 clicks/month (+51%) in 5 months. 29.6% from AI content. Keywords: 5,312 to 7,368.",
+    "summary": "Sille Gallery is a 450m2 contemporary art gallery in Oudewater representing over 250 Dutch artists, founded in 2007 by Tamara Sille and active at the Affordable Art Fair. They had no insight into their SEO performance or search visibility. WP SEO AI gave them clear dashboards and hands-on control over their search strategy for the first time.",
+    "businessType": "B2C",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "We tried it before and it didn't work"
+    ],
+    "clickTier": "Established (1,500+)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "control",
+      "visibility",
+      "art",
+      "gallery",
+      "retail",
+      "no insight",
+      "dashboard",
+      "reporting"
+    ],
+    "pdfFile": "Lack of Control Over SEO - Sille Gallery - Success case.pdf"
+  },
+  {
+    "id": "cooffice",
+    "company": "Co-Office",
+    "industry": "Real Estate / Flex Office",
+    "painPattern": "Lack of control / visibility",
+    "headline": "Traffic drop during site transition",
+    "outcome": "Recovered from traffic drop",
+    "result": "Grew from 450 to 2,242 clicks/month (+398%) in 5 months. 3,295 total AI clicks.",
+    "summary": "Co-Office is a flex office and coworking space in Amsterdam's Keynes Building, offering offices from 20 to 140m2 with digital locks and community networking events. They lost significant traffic during a website migration. WP SEO AI identified the technical issues, rebuilt their content strategy, and fully recovered their rankings.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "traffic drop",
+      "migration",
+      "site transition",
+      "new website",
+      "relaunch",
+      "real estate",
+      "office",
+      "coworking",
+      "flex"
+    ],
+    "pdfFile": "Traffic drop during site transition - Co-Office - Success case.pdf"
+  },
+  {
+    "id": "geldzo",
+    "company": "GeldZo",
+    "industry": "Financial Services / Pension Advisory",
+    "painPattern": "Going international / scaling",
+    "headline": "No time for manual work and going international",
+    "outcome": "International SEO",
+    "result": "Grew from ~100-150 to ~5,700 clicks/month (~35x growth) in 4-7 months. 89% from AI content. Traffic value €7,608.",
+    "summary": "GeldZo is a specialized Dutch financial advisory firm for entrepreneurs with pension capital or annuities in BV structures, providing administrative, fiscal, and advisory support. Spun off from a parent company with a brand-new website starting at near-zero traffic (100-150 clicks/month), WP SEO AI grew their traffic approximately 35x in 4 months to over 5,700 monthly clicks.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": true,
+    "objections": [
+      "It takes too long before you see results",
+      "We are too small for this kind of approach"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands",
+      "International"
+    ],
+    "keywords": [
+      "international",
+      "global",
+      "expand",
+      "multilingual",
+      "multiple countries",
+      "finance",
+      "fintech",
+      "scaling"
+    ],
+    "pdfFile": "No time for manual work and going international - GeldZo - Success Case .pdf"
+  },
+  {
+    "id": "pbn",
+    "company": "PBN",
+    "industry": "Events / Corporate Hospitality",
+    "painPattern": "Going international / scaling",
+    "headline": "No time for manual work and going international",
+    "outcome": "International SEO",
+    "result": "Grew from 690 to 1,338 visitors/month in 5 months. 46% of clicks from AI content. 4,000 new keywords. Traffic value €4,605.",
+    "summary": "PBN is a Dutch corporate event organizer with 40+ years experience, specializing in distinctive company outings, trainings, and team-building at unique locations like Forteiland and the Ardennes. They relied on word of mouth and were unsure how to use AI for marketing. WP SEO AI scaled to 46% of their total organic traffic in 9 months, with citations across Google AI Overviews, ChatGPT, Gemini, and Perplexity.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "We are too small for this kind of approach",
+      "B2B sector, nobody searches for our services"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands",
+      "International"
+    ],
+    "keywords": [
+      "international",
+      "global",
+      "expand",
+      "multilingual",
+      "multiple countries",
+      "scaling",
+      "professional services"
+    ],
+    "pdfFile": "No time for manual work and going international - PBN - Success Case .pdf"
+  },
+  {
+    "id": "officebox",
+    "company": "Officebox",
+    "industry": "IT Services / MSP",
+    "painPattern": "Efficiency gap",
+    "headline": "Efficiency gap",
+    "outcome": "Efficiency gains",
+    "result": "Grew from ~1,000 to ~3,700 clicks/month (+137%) in 10 months. 5,486 total AI clicks. Traffic value €13,331.",
+    "summary": "Officebox is a Dutch ICT and cloud solutions provider delivering secure Microsoft 365 environments specifically for non-profit, administration, and accountancy organizations. With a small team and limited SEO expertise, they relied on outbound calling for leads. WP SEO AI built their inbound channel, growing clicks 137% in 10 months and generating their first non-profit inbound lead within the first month.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "It takes too long before you see results",
+      "We already do Google Ads, why also SEO"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "efficiency",
+      "msp",
+      "managed services",
+      "ict",
+      "cloud",
+      "microsoft 365",
+      "office 365",
+      "non-profit",
+      "accountancy",
+      "it services"
+    ],
+    "pdfFile": "Efficiency gap - Officebox -.pdf"
+  },
+  {
+    "id": "implicit",
+    "company": "IMPLI-CIT",
+    "industry": "IT Services / MSP",
+    "painPattern": "Efficiency gap",
+    "headline": "Efficiency gap and new customers",
+    "outcome": "Efficiency + new customers",
+    "result": "Grew from 21 to 185 clicks/month (+781%) in 7 months. Top 1-3 rankings: 24 to 752 (+3,033%). 93.5% AI traffic.",
+    "summary": "IMPLI-CIT is a Dutch IT services company offering onsite IT support, datacenter services, and WiFi site surveys with a team of engineers serving clients internationally. After 25 years of growth purely through word of mouth, they hit a growth plateau with no sales DNA or marketing capacity. WP SEO AI grew their clicks from 21 to 185/month (+781%) and drove the first inbound customers through organic content.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "B2B sector, nobody searches for our services",
+      "Our sector is too technical or complex for AI content"
+    ],
+    "clickTier": "Starting near zero (0-100)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "efficiency",
+      "new customers",
+      "growth",
+      "manual",
+      "leads",
+      "msp",
+      "managed services",
+      "it services",
+      "onsite support",
+      "datacenter",
+      "wifi",
+      "field engineer"
+    ],
+    "pdfFile": "Efficiency gap and new customers - IMPLI-CIT - Success case.pdf"
+  },
+  {
+    "id": "dercsalotech",
+    "company": "DERC Salotech",
+    "industry": "Industrial / Tech",
+    "painPattern": "Limited marketing capacity",
+    "headline": "From limited marketing capacity to AI-ready SEO",
+    "outcome": "AI-ready SEO",
+    "result": "Grew from 1,036 to 1,907 clicks/month (+84%) in 5 months. Keywords: 2,082 to 6,102 (+300%).",
+    "summary": "DERC Salotech is a manufacturer of high-pressure water jetting equipment in Oud-Beijerland, serving 55+ countries over 40 years with robotic systems for tank and pipe maintenance. With no marketing team and zero SEO foundation, they needed a full search strategy built from scratch. WP SEO AI built their entire search presence from the ground up, including AI search readiness, with minimal input needed from the client.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "B2B sector, nobody searches for our services",
+      "Our sector is too technical or complex for AI content",
+      "We are too small for this kind of approach"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "limited marketing",
+      "small team",
+      "no marketer",
+      "industrial",
+      "manufacturing",
+      "tech",
+      "b2b",
+      "ai-ready"
+    ],
+    "pdfFile": "From limited marketing capacity to AI-ready SEO - DERC Salotech - Success Case - .pdf"
+  },
+  {
+    "id": "schulte-scale",
+    "company": "Schulte Energie & Techniek",
+    "industry": "Energy / Installation",
+    "painPattern": "Limited marketing capacity",
+    "headline": "Limited capacity to scale for AI",
+    "outcome": "Scaled for AI",
+    "result": "Grew from 294 to 1,036 clicks/month (+252%) in 6 months.",
+    "summary": "Schulte Energie & Techniek is an installation company in Denekamp, Twente, founded in 2010, with 30+ years of combined experience and over 10,000 solar systems installed alongside heat pumps, home batteries, and charging stations. They knew AI search was coming but lacked the marketing capacity to prepare. WP SEO AI automated their content scaling so they are positioned for the AI search shift.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "Our customers are not online",
+      "We get everything from word of mouth",
+      "We are too small for this kind of approach"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "limited marketing",
+      "scale",
+      "ai",
+      "energy",
+      "sustainability",
+      "green",
+      "solar",
+      "techniek",
+      "installation",
+      "hvac",
+      "heating",
+      "renewable"
+    ],
+    "pdfFile": "Schulte Energie & Techniek - Limited Capacity to Scale for AI .pdf"
+  },
+  {
+    "id": "kwiz",
+    "company": "KWIZ",
+    "industry": "Public Sector / Research",
+    "painPattern": "Other",
+    "headline": "New website & didn't like SEO copywriter",
+    "outcome": "Replaced copywriter",
+    "result": "Grew from 48 to 421 clicks/month (+777%) in 7 months. 815 total AI clicks. Traffic value €2,122.",
+    "summary": "KWIZ is a research bureau and information management consultancy for the social domain, based in Groningen and Amersfoort, processing public sector data into policy dashboards. They launched a new website but the SEO copywriter produced generic, low-quality content that did not match their specialized positioning. WP SEO AI delivered brand-aligned content at scale with better quality and significantly lower cost.",
+    "businessType": "B2C",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work"
+    ],
+    "clickTier": "Starting near zero (0-100)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "copywriter",
+      "content",
+      "new website",
+      "writing",
+      "copy",
+      "quality",
+      "entertainment",
+      "leisure"
+    ],
+    "pdfFile": "New website & didnt like SEO copy writer - KWIZ Success Case - NL -  .pdf"
+  },
+  {
+    "id": "ctalents",
+    "company": "CTalents",
+    "industry": "Social Employment / Disability Inclusion",
+    "painPattern": "Other",
+    "headline": "Struggled to keep up with developments in search behaviour",
+    "outcome": "Kept up with search evolution",
+    "result": "Grew from 669 to 1,064 clicks/month (+53%) in 6 months. 931 total AI clicks. Cited in Google AI Overviews.",
+    "summary": "CTalents is a Dutch nonprofit that supports people with autism in finding employment and helps employers build neurodiverse workforces. With a small team and no SEO knowledge, they struggled to keep up with changes in search behavior. WP SEO AI grew their organic traffic 53% in 6 months with citations in Google AI Overviews and ChatGPT.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "It takes too long before you see results",
+      "B2B sector, nobody searches for our services"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "search behaviour",
+      "changing landscape",
+      "keep up",
+      "recruitment",
+      "staffing",
+      "hr",
+      "talent"
+    ],
+    "pdfFile": "Struggled to keep up with developments in search behaviour - CTalents - Success Case.pdf"
+  },
+  {
+    "id": "ebikesde",
+    "company": "ebikes.de",
+    "industry": "E-commerce / Consumer Media",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Efficiency gap — strong domain but no time for content at scale",
+    "outcome": "+24,220% AI content traffic growth",
+    "result": "Grew from 10 to 2,432 AI clicks/month (+24,220%) in 9 months. 12,031 total AI clicks. 1.25M impressions. Traffic value €8,769.",
+    "summary": "ebikes.de is a German price comparison and editorial portal for e-bikes, offering deals, test reports, and buying guides through an affiliate and media model. With strong domain authority but a tiny team juggling research, content, and optimization, they could not scale. WP SEO AI scaled content production across key keyword clusters, driving massive organic and AI search growth.",
+    "businessType": "B2C",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "It takes too long before you see results",
+      "We are too small for this kind of approach"
+    ],
+    "clickTier": "Starting near zero (0-100)",
+    "countries": [
+      "Germany"
+    ],
+    "keywords": [
+      "e-bikes",
+      "ecommerce",
+      "ebike",
+      "german",
+      "germany",
+      "content at scale",
+      "ai overviews",
+      "chatgpt",
+      "consumer"
+    ],
+    "pdfFile": "Efficiency Gap - e-bikes.de - Success case (ENGLISH).pdf"
+  },
+  {
+    "id": "medici",
+    "company": "Medici Vermittlung",
+    "industry": "Healthcare / Medical Staffing",
+    "painPattern": "Relied on single channel",
+    "headline": "SEA budget fixed with SEO content — from paid dependency to organic growth",
+    "outcome": "+253% organic clicks, €10K traffic value",
+    "result": "Grew from 826 to 2,912 clicks/month (+253%) in 5 months. 82% from AI content. Impressions +551%. Traffic value €10,325.",
+    "summary": "Medici Vermittlung is a German medical recruitment agency with 11-50 employees, placing physicians from assistant to chief level in permanent and locum roles. They had almost zero organic presence and unsustainable paid search costs. WP SEO AI published 196 articles in 5 months, fully automated, shifting acquisition from SEA to organic and AI search.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": true,
+    "objections": [
+      "Trust-sensitive sector where mistakes are not allowed",
+      "B2B sector, nobody searches for our services",
+      "We already do Google Ads, why also SEO",
+      "We are too small for this kind of approach"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Germany"
+    ],
+    "keywords": [
+      "medical",
+      "healthcare",
+      "doctors",
+      "recruitment",
+      "staffing",
+      "sea",
+      "google ads",
+      "paid search",
+      "german",
+      "germany"
+    ],
+    "pdfFile": "SEA budget fixed with SEO Content - Medici ENG - Success case (ENGLISH) .pdf"
+  },
+  {
+    "id": "adelt-ideen",
+    "company": "IP Adelt",
+    "industry": "B2B / Visual Displays",
+    "painPattern": "Lack of control / visibility",
+    "headline": "No organic inbound acquisition — zero visibility to +470% growth",
+    "outcome": "+470% organic growth in 6 months",
+    "result": "Grew from 195 to 1,111 clicks/month (+470%) in 6 months. 46.2% AI clicks. Traffic value €6,616.",
+    "summary": "IP Adelt is a German B2B manufacturer of custom promotional materials including sample cases, gift boxes, and display systems, based in Bielefeld with over 60 years of history and fully German-made sustainable production. They had zero organic acquisition and most product pages were not live. WP SEO AI built their organic channel from scratch, achieving +470% growth in 6 months.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "B2B sector, nobody searches for our services",
+      "Niche market, too specific for online marketing",
+      "Our customers are not online"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Germany"
+    ],
+    "keywords": [
+      "visual displays",
+      "product presentation",
+      "b2b",
+      "german",
+      "germany",
+      "no organic",
+      "zero visibility",
+      "inbound"
+    ],
+    "pdfFile": "No organic inbound acquisition - adelt-ideen.de - GERMAN  (1).pdf"
+  },
+  {
+    "id": "quest-search",
+    "company": "Quest Search and Selection",
+    "industry": "Recruitment / HR",
+    "painPattern": "Limited marketing capacity",
+    "headline": "From marginal organic traffic to 775% growth and AI Overview dominance",
+    "outcome": "+775% organic traffic, €13.8K traffic value",
+    "result": "+775% organic traffic growth. AI share grew from 5% to 42% over 12 months. +71K impressions/month. Traffic value €13,828.",
+    "summary": "Quest Search and Selection is a recruitment agency specializing in search and selection services with a focus on the Middle East and Saudi Arabia market. They had virtually no organic traffic and knew SEO was important but lacked a content strategy. WP SEO AI grew their traffic 775% with 42% of all clicks from AI content, dominating Google AI Overviews for recruitment queries.",
+    "businessType": "B2B",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "B2B sector, nobody searches for our services",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Starting near zero (0-100)",
+    "countries": [
+      "United Kingdom",
+      "Middle East",
+      "Saudi Arabia"
+    ],
+    "keywords": [
+      "recruitment",
+      "hr",
+      "staffing",
+      "search and selection",
+      "ai overviews",
+      "content strategy"
+    ],
+    "pdfFile": "Quest search - Success case.pdf"
+  },
+  {
+    "id": "greenstay",
+    "company": "Greenstay",
+    "industry": "Real Estate / Short-Stay Rentals",
+    "painPattern": "Lack of control / visibility",
+    "headline": "From zero SEO to 5x traffic and 100+ leads/month",
+    "outcome": "5x traffic, 100+ leads, 13% conversion rate",
+    "result": "Grew from 187 to 943 clicks/month (5x) in 6 months. 100+ leads/month. 13% conversion rate (3x benchmark). Acquisition cost -62%.",
+    "summary": "Greenstay is a short-term and temporary housing rental company in Amsterdam targeting students and expats. They had zero SEO presence and were completely missing from organic search. WP SEO AI built their organic channel from scratch, achieving 100+ leads per month with a 13% conversion rate (3x industry benchmark) and cutting acquisition costs by 62%.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Netherlands"
+    ],
+    "keywords": [
+      "short stay",
+      "housing",
+      "amsterdam",
+      "rental",
+      "real estate",
+      "leads",
+      "conversion",
+      "accommodation"
+    ],
+    "pdfFile": "Greenstay - Success Case.pdf"
+  },
+  {
+    "id": "salon-klipsi",
+    "company": "Salon Klipsi",
+    "industry": "Beauty / Personal Care",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Hair salon ranking #1 on Google with AI-powered SEO",
+    "outcome": "+57% organic traffic, #1 rankings",
+    "result": "Grew from 4,752 to 7,425 clicks/month (+57%) in 8 months. #1 Google rankings. 41% from AI content.",
+    "summary": "Salon Klipsi is a Finnish hair salon chain with 14 branches and around 60 hairdressers, founded in 1986, operating inside Sokos stores and Prisma supermarkets. Their clients were clearly searching on Google but the salon lacked time and SEO expertise across locations. WP SEO AI automated their content at scale, pushing them to #1 positions for high-intent local searches.",
+    "businessType": "B2C",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We are too small for this kind of approach",
+      "Our customers are not online"
+    ],
+    "clickTier": "Established (1,500+)",
+    "countries": [
+      "Finland"
+    ],
+    "keywords": [
+      "salon",
+      "hair",
+      "beauty",
+      "finland",
+      "finnish",
+      "local seo",
+      "bookings",
+      "personal care"
+    ],
+    "pdfFile": "Salon Klipsi - Success Case.pdf"
+  },
+  {
+    "id": "moneybee",
+    "company": "Moneybee",
+    "industry": "B2B Financial Services / Accounting",
+    "painPattern": "Limited marketing capacity",
+    "headline": "6-person accounting firm outranking national giants",
+    "outcome": "+372% organic traffic, €7.90 ROI per €1",
+    "result": "Grew from 392 to 1,852 clicks/month (+372%) in 8 months. 90% from AI content. Every €1 earned €7.90.",
+    "summary": "Moneybee is a Finnish digital accounting firm for SMBs, founded in 2023 in Helsinki, offering revenue-based pricing through Procountor and Netvisor. As a 6-person company competing against national players with no marketing staff, they were invisible online. WP SEO AI turned them into an organic search powerhouse, outranking companies 20x their size and generating enough leads to hire additional staff.",
+    "businessType": "B2B",
+    "marketPosition": "Niche",
+    "trustSensitive": true,
+    "objections": [
+      "We are too small for this kind of approach",
+      "B2B sector, nobody searches for our services",
+      "Trust-sensitive sector where mistakes are not allowed"
+    ],
+    "clickTier": "Small base (100-500)",
+    "countries": [
+      "Finland"
+    ],
+    "keywords": [
+      "accounting",
+      "finance",
+      "bookkeeping",
+      "finland",
+      "finnish",
+      "small business",
+      "b2b",
+      "roi"
+    ],
+    "pdfFile": "Moneybee - Success Case.pdf"
+  },
+  {
+    "id": "pest1",
+    "company": "Pest1",
+    "industry": "Home Services / Pest Control",
+    "painPattern": "No time / capacity for SEO",
+    "headline": "Pest control company quadruples organic traffic with AI content",
+    "outcome": "+339% organic growth, #1 in Google",
+    "result": "Grew from 768 to 3,371 clicks/month (+339%) in 8 months. 95% from AI content. #1 in Google.",
+    "summary": "Pest1 is a Finnish TUKES-licensed pest control company serving businesses, private individuals, and the public sector, with clients including hospitals and the Finnish Defence Forces. Despite search being critical for customer acquisition, they had low online visibility. WP SEO AI automated content production including proactive seasonal content, quadrupling their organic traffic.",
+    "businessType": "B2C",
+    "marketPosition": "Niche",
+    "trustSensitive": false,
+    "objections": [
+      "Niche market, too specific for online marketing",
+      "It takes too long before you see results",
+      "Our customers are not online"
+    ],
+    "clickTier": "Medium base (500-1,500)",
+    "countries": [
+      "Finland"
+    ],
+    "keywords": [
+      "pest control",
+      "home services",
+      "finland",
+      "finnish",
+      "seasonal",
+      "local",
+      "exterminator"
+    ],
+    "pdfFile": "Pest1 Success Case.pdf"
+  },
+  {
+    "id": "aimo-park",
+    "company": "Aimo Park",
+    "industry": "Mobility / Parking",
+    "painPattern": "Lack of control / visibility",
+    "headline": "40-year brand invisible in non-branded search — now #1 with AI citations",
+    "outcome": "+203% non-branded clicks, ChatGPT citations",
+    "result": "+203% non-branded clicks. +1,500 extra clicks/month. #1 with featured snippets. ChatGPT citations.",
+    "summary": "Aimo Park is the largest Nordic parking operator with over 500,000 spaces across Sweden, Finland, and Norway, founded in 1959 in Stockholm and owned by Sumitomo Corporation, also operating car sharing and EV charging services. Despite 40+ years of history, they were completely invisible to anyone not already searching by brand name. WP SEO AI captured high-intent long-tail keywords, earning #1 positions and ChatGPT citations.",
+    "businessType": "B2C",
+    "marketPosition": "Mainstream",
+    "trustSensitive": false,
+    "objections": [
+      "We tried it before and it didn't work",
+      "It takes too long before you see results"
+    ],
+    "clickTier": "Established (1,500+)",
+    "countries": [
+      "Sweden",
+      "Scandinavia"
+    ],
+    "keywords": [
+      "parking",
+      "mobility",
+      "stockholm",
+      "scandinavia",
+      "sweden",
+      "brand",
+      "non-branded",
+      "chatgpt",
+      "featured snippets"
+    ],
+    "pdfFile": "Aimo Park - Success Case.pdf"
+  }
+]
