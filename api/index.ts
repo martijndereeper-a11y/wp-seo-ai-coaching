@@ -279,6 +279,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (path === '/api/use-cases/by-objection' && method === 'GET') return handleUseCaseByObjection(req, res);
     if (path === '/health' && method === 'GET') return json(res, { ok: true });
 
+    // ── Use Case Admin API (password-protected) ───────────────────────
+    if (path === '/api/admin/login' && method === 'POST') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const adminPw = process.env.ADMIN_PASSWORD || 'wpseoai2026';
+      if (body?.password === adminPw) return json(res, { ok: true, token: adminPw });
+      return json(res, { error: 'Wrong password' }, 401);
+    }
+    if (path === '/api/admin/cases' && method === 'GET') return handleUseCases(req, res);
+    if (path === '/api/admin/cases' && method === 'POST') return handleAdminSaveCase(req, res);
+    const adminDeleteMatch = matchRoute(path, '/api/admin/cases/:id');
+    if (adminDeleteMatch && method === 'DELETE') return handleAdminDeleteCase(req, res, adminDeleteMatch.id);
+
     // ── Health (unauthenticated) ───────────────────────────────────────
     if (path === '/api/health' && method === 'GET') return handleHealth(req, res);
 
@@ -465,12 +477,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 // ── Use Case Finder ───────────────────────────────────────────────────────
 
-function loadUseCaseData(): any[] {
+function loadSeedCases(): any[] {
   const dataFile = join(process.cwd(), 'data', 'use-cases-data.json');
   if (existsSync(dataFile)) {
     try { return JSON.parse(readFileSync(dataFile, 'utf-8')); } catch {}
   }
   return [];
+}
+
+async function loadAdminAddedCases(): Promise<any[]> {
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase.from('platform_settings').select('value').eq('key', 'use_cases_added').single();
+    if (data?.value && Array.isArray(data.value)) return data.value;
+  } catch {}
+  return [];
+}
+
+async function loadAllUseCases(): Promise<any[]> {
+  const seed = loadSeedCases();
+  const added = await loadAdminAddedCases();
+  // Merge: added cases override seed by id
+  const addedIds = new Set(added.map((c: any) => c.id));
+  const fromSeed = seed.filter((c: any) => !addedIds.has(c.id));
+  return [...fromSeed, ...added];
+}
+
+async function saveAdminCase(newCase: any): Promise<void> {
+  const supabase = getSupabase();
+  const existing = await loadAdminAddedCases();
+  const idx = existing.findIndex((c: any) => c.id === newCase.id);
+  if (idx >= 0) existing[idx] = newCase;
+  else existing.push(newCase);
+  await supabase.from('platform_settings').upsert({ key: 'use_cases_added', value: existing }, { onConflict: 'key' });
+}
+
+async function deleteAdminCase(id: string): Promise<boolean> {
+  const existing = await loadAdminAddedCases();
+  const filtered = existing.filter((c: any) => c.id !== id);
+  if (filtered.length === existing.length) return false;
+  const supabase = getSupabase();
+  await supabase.from('platform_settings').upsert({ key: 'use_cases_added', value: filtered }, { onConflict: 'key' });
+  return true;
 }
 
 const USE_CASE_OBJECTIONS = [
@@ -486,8 +534,8 @@ const USE_CASE_OBJECTIONS = [
   'We already do Google Ads, why also SEO',
 ];
 
-function handleUseCases(_req: VercelRequest, res: VercelResponse) {
-  const cases = loadUseCaseData();
+async function handleUseCases(_req: VercelRequest, res: VercelResponse) {
+  const cases = await loadAllUseCases();
   const painPatterns = [...new Set(cases.map((c: any) => c.painPattern))];
   const industries = [...new Set(cases.map((c: any) => c.industry))];
   const objectionCounts = USE_CASE_OBJECTIONS.map((obj) => ({
@@ -497,9 +545,9 @@ function handleUseCases(_req: VercelRequest, res: VercelResponse) {
   return json(res, { cases, painPatterns, industries, objections: USE_CASE_OBJECTIONS, objectionCounts });
 }
 
-function handleUseCaseSearch(req: VercelRequest, res: VercelResponse) {
+async function handleUseCaseSearch(req: VercelRequest, res: VercelResponse) {
   const q = ((req.query?.q as string) || '').toLowerCase().trim();
-  const cases = loadUseCaseData();
+  const cases = await loadAllUseCases();
   if (!q) return json(res, { results: cases });
 
   const terms = q.split(/\s+/);
@@ -526,10 +574,45 @@ function handleUseCaseSearch(req: VercelRequest, res: VercelResponse) {
   return json(res, { results });
 }
 
-function handleUseCaseByObjection(req: VercelRequest, res: VercelResponse) {
+async function handleUseCaseByObjection(req: VercelRequest, res: VercelResponse) {
   const obj = (req.query?.objection as string) || '';
-  const results = loadUseCaseData().filter((uc: any) => (uc.objections || []).includes(obj));
+  const cases = await loadAllUseCases();
+  const results = cases.filter((uc: any) => (uc.objections || []).includes(obj));
   return json(res, { results });
+}
+
+async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
+  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  if (!body?.company) return json(res, { error: 'Company name required' }, 400);
+
+  const id = body.id || body.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  const useCase = {
+    id,
+    company: body.company,
+    industry: body.industry || 'General',
+    painPattern: body.painPattern || 'Other',
+    headline: body.headline || '',
+    outcome: body.outcome || '',
+    result: body.result || '',
+    summary: body.summary || '',
+    businessType: body.businessType || 'B2B',
+    marketPosition: body.marketPosition || 'Mainstream',
+    trustSensitive: body.trustSensitive || false,
+    clickTier: body.clickTier || 'Small base (100-500)',
+    objections: body.objections || [],
+    countries: body.countries || [],
+    keywords: body.keywords || [],
+    pdfFile: body.pdfFile || null,
+  };
+
+  await saveAdminCase(useCase);
+  return json(res, { ok: true, id, case: useCase });
+}
+
+async function handleAdminDeleteCase(req: VercelRequest, res: VercelResponse, id: string) {
+  const ok = await deleteAdminCase(id);
+  if (!ok) return json(res, { error: 'Case not found or is a seed case' }, 404);
+  return json(res, { ok: true });
 }
 
 // ── Health ─────────────────────────────────────────────────────────────────
