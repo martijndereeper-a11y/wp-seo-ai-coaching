@@ -1,10 +1,9 @@
-import { handle } from 'hono/vercel';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const config = {
-  runtime: 'nodejs',
   maxDuration: 60,
 };
 
@@ -35,30 +34,40 @@ const STATIC_ROUTES: Record<string, string> = {
   '/pipeline': 'pipeline.html',
 };
 
-export default async function handler(req: Request) {
+// Cache the Hono handler
+let _honoHandler: ((req: VercelRequest, res: VercelResponse) => Promise<void>) | null = null;
+
+async function getHonoHandler() {
+  if (!_honoHandler) {
+    const { handle } = await import('hono/vercel');
+    const { default: app } = await import('../src/api/server.ts');
+    _honoHandler = handle(app) as any;
+  }
+  return _honoHandler;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const url = new URL(req.url);
+    const pathname = req.url?.split('?')[0] || '/';
 
     // Fast path: static HTML pages
-    const filename = STATIC_ROUTES[url.pathname];
+    const filename = STATIC_ROUTES[pathname];
     if (filename) {
       const filePath = findFile(filename);
       if (filePath) {
-        return new Response(readFileSync(filePath, 'utf-8'), {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.status(200).send(readFileSync(filePath, 'utf-8'));
       }
-      return new Response(`File not found: ${filename}`, { status: 404 });
+      return res.status(404).send(`File not found: ${filename}`);
     }
 
-    // API routes: load full server
-    const { default: app } = await import('../src/api/server.ts');
-    const h = handle(app);
-    return h(req);
+    // API routes: load full Hono server
+    const h = await getHonoHandler();
+    return h(req, res);
   } catch (err: any) {
-    return new Response(JSON.stringify({
+    return res.status(500).json({
       error: 'Function error',
       message: err.message,
-    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    });
   }
 }
