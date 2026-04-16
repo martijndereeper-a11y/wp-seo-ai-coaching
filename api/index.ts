@@ -945,7 +945,7 @@ Return this exact JSON structure:
   "countries": ["country names where this company operates"],
   "keywords": ["5-8 lowercase search keywords"],
   "painPattern": "best matching: No time / capacity for SEO, Underperforming agency / high SEO cost, AI / LLM search opportunity, Relied on single channel, Lack of control / visibility, Going international / scaling, Efficiency gap, Limited marketing capacity, Other",
-  "clickTier": "best matching based on their starting organic clicks/month BEFORE WP SEO AI: Starting near zero (0-100), Small base (100-500), Medium base (500-1,500), Established (1,500+)",
+  "clickTier": "Look at the Google Search Console chart/screenshot in the PDF. Read the organic clicks/month at the START (left side of graph, before the growth). Pick the matching tier: Starting near zero (0-100), Small base (100-500), Medium base (500-1,500), Established (1,500+)",
   "fullText": "first 2000 chars of readable text from the PDF for objection matching"
 }` },
           ],
