@@ -288,6 +288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (path === '/api/admin/cases' && method === 'GET') return handleUseCases(req, res);
     if (path === '/api/admin/cases' && method === 'POST') return handleAdminSaveCase(req, res);
+    if (path === '/api/admin/analyze-pdf' && method === 'POST') return handleAnalyzePdf(req, res);
     const adminDeleteMatch = matchRoute(path, '/api/admin/cases/:id');
     if (adminDeleteMatch && method === 'DELETE') return handleAdminDeleteCase(req, res, adminDeleteMatch.id);
 
@@ -613,6 +614,140 @@ async function handleAdminDeleteCase(req: VercelRequest, res: VercelResponse, id
   const ok = await deleteAdminCase(id);
   if (!ok) return json(res, { error: 'Case not found or is a seed case' }, 404);
   return json(res, { ok: true });
+}
+
+// ── PDF Analysis ──────────────────────────────────────────────────────────
+
+function detectObjectionsFromText(text: string): string[] {
+  const t = text.toLowerCase();
+  const patterns: Array<{ objection: string; keywords: string[] }> = [
+    { objection: 'Niche market, too specific for online marketing', keywords: ['niche', 'specifiek', 'specific', 'te klein', 'small market', 'niche markt', 'specialistisch'] },
+    { objection: 'B2B sector, nobody searches for our services', keywords: ['b2b', 'niemand zoekt', 'nobody searches', 'geen zoekvolume', 'low search volume'] },
+    { objection: 'Our sector is too technical or complex for AI content', keywords: ['technisch', 'technical', 'complex', 'ai content', 'expertise', 'kennisintensief'] },
+    { objection: 'Trust-sensitive sector where mistakes are not allowed', keywords: ['vertrouwen', 'trust', 'medisch', 'medical', 'juridisch', 'legal', 'fouten', 'compliance'] },
+    { objection: 'We are too small for this kind of approach', keywords: ['te klein', 'too small', 'klein bedrijf', 'small business', 'mkb', 'sme'] },
+    { objection: 'We tried it before and it didn\'t work', keywords: ['eerder geprobeerd', 'tried before', 'didn\'t work', 'werkte niet', 'teleurgesteld'] },
+    { objection: 'It takes too long before you see results', keywords: ['te lang', 'too long', 'duurt lang', 'takes time', 'slow results', 'langzaam'] },
+    { objection: 'Our customers are not online', keywords: ['niet online', 'not online', 'offline', 'klanten zitten niet'] },
+    { objection: 'We get everything from word of mouth', keywords: ['mond-tot-mond', 'word of mouth', 'referral', 'netwerk', 'aanbeveling'] },
+    { objection: 'We already do Google Ads, why also SEO', keywords: ['google ads', 'adwords', 'sea', 'advertenties', 'paid search', 'waarom ook seo'] },
+  ];
+  return patterns.filter(({ keywords }) => keywords.some((kw) => t.includes(kw))).map(p => p.objection);
+}
+
+async function handleAnalyzePdf(req: VercelRequest, res: VercelResponse) {
+  try {
+    // Vercel buffers the raw body — parse multipart manually
+    let pdfBuffer: Buffer | null = null;
+
+    // Get raw body — Vercel may have pre-parsed it or left it as stream
+    let rawBody: Buffer;
+    if (req.body && Buffer.isBuffer(req.body)) {
+      rawBody = req.body;
+    } else if (typeof req.body === 'string') {
+      rawBody = Buffer.from(req.body, 'binary');
+    } else {
+      // Read from stream
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        (req as any).on('data', (chunk: Buffer) => chunks.push(chunk));
+        (req as any).on('end', resolve);
+        (req as any).on('error', reject);
+        // Timeout after 5s in case stream is already consumed
+        setTimeout(resolve, 5000);
+      });
+      rawBody = Buffer.concat(chunks);
+    }
+
+    // Extract PDF from multipart boundary
+    const contentType = req.headers['content-type'] || '';
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    if (boundaryMatch && rawBody.length > 0) {
+      const boundary = '--' + boundaryMatch[1].trim();
+      const boundaryBuf = Buffer.from(boundary);
+      // Split by boundary
+      let pos = 0;
+      while (pos < rawBody.length) {
+        const bStart = rawBody.indexOf(boundaryBuf, pos);
+        if (bStart === -1) break;
+        const partStart = bStart + boundaryBuf.length;
+        const bEnd = rawBody.indexOf(boundaryBuf, partStart);
+        if (bEnd === -1) break;
+        const part = rawBody.subarray(partStart, bEnd);
+        // Find header/body separator
+        const sep = part.indexOf(Buffer.from('\r\n\r\n'));
+        if (sep !== -1) {
+          const header = part.subarray(0, sep).toString();
+          if (header.includes('name="pdf"')) {
+            // Body starts after \r\n\r\n, ends before trailing \r\n
+            let body = part.subarray(sep + 4);
+            if (body[body.length - 1] === 0x0a && body[body.length - 2] === 0x0d) {
+              body = body.subarray(0, body.length - 2);
+            }
+            pdfBuffer = Buffer.from(body);
+            break;
+          }
+        }
+        pos = bEnd;
+      }
+    }
+
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return json(res, { error: 'No PDF file received' }, 400);
+    }
+
+    // Send PDF directly to Claude for extraction (supports PDF natively)
+    let extracted: Record<string, any> = {};
+    let text = '';
+    try {
+      const AnthropicMod = await import('@anthropic-ai/sdk');
+      const Anthropic = AnthropicMod.default || AnthropicMod;
+      const anthropic = new Anthropic();
+      const pdfBase64 = pdfBuffer.toString('base64');
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+            { type: 'text', text: `Extract structured data from this success case PDF. Return ONLY valid JSON, no markdown.
+
+Return this exact JSON structure:
+{
+  "company": "company name",
+  "industry": "industry in 2-4 words",
+  "headline": "one-line headline describing the case",
+  "outcome": "short outcome phrase, e.g. +253% organic traffic",
+  "result": "1-2 sentence concrete result with numbers",
+  "summary": "2-3 sentence context about the company, challenge, and achievement",
+  "businessType": "B2B or B2C or Mix",
+  "marketPosition": "Niche or Mainstream",
+  "trustSensitive": true or false,
+  "countries": ["country names where this company operates"],
+  "keywords": ["5-8 lowercase search keywords"],
+  "painPattern": "best matching: No time / capacity for SEO, Underperforming agency / high SEO cost, AI / LLM search opportunity, Relied on single channel, Lack of control / visibility, Going international / scaling, Efficiency gap, Limited marketing capacity, Other",
+  "fullText": "first 2000 chars of readable text from the PDF for objection matching"
+}` },
+          ],
+        }],
+      });
+      const responseText = msg.content[0].type === 'text' ? msg.content[0].text : '';
+      extracted = JSON.parse(responseText);
+      text = extracted.fullText || '';
+      delete extracted.fullText;
+    } catch (aiErr: any) {
+      extracted = { _error: aiErr.message };
+    }
+
+    // Keyword-based objection detection on extracted text
+    const suggestedObjections = detectObjectionsFromText(text || JSON.stringify(extracted));
+
+    return json(res, { suggestedObjections, extracted, preview: text.slice(0, 500).trim() });
+  } catch (err: any) {
+    return json(res, { error: 'Failed to analyze PDF: ' + err.message }, 500);
+  }
 }
 
 // ── Health ─────────────────────────────────────────────────────────────────
