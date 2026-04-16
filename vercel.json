@@ -8,7 +8,7 @@
     "api/index.ts": {
       "memory": 1024,
       "maxDuration": 60,
-      "includeFiles": "src/dashboard/**,work/midmarket/*.md"
+      "includeFiles": "src/dashboard/**,data/*.json,work/midmarket/*.md,api/server.mjs"
     }
   }
 }
