@@ -761,32 +761,36 @@ async function handleEnrichUrl(req: VercelRequest, res: VercelResponse) {
   if (!url) return json(res, { error: 'URL is required' }, 400);
 
   try {
-    // Fetch the page (follow redirects, handle HTTPS)
+    // Try to fetch the page — fall back to Claude's knowledge if site blocks us
     const fetchUrl = url.startsWith('http') ? url : 'https://' + url;
-    const response = await fetch(fetchUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) return json(res, { error: `Website returned ${response.status}` }, 400);
-    const html = await response.text();
+    let textContent = '';
+    let pageTitle = '';
+    let metaDesc = '';
+    let scraped = false;
 
-    // Strip HTML tags, keep text
-    const textContent = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 4000);
+    try {
+      const response = await fetch(fetchUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.ok) {
+        const html = await response.text();
+        textContent = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 4000);
+        const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+        const metaMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+        pageTitle = titleMatch?.[1] || '';
+        metaDesc = metaMatch?.[1] || '';
+        scraped = true;
+      }
+    } catch { /* site unreachable or blocked — Claude will use its training data */ }
 
-    // Extract meta description and title
-    const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
-    const metaMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
-    const pageTitle = titleMatch?.[1] || '';
-    const metaDesc = metaMatch?.[1] || '';
-
-    // Send to Claude for enrichment
     const AnthropicMod = await import('@anthropic-ai/sdk');
     const Anthropic = AnthropicMod.default || AnthropicMod;
     const anthropic = new Anthropic();
@@ -796,13 +800,9 @@ async function handleEnrichUrl(req: VercelRequest, res: VercelResponse) {
       max_tokens: 1024,
       messages: [{
         role: 'user',
-        content: `Analyze this company website and extract structured data. Return ONLY valid JSON.
+        content: `Analyze this company and extract structured data. Return ONLY valid JSON, no markdown.
 
-URL: ${url}
-Page title: ${pageTitle}
-Meta description: ${metaDesc}
-Page text (first 4000 chars):
-${textContent}
+URL: ${url}${scraped ? `\nPage title: ${pageTitle}\nMeta description: ${metaDesc}\nPage text (first 4000 chars):\n${textContent}` : '\n(Website could not be scraped — use your knowledge about this company based on the URL/domain name.)'}
 
 Return this JSON:
 {
