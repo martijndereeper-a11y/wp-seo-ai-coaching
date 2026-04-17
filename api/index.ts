@@ -824,6 +824,15 @@ async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
   const countries = fields.countries ? fields.countries.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
 
   const id = fields.id || company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+
+  // If editing (id provided) and no new PDF uploaded, preserve existing pdfFile
+  let existingPdfFile: string | null = null;
+  if (fields.id && !pdfFileName) {
+    const allCases = await loadAllUseCases();
+    const existing = allCases.find((c: any) => c.id === fields.id);
+    if (existing?.pdfFile) existingPdfFile = existing.pdfFile;
+  }
+
   const useCase = {
     id,
     company,
@@ -840,7 +849,7 @@ async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
     objections,
     countries,
     keywords,
-    pdfFile: pdfFileName || fields.pdfFile || null,
+    pdfFile: pdfFileName || existingPdfFile || fields.pdfFile || null,
   };
 
   await saveAdminCase(useCase);

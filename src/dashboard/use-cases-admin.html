@@ -106,6 +106,18 @@ select{cursor:pointer}
 .cl-card .cl-ind{font-size:12px;color:var(--text2)}
 .cl-card .cl-type{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(168,85,247,.1);color:var(--purple)}
 .cl-card .cl-src{font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg3);color:var(--text2)}
+.cl-card .cl-pdf-status{font-size:10px;padding:2px 6px;border-radius:3px;font-weight:600}
+.cl-card .cl-pdf-status.missing{background:rgba(239,68,68,.15);color:var(--red)}
+.cl-card .cl-pdf-status.ok{background:rgba(34,197,94,.15);color:var(--green)}
+.cl-card .cl-edit{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer;transition:all .15s}
+.cl-card .cl-edit:hover{border-color:var(--purple);color:var(--purple)}
+
+/* Edit mode banner */
+.edit-banner{display:none;align-items:center;gap:10px;padding:12px 16px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.3);border-radius:8px;margin-bottom:20px;font-size:13px}
+.edit-banner.show{display:flex}
+.edit-banner strong{color:var(--purple)}
+.edit-banner .eb-cancel{margin-left:auto;background:none;border:1px solid var(--border);color:var(--text2);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer}
+.edit-banner .eb-cancel:hover{color:var(--text);border-color:var(--purple)}
 </style>
 </head>
 <body>
@@ -131,8 +143,13 @@ select{cursor:pointer}
 </div>
 
 <div class="container">
-  <h2>Add a new success case</h2>
-  <p class="subtitle">Upload the PDF slides and fill in the details. Objections can be auto-detected from the PDF.</p>
+  <h2 id="formTitle">Add a new success case</h2>
+  <p class="subtitle" id="formSubtitle">Upload the PDF slides and fill in the details. Objections can be auto-detected from the PDF.</p>
+
+  <div class="edit-banner" id="editBanner">
+    <span>Editing <strong id="editingCompany"></strong> — upload a new PDF or change any fields. Blank PDF keeps the existing one.</span>
+    <button type="button" class="eb-cancel" id="cancelEditBtn">Cancel</button>
+  </div>
 
   <form id="caseForm">
 
@@ -580,7 +597,8 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
   status.className = 'submit-status';
   status.textContent = 'Saving...';
 
-  if (!selectedPdf) { status.textContent = 'Please upload a PDF first.'; status.className = 'submit-status err'; btn.disabled = false; return; }
+  // When editing, PDF is optional (keeps existing if none uploaded)
+  if (!editingCaseId && !selectedPdf) { status.textContent = 'Please upload a PDF first.'; status.className = 'submit-status err'; btn.disabled = false; return; }
   if (!document.getElementById('company').value.trim()) { status.textContent = 'Company name is required.'; status.className = 'submit-status err'; btn.disabled = false; return; }
 
   // Gather selected objections
@@ -590,7 +608,8 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
   });
 
   const fd = new FormData();
-  fd.append('pdf', selectedPdf);
+  if (editingCaseId) fd.append('id', editingCaseId);
+  if (selectedPdf) fd.append('pdf', selectedPdf);
   fd.append('company', document.getElementById('company').value.trim());
   fd.append('industry', document.getElementById('industry').value.trim() || 'General');
   fd.append('painPattern', document.getElementById('painPattern').value.trim() || 'Other');
@@ -611,17 +630,13 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (data.error) { status.textContent = data.error; status.className = 'submit-status err'; btn.disabled = false; return; }
 
-    status.textContent = `Saved "${data.case.company}" — it's now live in the finder.`;
+    const action = editingCaseId ? 'Updated' : 'Saved';
+    status.textContent = `${action} "${data.case.company}" — it's now live in the finder.`;
     status.className = 'submit-status ok';
     btn.disabled = false;
 
-    // Reset form
-    document.getElementById('caseForm').reset();
-    removePdf();
-    keywords = [];
-    renderKeywords();
-    suggestedObjIds.clear();
-    renderObjections();
+    // Reset form (also clears edit state)
+    resetForm();
 
     // Refresh cases list
     const listRes = await fetch(apiUrl('/api/use-cases'));
@@ -636,15 +651,93 @@ document.getElementById('caseForm').addEventListener('submit', async (e) => {
 
 // ─── Cases list ──────────────────────────────────────────────────────────────
 
+let allCases = [];
+
 function renderCasesList(cases) {
+  allCases = cases;
   const grid = document.getElementById('casesGrid');
   grid.innerHTML = cases.map(c => `
     <div class="cl-card">
       <span class="cl-name">${escapeHtml(c.company)}</span>
       <span class="cl-ind">${escapeHtml(c.industry)}</span>
       <span class="cl-type">${escapeHtml(c.businessType)}</span>
+      <span class="cl-pdf-status ${c.pdfFile ? 'ok' : 'missing'}">${c.pdfFile ? 'PDF' : 'No PDF'}</span>
+      <button type="button" class="cl-edit" onclick="editCase('${escapeHtml(c.id)}')">Edit</button>
     </div>
   `).join('');
+}
+
+// ─── Edit mode ───────────────────────────────────────────────────────────────
+
+let editingCaseId = null;
+
+function editCase(id) {
+  const c = allCases.find(x => x.id === id);
+  if (!c) return;
+  editingCaseId = id;
+
+  document.getElementById('formTitle').textContent = 'Edit success case';
+  document.getElementById('formSubtitle').textContent = 'Update fields or attach a new PDF.';
+  document.getElementById('editingCompany').textContent = c.company;
+  document.getElementById('editBanner').classList.add('show');
+
+  // Populate fields
+  document.getElementById('company').value = c.company || '';
+  document.getElementById('industry').value = c.industry || '';
+  document.getElementById('painPattern').value = c.painPattern || '';
+  document.getElementById('businessType').value = c.businessType || 'B2B';
+  document.getElementById('marketPosition').value = c.marketPosition || 'Mainstream';
+  document.getElementById('trustSensitive').checked = !!c.trustSensitive;
+  document.getElementById('clickTier').value = c.clickTier || 'Small base (100-500)';
+  document.getElementById('countries').value = Array.isArray(c.countries) ? c.countries.join(', ') : '';
+  document.getElementById('headline').value = c.headline || '';
+  document.getElementById('outcome').value = c.outcome || '';
+  document.getElementById('result').value = c.result || '';
+  document.getElementById('summary').value = c.summary || '';
+
+  // Keywords
+  keywords = Array.isArray(c.keywords) ? [...c.keywords] : [];
+  renderKeywords();
+
+  // Objections
+  document.querySelectorAll('.obj-check input').forEach((cb) => {
+    const idx = parseInt(cb.value);
+    const isChecked = (c.objections || []).includes(OBJECTIONS[idx]);
+    cb.checked = isChecked;
+    cb.closest('.obj-check').classList.toggle('checked', isChecked);
+  });
+
+  // Show existing PDF status
+  if (c.pdfFile) {
+    const info = document.getElementById('fileInfo');
+    info.style.display = '';
+    info.innerHTML = `<div class="file-info">
+      <span class="fi-name">${escapeHtml(c.pdfFile)}</span>
+      <span class="fi-size">Existing PDF</span>
+    </div>`;
+  }
+
+  // Update submit button
+  document.getElementById('submitBtn').textContent = 'Update case';
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.getElementById('cancelEditBtn').addEventListener('click', () => resetForm());
+
+function resetForm() {
+  editingCaseId = null;
+  document.getElementById('formTitle').textContent = 'Add a new success case';
+  document.getElementById('formSubtitle').textContent = 'Upload the PDF slides and fill in the details. Objections can be auto-detected from the PDF.';
+  document.getElementById('editBanner').classList.remove('show');
+  document.getElementById('caseForm').reset();
+  document.getElementById('submitBtn').textContent = 'Save case';
+  removePdf();
+  keywords = [];
+  renderKeywords();
+  suggestedObjIds.clear();
+  renderObjections();
 }
 
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
