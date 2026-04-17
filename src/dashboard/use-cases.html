@@ -387,8 +387,12 @@ function renderResults(cases) {
 
   const GH_RAW = 'https://raw.githubusercontent.com/martijndereeper-a11y/use-case-finder/main/use-cases';
   el.innerHTML = cases.map(c => {
-    const pdfRaw = `${GH_RAW}/${encodeURIComponent(c.pdfFile)}`;
-    const pdfView = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfRaw)}&embedded=true`;
+    // Prefer pdfUrl from backend (handles both seed and admin-uploaded PDFs)
+    const pdfRaw = c.pdfUrl || (c.pdfFile ? `${GH_RAW}/${encodeURIComponent(c.pdfFile)}` : '');
+    // If the PDF is on our own domain, use it directly; otherwise use Google viewer for cross-origin
+    const isLocal = pdfRaw.startsWith('/') || pdfRaw.startsWith(window.location.origin);
+    const pdfAbsolute = isLocal ? (window.location.origin + pdfRaw) : pdfRaw;
+    const pdfView = isLocal ? pdfAbsolute : `https://docs.google.com/viewer?url=${encodeURIComponent(pdfAbsolute)}&embedded=true`;
     return `
     <div class="case-card">
       <div class="case-top">
@@ -410,8 +414,10 @@ function renderResults(cases) {
         ${c.objections.map(o => `<span class="case-tag objection">${escapeHtml(o)}</span>`).join('')}
       </div>
       <div class="case-actions">
+        ${pdfRaw ? `
         <a class="pdf-btn view" href="${pdfView}" target="_blank">${svgPdf} View PDF</a>
-        <a class="pdf-btn download" href="${pdfRaw}" download>${svgDown} Download slides</a>
+        <a class="pdf-btn download" href="${isLocal ? pdfRaw + '?download=1' : pdfRaw}" download>${svgDown} Download slides</a>
+        ` : '<span style="color:var(--text2);font-size:12px">No PDF attached</span>'}
       </div>
     </div>`;
   }).join('');

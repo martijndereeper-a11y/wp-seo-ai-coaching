@@ -277,6 +277,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (path === '/api/use-cases' && method === 'GET') return handleUseCases(req, res);
     if (path === '/api/use-cases/search' && method === 'GET') return handleUseCaseSearch(req, res);
     if (path === '/api/use-cases/by-objection' && method === 'GET') return handleUseCaseByObjection(req, res);
+    const pdfMatch = matchRoute(path, '/api/use-cases/pdf/:filename');
+    if (pdfMatch && method === 'GET') return handleServePdf(req, res, pdfMatch.filename);
     if (path === '/health' && method === 'GET') return json(res, { ok: true });
 
     // ── Use Case Admin API (password-protected) ───────────────────────
@@ -499,10 +501,18 @@ async function loadAdminAddedCases(): Promise<any[]> {
 async function loadAllUseCases(): Promise<any[]> {
   const seed = loadSeedCases();
   const added = await loadAdminAddedCases();
-  // Merge: added cases override seed by id
   const addedIds = new Set(added.map((c: any) => c.id));
-  const fromSeed = seed.filter((c: any) => !addedIds.has(c.id));
-  return [...fromSeed, ...added];
+
+  const GH_RAW = 'https://raw.githubusercontent.com/martijndereeper-a11y/use-case-finder/main/use-cases';
+  const attachPdfUrl = (c: any, fromAdmin: boolean) => {
+    if (!c.pdfFile) return { ...c, pdfUrl: null };
+    if (fromAdmin) return { ...c, pdfUrl: `/api/use-cases/pdf/${encodeURIComponent(c.pdfFile)}` };
+    return { ...c, pdfUrl: `${GH_RAW}/${encodeURIComponent(c.pdfFile)}` };
+  };
+
+  const fromSeed = seed.filter((c: any) => !addedIds.has(c.id)).map((c: any) => attachPdfUrl(c, false));
+  const fromAdmin = added.map((c: any) => attachPdfUrl(c, true));
+  return [...fromSeed, ...fromAdmin];
 }
 
 async function saveAdminCase(newCase: any): Promise<void> {
@@ -654,6 +664,64 @@ async function parseMultipartFields(req: VercelRequest): Promise<Record<string, 
   return fields;
 }
 
+/** Parse multipart — extracting both text fields AND file buffers from raw body */
+async function parseMultipartFull(req: VercelRequest): Promise<{
+  fields: Record<string, string>;
+  files: Record<string, { filename: string; contentType: string; buffer: Buffer }>;
+}> {
+  const contentType = req.headers['content-type'] || '';
+  const boundaryMatch = contentType.match(/boundary=(.+)/);
+  if (!boundaryMatch) return { fields: {}, files: {} };
+
+  const raw = await getRawBody(req);
+  if (!raw || raw.length === 0) return { fields: {}, files: {} };
+
+  const boundary = Buffer.from('--' + boundaryMatch[1].trim());
+  const fields: Record<string, string> = {};
+  const files: Record<string, { filename: string; contentType: string; buffer: Buffer }> = {};
+
+  // Split raw buffer by boundary (byte-level, preserves binary)
+  const parts: Buffer[] = [];
+  let pos = 0;
+  while (pos < raw.length) {
+    const start = raw.indexOf(boundary, pos);
+    if (start === -1) break;
+    const next = raw.indexOf(boundary, start + boundary.length);
+    if (next === -1) break;
+    parts.push(raw.subarray(start + boundary.length, next));
+    pos = next;
+  }
+
+  const sep = Buffer.from('\r\n\r\n');
+  for (const part of parts) {
+    const hIdx = part.indexOf(sep);
+    if (hIdx === -1) continue;
+    const header = part.subarray(0, hIdx).toString('utf-8');
+    const nameMatch = header.match(/name="([^"]+)"/);
+    if (!nameMatch) continue;
+
+    let body = part.subarray(hIdx + sep.length);
+    // Strip trailing \r\n before next boundary
+    if (body.length >= 2 && body[body.length - 2] === 0x0d && body[body.length - 1] === 0x0a) {
+      body = body.subarray(0, body.length - 2);
+    }
+
+    const filenameMatch = header.match(/filename="([^"]+)"/);
+    if (filenameMatch) {
+      const ctMatch = header.match(/Content-Type:\s*(.+)/i);
+      files[nameMatch[1]] = {
+        filename: filenameMatch[1],
+        contentType: ctMatch?.[1].trim() || 'application/octet-stream',
+        buffer: Buffer.from(body),
+      };
+    } else {
+      fields[nameMatch[1]] = body.toString('utf-8');
+    }
+  }
+
+  return { fields, files };
+}
+
 /** Parse form fields from multipart body, URL-encoded, or JSON (sync version for non-stream) */
 function parseFormFields(req: VercelRequest): Record<string, string> {
   const body = req.body;
@@ -715,7 +783,31 @@ function parseFormFields(req: VercelRequest): Record<string, string> {
 }
 
 async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
-  const fields = await parseMultipartFields(req);
+  const contentType = req.headers['content-type'] || '';
+  const isMultipart = contentType.includes('multipart/form-data');
+
+  let fields: Record<string, string>;
+  let pdfFileName: string | null = null;
+
+  if (isMultipart) {
+    const { fields: f, files } = await parseMultipartFull(req);
+    fields = f;
+    const pdf = files.pdf;
+    if (pdf && pdf.buffer.length > 0) {
+      // Upload PDF to Supabase Storage
+      const supabase = getSupabase();
+      // Sanitize filename (spaces, weird chars can break URLs)
+      const safeName = pdf.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const { error: upErr } = await supabase.storage
+        .from('use-case-pdfs')
+        .upload(safeName, pdf.buffer, { contentType: 'application/pdf', upsert: true });
+      if (upErr) return json(res, { error: 'Failed to upload PDF: ' + upErr.message }, 500);
+      pdfFileName = safeName;
+    }
+  } else {
+    fields = await parseMultipartFields(req);
+  }
+
   const company = fields.company?.trim();
   if (!company) return json(res, { error: 'Company name required' }, 400);
 
@@ -748,11 +840,29 @@ async function handleAdminSaveCase(req: VercelRequest, res: VercelResponse) {
     objections,
     countries,
     keywords,
-    pdfFile: fields.pdfFile || null,
+    pdfFile: pdfFileName || fields.pdfFile || null,
   };
 
   await saveAdminCase(useCase);
   return json(res, { ok: true, id, case: useCase });
+}
+
+async function handleServePdf(req: VercelRequest, res: VercelResponse, filename: string) {
+  try {
+    const supabase = getSupabase();
+    const decoded = decodeURIComponent(filename);
+    const { data, error } = await supabase.storage.from('use-case-pdfs').download(decoded);
+    if (error || !data) return res.status(404).send('PDF not found');
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const download = req.query?.download === '1';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${decoded}"`);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.status(200).send(buffer);
+  } catch (err: any) {
+    return res.status(500).send('Failed to serve PDF: ' + err.message);
+  }
 }
 
 async function handleEnrichUrl(req: VercelRequest, res: VercelResponse) {
