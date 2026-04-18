@@ -151,9 +151,10 @@ function serveDashboardFile(c: any, filename: string) {
   return c.text(`${filename} not found. Tried: ${paths.join(', ')}`, 500);
 }
 
-app.get('/', (c) => serveDashboardFile(c, 'index.html'));
+app.get('/', (c) => serveDashboardFile(c, 'v1.html'));
 app.get('/v1', (c) => serveDashboardFile(c, 'v1.html'));
 app.get('/classic', (c) => serveDashboardFile(c, 'index.html'));
+app.get('/deep', (c) => serveDashboardFile(c, 'index.html'));
 app.get('/sales-os', (c) => serveDashboardFile(c, 'sales-os.html'));
 app.get('/pipeline', (c) => serveDashboardFile(c, 'pipeline.html'));
 
