@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { streamText } from 'hono/streaming';
 import { requireRole } from '../auth.ts';
 import { supabase, avg, PILLAR_KEYS, PILLAR_NAMES } from '../shared.ts';
 
@@ -123,21 +124,48 @@ routes.get('/ae/:name/pillars', async (c) => {
   return c.json(result);
 });
 
-// AE Deep Analysis
+// AE Deep Analysis — reads from cache by default, regenerates if stale or forced
 routes.post('/ae/:name/deep-analysis', requireRole('lead'), async (c) => {
   const name = decodeURIComponent(c.req.param('name')!);
-  const { data: profile } = await supabase.from('ae_coaching_profiles').select('total_calls, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, top_strengths, top_weaknesses').eq('recorder_name', name).single();
+  const force = c.req.query('force') === 'true';
 
-  const calls: any[] = [];
-  let from = 0;
-  while (true) {
-    const { data: page } = await supabase.from('ae_call_analysis').select('title, created_at, duration_seconds, talk_ratio, question_count, script_adherence, call_quality_score, outcome, smart_review, call_verdict, sections_missed').eq('recorder_name', name).order('created_at', { ascending: false }).range(from, from + 99);
-    if (!page || page.length === 0) break;
-    calls.push(...page);
-    if (page.length < 100) break;
-    from += 100;
+  // Read cache
+  const { data: cached } = await supabase
+    .from('ae_deep_analyses')
+    .select('analysis, last_call_at, call_count, generated_at')
+    .eq('recorder_name', name)
+    .maybeSingle();
+
+  // Determine current state
+  const { data: latest } = await supabase
+    .from('ae_call_analysis')
+    .select('created_at')
+    .eq('recorder_name', name)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { data: profile } = await supabase
+    .from('ae_coaching_profiles')
+    .select('total_calls, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, top_strengths, top_weaknesses')
+    .eq('recorder_name', name)
+    .single();
+
+  const latestCallAt = latest?.created_at || null;
+  const cacheIsFresh = cached && cached.last_call_at === latestCallAt && cached.call_count === profile?.total_calls;
+
+  // Serve from cache unless stale or forced
+  if (cacheIsFresh && !force && cached) {
+    return c.json({ ...(cached.analysis as object), _cached: true, _generatedAt: cached.generated_at });
   }
-  if (calls.length < 3) return c.json({ error: 'Not enough calls to generate deep analysis (need at least 3)' }, 400);
+
+  // Regenerate (blocking — use /stream for SSE)
+  const { data: calls } = await supabase
+    .from('ae_call_analysis')
+    .select('title, created_at, duration_seconds, talk_ratio, question_count, script_adherence, call_quality_score, outcome, smart_review, call_verdict, sections_missed')
+    .eq('recorder_name', name)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (!calls || calls.length < 3) return c.json({ error: 'Not enough calls to generate deep analysis (need at least 3)' }, 400);
 
   const { data: allProfiles } = await supabase.from('ae_coaching_profiles').select('avg_talk_ratio, avg_question_count, avg_call_quality');
   const teamBenchmarks = {
@@ -171,7 +199,129 @@ routes.post('/ae/:name/deep-analysis', requireRole('lead'), async (c) => {
   const { analyzeAEDeep } = await import('../../analysis/narrative-coach.ts');
   const result = await analyzeAEDeep(name, callSummaries, profileData, teamBenchmarks);
   if (!result) return c.json({ error: 'Failed to generate deep analysis. Check ANTHROPIC_API_KEY.' }, 500);
-  return c.json(result);
+
+  // Write cache
+  await supabase.from('ae_deep_analyses').upsert({
+    recorder_name: name,
+    analysis: result,
+    last_call_at: latestCallAt,
+    call_count: profile?.total_calls || calls.length,
+    generated_at: new Date().toISOString(),
+    model: 'claude-sonnet-4-6',
+  });
+
+  return c.json({ ...result, _cached: false, _generatedAt: new Date().toISOString() });
+});
+
+// Fast cache-only read (no regeneration)
+routes.get('/ae/:name/deep-analysis', async (c) => {
+  const name = decodeURIComponent(c.req.param('name')!);
+  const { data } = await supabase
+    .from('ae_deep_analyses')
+    .select('analysis, last_call_at, call_count, generated_at')
+    .eq('recorder_name', name)
+    .maybeSingle();
+  if (!data) return c.json({ error: 'Not generated yet' }, 404);
+  return c.json({ ...(data.analysis as object), _cached: true, _generatedAt: data.generated_at, _lastCallAt: data.last_call_at, _callCount: data.call_count });
+});
+
+// Streaming AE deep analysis — emits text chunks, updates cache on completion
+routes.post('/ae/:name/deep-analysis/stream', requireRole('lead'), async (c) => {
+  const name = decodeURIComponent(c.req.param('name')!);
+
+  const [{ data: calls }, { data: profile }, { data: allProfiles }, { data: latest }] = await Promise.all([
+    supabase.from('ae_call_analysis')
+      .select('title, created_at, duration_seconds, talk_ratio, question_count, script_adherence, call_quality_score, outcome, smart_review, call_verdict, sections_missed')
+      .eq('recorder_name', name)
+      .order('created_at', { ascending: false })
+      .limit(30),
+    supabase.from('ae_coaching_profiles')
+      .select('total_calls, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, top_strengths, top_weaknesses')
+      .eq('recorder_name', name)
+      .single(),
+    supabase.from('ae_coaching_profiles').select('avg_talk_ratio, avg_question_count, avg_call_quality'),
+    supabase.from('ae_call_analysis').select('created_at').eq('recorder_name', name).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+
+  if (!calls || calls.length < 3) return c.json({ error: 'Need at least 3 calls' }, 400);
+
+  const teamBenchmarks = {
+    avgTalkRatio: Math.round(avg((allProfiles || []).map(p => p.avg_talk_ratio))),
+    avgQuestions: Math.round(avg((allProfiles || []).map(p => p.avg_question_count))),
+    avgQuality: Math.round(avg((allProfiles || []).map(p => p.avg_call_quality))),
+  };
+
+  const SECTION_NAMES = ['Origin','AI Search','SEO Bridge','Tools Gap','96.55%','Manual Pain','Sitemap','Pling','Clusters','Fisher/1999','Snowball','Pricing'];
+  const callSummaries = calls.map((c: any) => {
+    const sr = c.smart_review || {};
+    return {
+      title: c.title || 'Untitled', date: (c.created_at || '').slice(0, 10),
+      duration: Math.round((c.duration_seconds || 0) / 60), talkRatio: c.talk_ratio || 0,
+      questionCount: c.question_count || 0, scriptAdherence: c.script_adherence || 0,
+      quality: c.call_quality_score || 0, outcome: c.outcome || '',
+      summary: sr.summary || '', oneThingToChange: sr.oneThingToChange || '',
+      objections: (sr.objections || []).map((o: any) => ({ prospectSaid: o.prospectSaid || '', aeSaid: o.aeSaid || '', handling: o.handling || '' })),
+      buyingSignals: (sr.buyingSignals || []).map((b: any) => ({ prospectSaid: b.prospectSaid || '', aeSaid: b.aeSaid || '', didAdvance: b.didAdvance || false })),
+      callVerdict: Array.isArray(c.call_verdict) ? c.call_verdict : [],
+      scriptMissed: (c.sections_missed || []).map((id: number) => SECTION_NAMES[id - 1] || `Section ${id}`),
+    };
+  });
+
+  const profileData = {
+    totalCalls: profile?.total_calls || calls.length,
+    avgTalkRatio: profile?.avg_talk_ratio || 0,
+    avgQuestions: profile?.avg_question_count || 0,
+    avgScriptAdherence: profile?.avg_script_adherence || 0,
+    avgQuality: profile?.avg_call_quality || 0,
+    strengths: profile?.top_strengths || [],
+    weaknesses: profile?.top_weaknesses || [],
+  };
+
+  const { streamAEDeep } = await import('../../analysis/narrative-coach.ts');
+  const latestCallAt = latest?.created_at || null;
+  const callCount = profile?.total_calls || calls.length;
+
+  return streamText(c, async (stream) => {
+    let full = '';
+    for await (const chunk of streamAEDeep(name, callSummaries, profileData, teamBenchmarks)) {
+      full += chunk;
+      await stream.write(chunk);
+    }
+
+    // Parse + cache
+    try {
+      const extract = (marker: string, end: string | null): string => {
+        const startIdx = full.indexOf(marker);
+        if (startIdx === -1) return '';
+        let content: string;
+        if (end) {
+          const endIdx = full.indexOf('### ' + end, startIdx + marker.length);
+          content = endIdx === -1 ? full.slice(startIdx + marker.length) : full.slice(startIdx + marker.length, endIdx);
+        } else {
+          content = full.slice(startIdx + marker.length);
+        }
+        return content.replace(/^[#\s]*/, '').trim();
+      };
+      const analysis = {
+        overview: extract('1. OVERVIEW', '2.'),
+        callControl: extract('2. CALL CONTROL', '3.'),
+        discoveryAndGapCreation: extract('3. DISCOVERY', '4.'),
+        objectionPatterns: extract('4. OBJECTION HANDLING', '5.'),
+        closingBehavior: extract('5. CLOSING', '6.'),
+        scriptExecution: extract('6. SCRIPT', '7.'),
+        coachingPlan: extract('7. COACHING PLAN', null),
+        generatedAt: new Date().toISOString(),
+      };
+      await supabase.from('ae_deep_analyses').upsert({
+        recorder_name: name,
+        analysis,
+        last_call_at: latestCallAt,
+        call_count: callCount,
+        generated_at: new Date().toISOString(),
+        model: 'claude-sonnet-4-6',
+      });
+    } catch (e) { /* non-fatal */ }
+  });
 });
 
 // Rep Coaching Cards

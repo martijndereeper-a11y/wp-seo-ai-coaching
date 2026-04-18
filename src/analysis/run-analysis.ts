@@ -19,9 +19,16 @@ import { generateSmartReview, type SmartReviewBenchmarks } from './smart-review.
 import { scoreGame } from './sales-game.ts';
 import { classifyWithDealContext, classifyMeeting, type MeetingClassification } from './meeting-classifier.ts';
 import { classifyCallTier } from './call-tier.ts';
+import { classifyVBAT } from './vbat-classifier.ts';
+import { analyzeCallNarrative, analyzeAEDeep } from './narrative-coach.ts';
+import { isExcludedAE } from '../config/excluded-aes.ts';
+import { COACHING_WINDOW_DAYS, coachingWindowCutoff } from '../config/coaching-window.ts';
 
 const supabase = createSupabaseClient();
 const isFullMode = process.argv.includes('--full');
+const withLLM = process.argv.includes('--llm') || process.argv.includes('--with-llm');
+const llmOnly = process.argv.includes('--llm-only');
+const LLM_CONCURRENCY = 4;
 
 // ─── Ensure tables exist ─────────────────────────────────────────────────────
 
@@ -64,6 +71,40 @@ async function ensureTables() {
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS meeting_classification JSONB DEFAULT '{}';
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS call_tier TEXT DEFAULT 'B';
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS call_tier_classification JSONB DEFAULT '{}';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS narrative_review JSONB DEFAULT '{}';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS vbat_classification JSONB DEFAULT '{}';
+    `,
+  }).catch(() => {});
+
+  // AE-level deep analysis cache (keyed by recorder_name, invalidated by last_call_at)
+  await supabase.rpc('exec_sql', {
+    sql: `
+      CREATE TABLE IF NOT EXISTS ae_deep_analyses (
+        recorder_name TEXT PRIMARY KEY,
+        analysis JSONB NOT NULL DEFAULT '{}',
+        last_call_at TIMESTAMPTZ,
+        call_count INT DEFAULT 0,
+        generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        model TEXT
+      );
+    `,
+  }).catch(() => {});
+
+  // VBAT feedback (AEs flag wrong verdicts)
+  await supabase.rpc('exec_sql', {
+    sql: `
+      CREATE TABLE IF NOT EXISTS vbat_feedback (
+        id TEXT PRIMARY KEY,
+        recording_id TEXT NOT NULL,
+        dimension TEXT NOT NULL,
+        verdict_was BOOLEAN NOT NULL,
+        correct_verdict BOOLEAN,
+        note TEXT,
+        voter TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_vbat_fb_recording ON vbat_feedback(recording_id);
+      CREATE INDEX IF NOT EXISTS idx_vbat_fb_dim ON vbat_feedback(dimension);
     `,
   }).catch(() => {});
 
@@ -338,6 +379,17 @@ async function main() {
   console.log('\nBuilding coaching profiles...');
   await buildCoachingProfiles();
 
+  // LLM gap-fill: VBAT + narrative review for calls missing them
+  if (withLLM || llmOnly) {
+    console.log('\nFilling LLM gaps (VBAT classification + narrative reviews)...');
+    await fillLLMGaps();
+
+    console.log('\nRefreshing AE deep analyses (cached)...');
+    await refreshAEDeepAnalyses();
+  } else {
+    console.log('\nSkipping LLM work (pass --llm to enable VBAT + narrative pre-compute)');
+  }
+
   // Link recordings to deals (closed-loop analytics)
   console.log('\nLinking recordings to deals...');
   try {
@@ -574,6 +626,256 @@ function avgPatterns(patternList: Record<string, number>[]): Record<string, numb
     result[k] = +(v / patternList.length).toFixed(1);
   }
   return result;
+}
+
+// ─── LLM Gap-Fill (VBAT + per-call narrative) ────────────────────────────────
+
+async function fillLLMGaps() {
+  // Skip calls under 10 minutes — rarely have enough signal for coaching value
+  const MIN_DURATION_SECONDS = 600;
+  const PAGE_SIZE = 200;
+  const windowCutoff = coachingWindowCutoff();
+
+  // Pull calls missing VBAT classification or narrative_review (paginated, lightweight cols only)
+  // Only within the coaching window — older calls aren't worth LLM spend.
+  const rows: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from('ae_call_analysis')
+      .select('recording_id, recorder_name, title, duration_seconds, vbat_classification, narrative_review')
+      .gte('duration_seconds', MIN_DURATION_SECONDS)
+      .gte('created_at', windowCutoff)
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) { console.error(`  Fetch error at offset ${from}:`, error.message); break; }
+    if (!page || page.length === 0) break;
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  if (rows.length === 0) { console.log('  No rows found'); return; }
+
+  // Filter out excluded AEs (former reps, leadership, etc.)
+  const beforeExclude = rows.length;
+  const filtered = rows.filter(r => !isExcludedAE(r.recorder_name));
+  const excludedCount = beforeExclude - filtered.length;
+  rows.length = 0;
+  rows.push(...filtered);
+  console.log(`  ${rows.length} calls >= ${MIN_DURATION_SECONDS / 60} min within last ${COACHING_WINDOW_DAYS} days (excluded ${excludedCount} from excluded AEs)`);
+
+  const needsVBAT = rows.filter(r => !r.vbat_classification || Object.keys(r.vbat_classification as object).length === 0);
+  const needsNarrative = rows.filter(r => !r.narrative_review || Object.keys(r.narrative_review as object).length === 0);
+  const jobs = new Set<string>();
+  for (const r of needsVBAT) jobs.add(r.recording_id);
+  for (const r of needsNarrative) jobs.add(r.recording_id);
+  if (jobs.size === 0) { console.log('  All calls have VBAT + narrative'); return; }
+  console.log(`  ${jobs.size} calls missing VBAT or narrative (VBAT: ${needsVBAT.length}, Narrative: ${needsNarrative.length})`);
+
+  // Load transcripts for those calls
+  const rowsById = new Map(rows.map(r => [r.recording_id, r]));
+  const jobList = Array.from(jobs);
+  let filled = 0, skipped = 0, apiErrors = 0, consecutiveErrors = 0, bailedOut = false;
+  const CONSECUTIVE_ERROR_BAILOUT = 20;
+
+  // Parallel pool
+  async function worker(id: string) {
+    if (bailedOut) return;
+    const row = rowsById.get(id);
+    if (!row) return;
+    try {
+      const { data: rec } = await supabase
+        .from('recordings')
+        .select('transcript_text')
+        .eq('id', id)
+        .single();
+      if (!rec?.transcript_text) { skipped++; return; }
+      const parsed = parseTranscript(rec.transcript_text, row.recorder_name);
+      const needVBAT = !row.vbat_classification || Object.keys(row.vbat_classification as object).length === 0;
+      const needNar = !row.narrative_review || Object.keys(row.narrative_review as object).length === 0;
+
+      const updates: Record<string, unknown> = {};
+      const tasks: Promise<boolean>[] = [];  // true = LLM returned content, false = null
+
+      if (needVBAT) {
+        tasks.push((async () => {
+          const result = await classifyVBAT(parsed.turns, row.recorder_name, row.title || 'Untitled', row.duration_seconds || 0);
+          if (result) { updates.vbat_classification = result; return true; }
+          return false;
+        })());
+      }
+      if (needNar) {
+        tasks.push((async () => {
+          // Fetch highlights on demand (they're big JSONB — keeps the initial paged query small)
+          const { data: hlRow } = await supabase.from('ae_call_analysis').select('highlights').eq('recording_id', id).single();
+          const flagged = ((hlRow?.highlights as any[]) || []).map((h: any) => ({
+            type: h.type, category: h.category, timestamp: h.timestampDisplay, excerpt: h.excerpt, guidance: h.guidance || '',
+          }));
+          const result = await analyzeCallNarrative(
+            rec.transcript_text, row.recorder_name, row.title || 'Untitled', Math.round((row.duration_seconds || 0) / 60), flagged,
+          );
+          if (result) { updates.narrative_review = result; return true; }
+          return false;
+        })());
+      }
+
+      const results = await Promise.all(tasks);
+      const anyContent = results.some(r => r === true);
+
+      if (!anyContent) {
+        // All LLM calls returned null — likely auth/billing/transient API failure
+        apiErrors++;
+        consecutiveErrors++;
+        if (consecutiveErrors >= CONSECUTIVE_ERROR_BAILOUT) {
+          bailedOut = true;
+          console.error(`\n  ❌ ${CONSECUTIVE_ERROR_BAILOUT} consecutive LLM failures — bailing out. Check ANTHROPIC_API_KEY and credit balance. (${filled} filled before failure streak)`);
+        }
+        return;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await supabase.from('ae_call_analysis').update(updates).eq('recording_id', id);
+        filled++;
+        consecutiveErrors = 0;  // reset streak on any success
+      }
+    } catch (err: any) {
+      console.warn(`  [${id}] error: ${err?.message || err}`);
+      apiErrors++;
+      consecutiveErrors++;
+      if (consecutiveErrors >= CONSECUTIVE_ERROR_BAILOUT) {
+        bailedOut = true;
+        console.error(`\n  ❌ ${CONSECUTIVE_ERROR_BAILOUT} consecutive errors — bailing out.`);
+      }
+    }
+  }
+
+  // Simple concurrency pool
+  const queue = [...jobList];
+  const runners: Promise<void>[] = [];
+  for (let i = 0; i < LLM_CONCURRENCY; i++) {
+    runners.push((async () => {
+      while (queue.length > 0 && !bailedOut) {
+        const next = queue.shift();
+        if (!next) break;
+        await worker(next);
+        const total = filled + skipped + apiErrors;
+        if (total % 10 === 0) console.log(`  Progress: ${total}/${jobList.length} (filled: ${filled}, skipped: ${skipped}, errors: ${apiErrors})`);
+      }
+    })());
+  }
+  await Promise.all(runners);
+  if (bailedOut) {
+    console.log(`  LLM gap-fill aborted early — filled: ${filled}, skipped: ${skipped}, errors: ${apiErrors}`);
+  } else {
+    console.log(`  LLM gap-fill complete — filled: ${filled}, skipped (no transcript): ${skipped}, errors: ${apiErrors}`);
+  }
+}
+
+// ─── AE Deep Analysis Cache Refresh ──────────────────────────────────────────
+
+async function refreshAEDeepAnalyses() {
+  const { data: profiles } = await supabase
+    .from('ae_coaching_profiles')
+    .select('recorder_name, total_calls, avg_talk_ratio, avg_question_count, avg_script_adherence, avg_call_quality, top_strengths, top_weaknesses');
+  if (!profiles || profiles.length === 0) return;
+
+  // Compute team benchmarks once
+  const teamBenchmarks = {
+    avgTalkRatio: Math.round(avg(profiles.map((p: any) => p.avg_talk_ratio || 0))),
+    avgQuestions: Math.round(avg(profiles.map((p: any) => p.avg_question_count || 0))),
+    avgQuality: Math.round(avg(profiles.map((p: any) => p.avg_call_quality || 0))),
+  };
+
+  const { data: cached } = await supabase
+    .from('ae_deep_analyses')
+    .select('recorder_name, last_call_at, call_count');
+  const cacheMap = new Map<string, { last_call_at: string | null; call_count: number }>(
+    (cached || []).map((r: any) => [r.recorder_name, { last_call_at: r.last_call_at, call_count: r.call_count || 0 }]),
+  );
+
+  const SECTION_NAMES = ['Origin','AI Search','SEO Bridge','Tools Gap','96.55%','Manual Pain','Sitemap','Pling','Clusters','Fisher/1999','Snowball','Pricing'];
+  let refreshed = 0, skipped = 0;
+
+  for (const profile of profiles) {
+    if (isExcludedAE(profile.recorder_name)) { skipped++; continue; }
+    if ((profile.total_calls || 0) < 3) { skipped++; continue; }
+
+    // Get latest call date for this AE
+    const { data: latest } = await supabase
+      .from('ae_call_analysis')
+      .select('created_at')
+      .eq('recorder_name', profile.recorder_name)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const latestCallAt = latest?.created_at || null;
+
+    // Skip if cache is current
+    const existing = cacheMap.get(profile.recorder_name);
+    if (existing && existing.last_call_at === latestCallAt && existing.call_count === profile.total_calls) {
+      skipped++;
+      continue;
+    }
+
+    // Fetch recent calls for the narrative — cap at coaching window so we don't
+    // pull in stale context the AE can't act on anymore.
+    const { data: calls } = await supabase
+      .from('ae_call_analysis')
+      .select('title, created_at, duration_seconds, talk_ratio, question_count, script_adherence, call_quality_score, outcome, smart_review, call_verdict, sections_missed')
+      .eq('recorder_name', profile.recorder_name)
+      .gte('created_at', coachingWindowCutoff())
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (!calls || calls.length < 3) { skipped++; continue; }
+
+    const callSummaries = calls.map((c: any) => {
+      const sr = c.smart_review || {};
+      return {
+        title: c.title || 'Untitled',
+        date: (c.created_at || '').slice(0, 10),
+        duration: Math.round((c.duration_seconds || 0) / 60),
+        talkRatio: c.talk_ratio || 0,
+        questionCount: c.question_count || 0,
+        scriptAdherence: c.script_adherence || 0,
+        quality: c.call_quality_score || 0,
+        outcome: c.outcome || '',
+        summary: sr.summary || '',
+        oneThingToChange: sr.oneThingToChange || '',
+        objections: (sr.objections || []).map((o: any) => ({ prospectSaid: o.prospectSaid || '', aeSaid: o.aeSaid || '', handling: o.handling || '' })),
+        buyingSignals: (sr.buyingSignals || []).map((b: any) => ({ prospectSaid: b.prospectSaid || '', aeSaid: b.aeSaid || '', didAdvance: b.didAdvance || false })),
+        callVerdict: Array.isArray(c.call_verdict) ? c.call_verdict : [],
+        scriptMissed: (c.sections_missed || []).map((id: number) => SECTION_NAMES[id - 1] || `Section ${id}`),
+      };
+    });
+
+    const profileData = {
+      totalCalls: profile.total_calls || calls.length,
+      avgTalkRatio: profile.avg_talk_ratio || 0,
+      avgQuestions: profile.avg_question_count || 0,
+      avgScriptAdherence: profile.avg_script_adherence || 0,
+      avgQuality: profile.avg_call_quality || 0,
+      strengths: profile.top_strengths || [],
+      weaknesses: profile.top_weaknesses || [],
+    };
+
+    try {
+      const analysis = await analyzeAEDeep(profile.recorder_name, callSummaries, profileData, teamBenchmarks);
+      if (!analysis) { console.warn(`  [${profile.recorder_name}] analysis returned null`); continue; }
+      await supabase.from('ae_deep_analyses').upsert({
+        recorder_name: profile.recorder_name,
+        analysis,
+        last_call_at: latestCallAt,
+        call_count: profile.total_calls,
+        generated_at: new Date().toISOString(),
+        model: 'claude-sonnet-4-6',
+      });
+      refreshed++;
+      console.log(`  [${profile.recorder_name}] deep analysis refreshed`);
+    } catch (err: any) {
+      console.warn(`  [${profile.recorder_name}] error: ${err?.message || err}`);
+    }
+  }
+  console.log(`  AE deep analyses: ${refreshed} refreshed, ${skipped} already current`);
 }
 
 main().catch(console.error);

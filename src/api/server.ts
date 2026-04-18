@@ -152,6 +152,8 @@ function serveDashboardFile(c: any, filename: string) {
 }
 
 app.get('/', (c) => serveDashboardFile(c, 'index.html'));
+app.get('/v1', (c) => serveDashboardFile(c, 'v1.html'));
+app.get('/classic', (c) => serveDashboardFile(c, 'index.html'));
 app.get('/sales-os', (c) => serveDashboardFile(c, 'sales-os.html'));
 app.get('/pipeline', (c) => serveDashboardFile(c, 'pipeline.html'));
 

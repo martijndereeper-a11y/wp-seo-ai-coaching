@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { streamText } from 'hono/streaming';
 import { requireRole } from '../auth.ts';
 import { supabase, fetchParsedTranscript, computeQualityBreakdown } from '../shared.ts';
 import {
@@ -205,6 +206,124 @@ routes.post('/call/:id/narrative', requireRole('lead'), async (c) => {
   if (!narrative) return c.json({ error: 'Failed to generate narrative review. Check ANTHROPIC_API_KEY.' }, 500);
   await supabase.from('ae_call_analysis').update({ narrative_review: narrative }).eq('recording_id', recordingId);
   return c.json(narrative);
+});
+
+// Streaming narrative — emits text chunks as Claude generates
+routes.post('/call/:id/narrative/stream', requireRole('lead'), async (c) => {
+  const recordingId = c.req.param('id');
+  const force = c.req.query('force') === 'true';
+
+  // Serve from cache if present and not forced
+  if (!force) {
+    const { data: existing } = await supabase.from('ae_call_analysis').select('narrative_review').eq('recording_id', recordingId).single();
+    const cached = existing?.narrative_review as Record<string, unknown> | null;
+    if (cached && Object.keys(cached).length > 0) {
+      // Send cache as a single chunk
+      return streamText(c, async (stream) => {
+        await stream.write(JSON.stringify({ cached: true, analysis: cached }));
+      });
+    }
+  }
+
+  // Load data for streaming
+  const [{ data: analysis }, { data: recording }] = await Promise.all([
+    supabase.from('ae_call_analysis').select('recording_id, recorder_name, title, duration_seconds, highlights').eq('recording_id', recordingId).single(),
+    supabase.from('recordings').select('transcript_text').eq('id', recordingId).single(),
+  ]);
+  if (!analysis) return c.json({ error: 'Call not found' }, 404);
+  if (!recording?.transcript_text) return c.json({ error: 'No transcript' }, 400);
+
+  const { streamCallNarrative } = await import('../../analysis/narrative-coach.ts');
+  const flagged = ((analysis.highlights as any[]) || []).map((h: any) => ({
+    type: h.type, category: h.category, timestamp: h.timestampDisplay, excerpt: h.excerpt, guidance: h.guidance || '',
+  }));
+
+  return streamText(c, async (stream) => {
+    let full = '';
+    for await (const chunk of streamCallNarrative(
+      recording.transcript_text,
+      analysis.recorder_name,
+      analysis.title || 'Untitled',
+      Math.round((analysis.duration_seconds || 0) / 60),
+      flagged,
+    )) {
+      full += chunk;
+      await stream.write(chunk);
+    }
+    // Parse + cache the full result
+    try {
+      const { analyzeCallNarrative } = await import('../../analysis/narrative-coach.ts');
+      // Re-use the parse logic by calling the non-streaming version on the buffered text
+      // Simpler: store raw markdown and let client render sections
+      const parsed = {
+        summary: extractSection(full, '1. CALL SUMMARY', '2.'),
+        objectionsAnalysis: extractSection(full, '2. WHERE DID THE PROSPECT SHOW DOUBTS', '3.'),
+        buyingSignalsAnalysis: extractSection(full, '3. WHERE DID THE PROSPECT GIVE BUYING SIGNALS', '4.'),
+        coachingMoments: extractSection(full, '4. KEY COACHING MOMENTS', '5.'),
+        overallVerdict: extractSection(full, '5. OVERALL VERDICT', null),
+        generatedAt: new Date().toISOString(),
+      };
+      await supabase.from('ae_call_analysis').update({ narrative_review: parsed }).eq('recording_id', recordingId);
+    } catch (e) { /* non-fatal */ }
+  });
+});
+
+function extractSection(text: string, startMarker: string, endMarker: string | null): string {
+  const startIdx = text.indexOf(startMarker);
+  if (startIdx === -1) return '';
+  let content: string;
+  if (endMarker) {
+    const endIdx = text.indexOf('### ' + endMarker, startIdx + startMarker.length);
+    content = endIdx === -1 ? text.slice(startIdx + startMarker.length) : text.slice(startIdx + startMarker.length, endIdx);
+  } else {
+    content = text.slice(startIdx + startMarker.length);
+  }
+  return content.replace(/^[#\s]*/, '').trim();
+}
+
+// ─── VBAT endpoints ──────────────────────────────────────────────────────────
+
+// Read VBAT classification from cache
+routes.get('/call/:id/vbat', async (c) => {
+  const id = c.req.param('id');
+  const { data, error } = await supabase.from('ae_call_analysis').select('vbat_classification').eq('recording_id', id).single();
+  if (error) return c.json({ error: error.message }, 404);
+  const v = data?.vbat_classification as Record<string, unknown> | null;
+  if (!v || Object.keys(v).length === 0) return c.json({ error: 'Not classified yet', status: 'missing' }, 404);
+  return c.json(v);
+});
+
+// Regenerate VBAT (force re-classify, e.g. after AE flags a wrong verdict)
+routes.post('/call/:id/vbat/regenerate', requireRole('lead'), async (c) => {
+  const id = c.req.param('id')!;
+  const recording = await fetchParsedTranscript(id);
+  if (!recording) return c.json({ error: 'Recording or transcript not found' }, 404);
+  const { data: row } = await supabase.from('ae_call_analysis').select('title, duration_seconds').eq('recording_id', id).single();
+  if (!row) return c.json({ error: 'Call not analyzed' }, 404);
+
+  const { classifyVBAT } = await import('../../analysis/vbat-classifier.ts');
+  const result = await classifyVBAT(recording.turns, recording.recorderName, row.title || 'Untitled', row.duration_seconds || 0);
+  if (!result) return c.json({ error: 'Classification failed' }, 500);
+  await supabase.from('ae_call_analysis').update({ vbat_classification: result }).eq('recording_id', id);
+  return c.json(result);
+});
+
+// AE flags a VBAT verdict as incorrect
+routes.post('/call/:id/vbat/feedback', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json() as { dimension: string; verdictWas: boolean; correctVerdict?: boolean; note?: string; voter?: string };
+  if (!body.dimension || typeof body.verdictWas !== 'boolean') return c.json({ error: 'Missing dimension or verdictWas' }, 400);
+  const { error } = await supabase.from('vbat_feedback').insert({
+    id: `vfb_${id}_${body.dimension}_${Date.now()}`,
+    recording_id: id,
+    dimension: body.dimension,
+    verdict_was: body.verdictWas,
+    correct_verdict: body.correctVerdict ?? null,
+    note: body.note || null,
+    voter: body.voter || 'anonymous',
+  });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ ok: true });
 });
 
 // Live narrative
