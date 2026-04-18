@@ -58,6 +58,93 @@ export interface NarrativeReview {
   generatedAt: string;
 }
 
+// System prompt for AE-level deep analysis — static across AEs, cached.
+function buildAEDeepSystemPrompt(): string {
+  const coachingRules = loadCoachingContext();
+  return `You are a sales coaching analyst conducting comprehensive performance reviews of AEs at WP SEO AI, an AI-native SEO/GEO platform in the Netherlands selling to SMB founders.
+
+## Coaching framework (from Koen, Commercial Director):
+${coachingRules.slice(0, 2000)}
+
+## Output format
+
+Write a comprehensive coaching review for the AE. This is for their lead to use in 1:1s and performance reviews. Be specific — reference actual calls by name, quote actual objection/buying signal exchanges, and identify PATTERNS across calls, not just individual moments.
+
+Write in English. Use ### headers exactly as shown below.
+
+### 1. OVERVIEW (3-4 sentences)
+Who is this AE? What is their overall level? What is the one-line summary of where they are?
+
+### 2. CALL CONTROL & CONVERSATION MANAGEMENT
+Do they lead conversations or follow? Do they set agendas? When do they lose control? Reference specific calls. Is this consistent or does it vary?
+
+### 3. DISCOVERY & GAP CREATION
+Do they create the gap (prospect realizes they have a problem)? Do they use live proof (Google/ChatGPT search)? Do they ask enough questions? Are they hypothesis-led or open-ended? Show the pattern across calls.
+
+### 4. OBJECTION HANDLING PATTERNS
+How do they typically handle objections? Quote actual exchanges from the call data. Do they explore, acknowledge, minimize, or talk over? Is there a consistent pattern? What objection types are they weakest on?
+
+### 5. CLOSING BEHAVIOR
+Do they close? Do they create urgency? Do they define next steps? What happens at the end of their calls? Quote specific closing (or non-closing) moments.
+
+### 6. SCRIPT & NARRATIVE EXECUTION
+Which parts of the pitch do they consistently nail? Which do they consistently skip? Is their narrative clear and founder-friendly or feature-heavy?
+
+### 7. COACHING PLAN (most important section)
+The TOP 3 things this AE should work on, in priority order. For each:
+- What is the problem (with evidence from calls)?
+- What should they do differently (specific, actionable)?
+- How to practice it (concrete exercise or habit)?
+- How to measure progress?
+
+Be brutally honest but constructive. This is a coaching document, not a report card.`;
+}
+
+// System prompt for per-call narrative — static across all calls, cached.
+function buildCallNarrativeSystemPrompt(): string {
+  const coachingRules = loadCoachingContext();
+  return `You are a sales coaching analyst reviewing sales calls for WP SEO AI, an AI-native SEO/GEO platform in the Netherlands.
+
+## Your coaching framework (from Koen, Commercial Director):
+${coachingRules.slice(0, 3000)}
+
+## Output format
+
+Analyze each call in depth. Write in English. Be specific — use exact timestamps (MM:SS format) and direct quotes from the transcript.
+
+Provide your analysis in these 5 sections, using ### headers exactly as shown:
+
+### 1. CALL SUMMARY (3-4 sentences)
+What happened in this call? Who was on it? What was discussed? What was the outcome?
+
+### 2. WHERE DID THE PROSPECT SHOW DOUBTS OR OBJECTIONS?
+For each objection moment:
+- Exact timestamp and direct quote from prospect
+- What the AE actually said in response (exact quote)
+- What the AE should have done instead (specific scripted alternative)
+- Why this matters commercially
+
+### 3. WHERE DID THE PROSPECT GIVE BUYING SIGNALS?
+For each buying signal:
+- Exact timestamp and direct quote
+- Why this is a buying signal (what does it reveal about mindset?)
+- What the AE actually did with it
+- What the AE should have done (prevent happy ears — validate, dig, find out WHY)
+- The specific words the AE should have said
+
+### 4. KEY COACHING MOMENTS
+The 3 most impactful moments where the AE's behavior directly influenced the outcome. For each:
+- What happened (with quotes)
+- The AE's reaction
+- What should have happened instead
+- The business impact of this gap
+
+### 5. OVERALL VERDICT
+2-3 sentences: What is the single biggest thing this AE should work on based on this call? Be direct and specific, not generic.
+
+Be brutally honest but constructive. Use specific quotes and timestamps throughout. Never be vague.`;
+}
+
 export async function analyzeCallNarrative(
   transcriptText: string,
   aeName: string,
@@ -73,71 +160,27 @@ export async function analyzeCallNarrative(
 
   const AnthropicClass = await getAnthropic();
   const client = new AnthropicClass({ apiKey });
-  const coachingRules = loadCoachingContext();
-
-  // Trim transcript to fit context — keep first 30k chars (roughly 40 min of call)
   const trimmedTranscript = transcriptText.slice(0, 30000);
-
   const flaggedSummary = flaggedMoments.map(m =>
     `[${m.timestamp}] ${m.type.toUpperCase()}: ${m.category} — ${m.excerpt.slice(0, 100)}`
   ).join('\n');
 
-  const prompt = `You are a sales coaching analyst reviewing a sales call for WP SEO AI, an AI-native SEO/GEO platform in the Netherlands.
-
-The AE (Account Executive) is: ${aeName}
+  const userMessage = `AE: ${aeName}
 Call: ${callTitle}
 Duration: ${callDuration} minutes
-
-## Your coaching framework (from Koen, Commercial Director):
-${coachingRules.slice(0, 3000)}
 
 ## Pre-flagged moments by our detection engine:
 ${flaggedSummary}
 
 ## Full transcript:
-${trimmedTranscript}
-
----
-
-Analyze this call in depth. Write in English. Be specific — use exact timestamps (MM:SS format) and direct quotes from the transcript.
-
-Provide your analysis in these 5 sections:
-
-### 1. CALL SUMMARY (3-4 sentences)
-What happened in this call? Who was on it? What was discussed? What was the outcome?
-
-### 2. WHERE DID THE PROSPECT SHOW DOUBTS OR OBJECTIONS?
-For each objection moment:
-- Exact timestamp and direct quote from prospect
-- What the AE actually said in response (exact quote)
-- What the AE should have done instead (specific scripted alternative)
-- Why this matters commercially
-
-### 3. WHERE DID THE PROSPECT GIVE BUYING SIGNALS?
-For each buying signal:
-- Exact timestamp and direct quote
-- Why this is a buying signal (not just surface level — what does it reveal about the prospect's mindset?)
-- What the AE actually did with it
-- What the AE should have done (prevent happy ears — they should validate, dig deeper, find out WHY it's a signal)
-- The specific words the AE should have said
-
-### 4. KEY COACHING MOMENTS
-The 3 most impactful moments where the AE's behavior directly influenced the outcome. For each:
-- What happened (with quotes)
-- The AE's reaction
-- What should have happened instead
-- The business impact of this gap
-
-### 5. OVERALL VERDICT
-2-3 sentences: What was the single biggest thing this AE should work on based on this call? Be direct and specific, not generic.
-
-Be brutally honest but constructive. Use specific quotes and timestamps throughout. Never be vague.`;
+${trimmedTranscript}`;
 
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2500,
+      system: [{ type: 'text', text: buildCallNarrativeSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: userMessage }],
     });
 
     const text = response.content
@@ -213,7 +256,6 @@ export async function analyzeAEDeep(
 
   const AnthropicClass = await getAnthropic();
   const client = new AnthropicClass({ apiKey });
-  const coachingRules = loadCoachingContext();
 
   // Build a condensed view of all calls
   const callData = callSummaries.slice(0, 30).map((c, i) => {
@@ -229,9 +271,7 @@ export async function analyzeAEDeep(
   ${bsStr ? 'Buying signals:\n    ' + bsStr : ''}`;
   }).join('\n\n');
 
-  const prompt = `You are a sales coaching analyst conducting a comprehensive performance review of an AE at WP SEO AI, an AI-native SEO/GEO platform in the Netherlands selling to SMB founders.
-
-## AE: ${aeName}
+  const userMessage = `## AE: ${aeName}
 ## Profile:
 - ${profileData.totalCalls} calls analyzed
 - Avg talk ratio: ${profileData.avgTalkRatio}% (team avg: ${teamBenchmarks.avgTalkRatio}%)
@@ -241,50 +281,15 @@ export async function analyzeAEDeep(
 - Strengths: ${profileData.strengths.join(', ') || 'None identified'}
 - Weaknesses: ${profileData.weaknesses.join(', ') || 'None identified'}
 
-## Coaching framework (from Koen, Commercial Director):
-${coachingRules.slice(0, 2000)}
-
 ## Call data (most recent ${callSummaries.length} calls):
-${callData}
-
----
-
-Write a comprehensive coaching review for ${aeName}. This is for their AE lead to use in 1:1s and performance reviews. Be specific — reference actual calls by name, quote actual objection/buying signal exchanges, and identify PATTERNS across calls, not just individual moments.
-
-Write in English. Structure your analysis as:
-
-### 1. OVERVIEW (3-4 sentences)
-Who is this AE? What is their overall level? What is the one-line summary of where they are?
-
-### 2. CALL CONTROL & CONVERSATION MANAGEMENT
-Do they lead conversations or follow? Do they set agendas? When do they lose control? Reference specific calls. Is this consistent or does it vary?
-
-### 3. DISCOVERY & GAP CREATION
-Do they create the gap (prospect realizes they have a problem)? Do they use live proof (Google/ChatGPT search)? Do they ask enough questions? Are they hypothesis-led or open-ended? Show the pattern across calls.
-
-### 4. OBJECTION HANDLING PATTERNS
-How do they typically handle objections? Quote actual exchanges from the call data. Do they explore, acknowledge, minimize, or talk over? Is there a consistent pattern? What objection types are they weakest on?
-
-### 5. CLOSING BEHAVIOR
-Do they close? Do they create urgency? Do they define next steps? What happens at the end of their calls? Quote specific closing (or non-closing) moments.
-
-### 6. SCRIPT & NARRATIVE EXECUTION
-Which parts of the pitch do they consistently nail? Which do they consistently skip? Is their narrative clear and founder-friendly or feature-heavy?
-
-### 7. COACHING PLAN (most important section)
-Based on all the above, what are the TOP 3 things this AE should work on, in priority order? For each:
-- What is the problem (with evidence from calls)?
-- What should they do differently (specific, actionable)?
-- How to practice it (concrete exercise or habit)?
-- How to measure progress?
-
-Be brutally honest but constructive. This is a coaching document, not a report card.`;
+${callData}`;
 
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 6000,
-      messages: [{ role: 'user', content: prompt }],
+      system: [{ type: 'text', text: buildAEDeepSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: userMessage }],
     });
 
     const text = response.content
@@ -305,6 +310,106 @@ Be brutally honest but constructive. This is a coaching document, not a report c
   } catch (err: any) {
     console.error('Claude API error:', err.message);
     return null;
+  }
+}
+
+// ─── Streaming variants (yield text chunks as Claude generates) ──────────────
+
+export async function* streamCallNarrative(
+  transcriptText: string,
+  aeName: string,
+  callTitle: string,
+  callDuration: number,
+  flaggedMoments: { type: string; category: string; timestamp: string; excerpt: string; guidance: string }[],
+): AsyncGenerator<string, void, unknown> {
+  const apiKey = loadApiKey();
+  if (!apiKey) { yield 'ERROR: ANTHROPIC_API_KEY not set'; return; }
+
+  const AnthropicClass = await getAnthropic();
+  const client = new AnthropicClass({ apiKey });
+  const trimmedTranscript = transcriptText.slice(0, 30000);
+  const flaggedSummary = flaggedMoments.map(m =>
+    `[${m.timestamp}] ${m.type.toUpperCase()}: ${m.category} — ${m.excerpt.slice(0, 100)}`
+  ).join('\n');
+
+  const userMessage = `AE: ${aeName}
+Call: ${callTitle}
+Duration: ${callDuration} minutes
+
+## Pre-flagged moments by our detection engine:
+${flaggedSummary}
+
+## Full transcript:
+${trimmedTranscript}`;
+
+  try {
+    const stream = await client.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2500,
+      system: [{ type: 'text', text: buildCallNarrativeSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: userMessage }],
+    });
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        yield event.delta.text;
+      }
+    }
+  } catch (err: any) {
+    yield `\n[ERROR: ${err?.message || 'unknown'}]`;
+  }
+}
+
+export async function* streamAEDeep(
+  aeName: string,
+  callSummaries: any[],
+  profileData: any,
+  teamBenchmarks: any,
+): AsyncGenerator<string, void, unknown> {
+  const apiKey = loadApiKey();
+  if (!apiKey) { yield 'ERROR: ANTHROPIC_API_KEY not set'; return; }
+
+  const AnthropicClass = await getAnthropic();
+  const client = new AnthropicClass({ apiKey });
+
+  const callData = callSummaries.slice(0, 30).map((c: any, i: number) => {
+    const objStr = c.objections.slice(0, 2).map((o: any) => `Prospect: "${o.prospectSaid.slice(0,80)}" → AE: "${o.aeSaid.slice(0,80)}" [${o.handling}]`).join('\n    ');
+    const bsStr = c.buyingSignals.slice(0, 2).map((b: any) => `Prospect: "${b.prospectSaid.slice(0,80)}" → AE: "${b.aeSaid.slice(0,80)}" [${b.didAdvance ? 'ADVANCED' : 'MISSED'}]`).join('\n    ');
+    return `Call ${i+1}: "${c.title}" (${c.date}, ${c.duration}min, ${c.outcome || 'unknown'})
+  Talk: ${c.talkRatio}% | Qs: ${c.questionCount} | Script: ${c.scriptAdherence}% | Quality: ${c.quality}
+  Summary: ${c.summary.slice(0, 200)}
+  Verdict: ${c.callVerdict.join(', ') || 'OK'}
+  One thing: ${c.oneThingToChange.slice(0, 150)}
+  ${objStr ? 'Objections:\n    ' + objStr : ''}
+  ${bsStr ? 'Buying signals:\n    ' + bsStr : ''}`;
+  }).join('\n\n');
+
+  const userMessage = `## AE: ${aeName}
+## Profile:
+- ${profileData.totalCalls} calls analyzed
+- Avg talk ratio: ${profileData.avgTalkRatio}% (team avg: ${teamBenchmarks.avgTalkRatio}%)
+- Avg questions: ${profileData.avgQuestions}/call (team avg: ${teamBenchmarks.avgQuestions})
+- Avg script adherence: ${profileData.avgScriptAdherence}%
+- Avg call quality: ${profileData.avgQuality} (team avg: ${teamBenchmarks.avgQuality})
+- Strengths: ${profileData.strengths.join(', ') || 'None'}
+- Weaknesses: ${profileData.weaknesses.join(', ') || 'None'}
+
+## Call data (most recent ${callSummaries.length} calls):
+${callData}`;
+
+  try {
+    const stream = await client.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 6000,
+      system: [{ type: 'text', text: buildAEDeepSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: userMessage }],
+    });
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        yield event.delta.text;
+      }
+    }
+  } catch (err: any) {
+    yield `\n[ERROR: ${err?.message || 'unknown'}]`;
   }
 }
 

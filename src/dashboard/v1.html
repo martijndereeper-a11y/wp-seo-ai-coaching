@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Sales Coaching</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f042c;--bg2:#1a0e3a;--bg3:#260e49;--border:#3b1d6e;
+  --text:#FFFFFF;--text2:#B8B0CC;--text3:#8A82A0;
+  --purple:#B748FF;--purple2:#7c3aed;--purple-soft:#BEB5FF;
+  --green:#10B981;--red:#EF4444;--orange:#F59E0B;--blue:#3B82F6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Archivo',sans-serif;background:#0f042c;color:var(--text);background:radial-gradient(ellipse 80% 60% at 30% 20%,#1a0e3a 0%,#0f042c 100%) fixed;line-height:1.55}
+a{color:var(--purple);text-decoration:none;cursor:pointer}a:hover{text-decoration:underline}
+button{font-family:inherit}
+
+/* Topbar */
+.topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar .logo svg{height:22px;width:auto}
+.topbar h1{font-size:15px;font-weight:500;color:var(--text2)}
+.spacer{flex:1}
+.pill-btn{background:none;border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;transition:all .15s}
+.pill-btn:hover{border-color:var(--purple);color:var(--text)}
+.pill-btn.primary{background:var(--purple);border-color:var(--purple);color:white}
+.pill-btn.primary:hover{background:var(--purple2)}
+
+/* Layout */
+.container{max-width:900px;margin:0 auto;padding:32px 24px}
+.hidden{display:none}
+
+/* Login */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,4,44,.95);z-index:200;display:flex;align-items:center;justify-content:center}
+.login-card{background:var(--bg2);border:1px solid var(--border);padding:32px;border-radius:16px;width:360px}
+.login-card h2{font-size:18px;margin-bottom:6px}
+.login-card p{color:var(--text2);font-size:13px;margin-bottom:18px}
+.login-card input{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;margin-bottom:10px;outline:none;font-family:inherit}
+.login-card input:focus{border-color:var(--purple)}
+.login-card button{width:100%;padding:10px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.login-error{color:var(--red);font-size:12px;margin-top:8px;min-height:16px}
+
+/* Headings */
+h2.pgtitle{font-size:24px;font-weight:700;margin-bottom:4px}
+.pgtitle-sub{color:var(--text2);font-size:14px;margin-bottom:24px}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.card h3{font-size:15px;font-weight:600;margin-bottom:14px;color:var(--text)}
+.card h3 .meta{font-size:11px;color:var(--text3);font-weight:400;margin-left:8px}
+
+/* Back */
+.back{background:none;border:none;color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:18px;padding:0;display:inline-flex;align-items:center;gap:4px}
+.back:hover{color:var(--text)}
+
+/* Team list rows */
+.ae-row{display:flex;align-items:center;padding:16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.ae-row:hover{background:var(--bg3)}
+.ae-row:last-child{border-bottom:none}
+.ae-row .name{font-weight:600;font-size:14px;flex:1;min-width:160px}
+.ae-row .meta-col{min-width:90px;font-size:12px;color:var(--text2);text-align:right}
+.ae-row .meta-col .big{font-size:18px;font-weight:700;color:var(--text);display:block}
+.ae-row .trend{width:24px;text-align:center;font-size:16px}
+.trend-up{color:var(--green)}.trend-down{color:var(--red)}.trend-flat{color:var(--text3)}.trend-new{color:var(--text3);font-size:10px}
+
+/* VBAT navigation (jump index) */
+.vbat-nav{display:grid;grid-template-columns:1fr;gap:10px}
+.vbat-row{display:flex;align-items:flex-start;gap:14px;padding:14px 14px;background:var(--bg3);border-left:3px solid var(--border);border-radius:0 8px 8px 0;cursor:pointer;transition:background .15s}
+.vbat-row.confirmed{border-left-color:var(--green)}
+.vbat-row.missed{border-left-color:var(--orange)}
+.vbat-row:hover{background:#30105a}
+.vbat-letter{font-size:20px;font-weight:800;width:28px;text-align:center;flex-shrink:0}
+.vbat-letter.confirmed{color:var(--green)}
+.vbat-letter.missed{color:var(--orange)}
+.vbat-body{flex:1;min-width:0}
+.vbat-label{font-size:13px;font-weight:600;margin-bottom:4px}
+.vbat-label .ts{color:var(--purple);font-family:monospace;font-weight:500;margin-left:8px;font-size:11px;padding:1px 6px;background:var(--bg2);border-radius:3px}
+.vbat-evidence{font-size:13px;color:var(--text2);font-style:italic;line-height:1.45;word-break:break-word}
+.vbat-reasoning{font-size:11px;color:var(--text3);margin-top:5px}
+.vbat-actions{display:flex;gap:6px;margin-top:6px;font-size:11px}
+.vbat-wrong-btn{background:none;border:1px solid var(--border);color:var(--text3);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px}
+.vbat-wrong-btn:hover{border-color:var(--red);color:var(--red)}
+.vbat-wrong-btn.flagged{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.1)}
+.conf-high{background:rgba(16,185,129,.15);color:var(--green)}
+.conf-medium{background:rgba(245,158,11,.15);color:var(--orange)}
+.conf-low{background:rgba(239,68,68,.15);color:var(--red)}
+.conf-badge{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;margin-left:6px}
+
+/* Summary + one-thing */
+.summary-block{font-size:14px;line-height:1.6;color:var(--text)}
+.one-thing{background:rgba(183,72,255,.08);border:1px solid rgba(183,72,255,.25);border-radius:10px;padding:16px;margin-top:14px}
+.one-thing .label{font-size:11px;color:var(--purple-soft);font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px}
+.one-thing .text{font-size:14px;color:var(--text);line-height:1.55}
+
+/* Narrative body */
+.narrative-body{font-size:13px;line-height:1.65;color:var(--text2);white-space:pre-wrap;word-break:break-word}
+.narrative-body strong, .narrative-body b{color:var(--text)}
+.narrative-body h3, .narrative-body h4{color:var(--text);font-size:14px;font-weight:700;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.narrative-body::first-letter{font-weight:500}
+.narrative-loading{color:var(--text3);font-size:13px;font-style:italic}
+.regenerate-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.regenerate-row .gen-meta{font-size:11px;color:var(--text3)}
+
+/* Call list */
+.call-list-item{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;gap:14px;transition:background .15s}
+.call-list-item:hover{background:var(--bg3)}
+.call-list-item:last-child{border-bottom:none}
+.call-date{font-size:11px;color:var(--text3);min-width:70px;font-family:monospace}
+.call-title{flex:1;min-width:0;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.call-dots{display:flex;gap:3px;flex-shrink:0}
+.dot{width:18px;height:18px;border-radius:50%;background:var(--bg3);color:var(--text3);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
+.dot.confirmed{background:rgba(16,185,129,.2);color:var(--green);border-color:var(--green)}
+.dot.missed{background:rgba(245,158,11,.15);color:var(--orange);border-color:var(--orange)}
+.dot.none{background:var(--bg3);color:var(--text3);border-color:var(--border)}
+.tier-badge{font-size:10px;padding:2px 6px;border-radius:3px;font-weight:700;min-width:18px;text-align:center}
+.tier-A{background:rgba(16,185,129,.18);color:var(--green)}
+.tier-B{background:rgba(59,130,246,.18);color:var(--blue)}
+.tier-C{background:rgba(156,163,175,.18);color:var(--text3)}
+
+/* Expander */
+details.expander{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
+details.expander summary{padding:14px 20px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);list-style:none;display:flex;align-items:center;justify-content:space-between}
+details.expander summary::-webkit-details-marker{display:none}
+details.expander summary::after{content:'▾';font-size:14px;color:var(--text3);transition:transform .2s}
+details.expander[open] summary::after{transform:rotate(180deg)}
+details.expander summary:hover{color:var(--text)}
+.expander-body{padding:0 20px 20px}
+
+/* Expert level section */
+.expert-label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);font-weight:700;margin:20px 0 10px}
+
+/* Loading / empty states */
+.loading{padding:40px;text-align:center;color:var(--text2);font-size:14px}
+.empty{padding:40px;text-align:center;color:var(--text3);font-size:13px}
+
+/* Pattern summary */
+.pattern-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}
+.pattern-bar .pb-label{width:100px;color:var(--text2);font-weight:600}
+.pattern-bar .pb-track{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.pattern-bar .pb-fill{height:100%;background:var(--purple)}
+.pattern-bar .pb-num{width:50px;text-align:right;color:var(--text2);font-size:12px}
+
+/* Weakest callout */
+.weakest-callout{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:16px;font-size:13px;line-height:1.55;margin-top:14px}
+.weakest-callout strong{color:var(--orange)}
+
+/* Error banner */
+.err{background:rgba(239,68,68,.1);border:1px solid var(--red);color:var(--red);padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px}
+
+/* AE narrative chunks — chip row + section cards */
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.chip{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:9999px;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
+.chip:hover{border-color:var(--purple);color:var(--text)}
+.chip .chip-dot{color:var(--purple-soft)}
+
+.ae-sections{display:flex;flex-direction:column;gap:8px}
+.ae-section{background:var(--bg3);border:1px solid var(--border);border-radius:10px;transition:border-color .15s}
+.ae-section[open]{border-color:var(--purple2)}
+.ae-section summary{padding:12px 14px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;font-size:13px}
+.ae-section summary::-webkit-details-marker{display:none}
+.ae-section summary:hover{background:var(--bg2);border-radius:10px 10px 0 0}
+.ae-section[open] summary:hover{border-radius:10px 10px 0 0}
+.ae-section .sec-icon{color:var(--purple);font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.ae-section .sec-label{font-weight:700;color:var(--text);min-width:140px;flex-shrink:0}
+.ae-section .sec-teaser{color:var(--text3);font-size:12px;flex:1;min-width:0;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ae-section .sec-caret{color:var(--text3);font-size:12px;transition:transform .2s;margin-left:auto;flex-shrink:0}
+.ae-section[open] .sec-caret{transform:rotate(180deg);color:var(--purple)}
+.ae-section .sec-body{padding:4px 14px 16px 42px;font-size:13px;line-height:1.65;color:var(--text2)}
+.ae-section .sec-body::before{content:'';display:block;height:1px;background:var(--border);margin-bottom:12px}
+.ae-section .sec-body h4{color:var(--text);font-size:13px;font-weight:700;margin:12px 0 4px;padding:0;border:none}
+.ae-section .sec-body strong{color:var(--text)}
+
+@media (max-width:600px){
+  .ae-section .sec-label{min-width:auto}
+  .ae-section .sec-teaser{display:none}
+  .ae-section .sec-body{padding-left:14px}
+}
+
+/* Small screens */
+@media (max-width:600px){
+  .container{padding:20px 14px}
+  .ae-row{flex-wrap:wrap;gap:10px}
+  .ae-row .meta-col{min-width:60px}
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <h2>Sales Coaching</h2>
+    <p>Enter the team password to continue.</p>
+    <input id="login-pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Sign in</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Topbar -->
+<div class="topbar">
+  <span class="logo">
+    <svg width="1338" height="204" viewBox="0 0 1338 204" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M55.9393 204L0 12H51.3402L80.3423 137.812H81.9379L115.07 12H156.93L190.062 138.094H191.658L220.754 12H272L216.155 204H171.384L136.751 87.5625H135.249L100.616 204H55.9393Z" fill="#B748FF"/><path d="M292 204V12H371.313C385.688 12 398.094 14.8125 408.531 20.4375C419.031 26 427.125 33.7812 432.813 43.7812C438.5 53.7188 442 65.3125 442 78.5C442 91.75 438.438 103.312 432.625 113.25C426.875 123.125 418.656 130.781 407.969 136.219C397.281 141.656 384.594 144.375 369.906 144.375H320.969V107.812H361.281C368.281 107.812 374.125 106.594 378.812 104.156C383.562 101.719 387.156 98.3125 389.594 93.9375C392.031 89.5 393.25 84.3437 393.25 78.4687C393.25 72.5312 392.031 67.4062 389.594 63.0938C387.156 58.7188 383.562 55.3438 378.812 52.9688C374.062 50.5938 368.219 49.4063 361.281 49.4063H338.406V204H292Z" fill="#B748FF"/></svg>
+  </span>
+  <h1>Sales Coaching</h1>
+  <div class="spacer"></div>
+  <button class="pill-btn" onclick="goClassic()">Deep view</button>
+  <button class="pill-btn" onclick="logout()">Log out</button>
+</div>
+
+<div class="container" id="app">
+  <div class="loading">Loading…</div>
+</div>
+
+<script>
+// ═══════════════════════════ AUTH ═══════════════════════════
+let authToken = localStorage.getItem('auth_token') || '';
+let authRole = localStorage.getItem('auth_role') || '';
+
+async function doLogin(){
+  const pw = document.getElementById('login-pw').value;
+  try {
+    const res = await fetch('/api/auth/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const data = await res.json();
+    if (data.error) { document.getElementById('login-error').textContent = data.error; return; }
+    authToken = data.token; authRole = data.role;
+    localStorage.setItem('auth_token', authToken);
+    localStorage.setItem('auth_role', authRole);
+    document.getElementById('login-overlay').style.display = 'none';
+    loadTeam();
+  } catch(e){ document.getElementById('login-error').textContent = 'Connection error'; }
+}
+
+function logout(){
+  authToken=''; authRole='';
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_role');
+  location.reload();
+}
+
+function goClassic(){ location.href = '/classic'; }
+
+if (authToken) document.getElementById('login-overlay').style.display = 'none';
+
+// ═══════════════════════════ API ═══════════════════════════
+async function api(path, opts={}){
+  const res = await fetch(path, {...opts, headers:{...opts.headers,'Authorization':'Bearer '+authToken,'Content-Type':'application/json'}});
+  if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
+  return res;
+}
+
+async function apiJSON(path, opts){
+  const res = await api(path, opts);
+  const txt = await res.text();
+  if (!txt) return null;
+  try { return JSON.parse(txt); } catch { return { _raw: txt }; }
+}
+
+// ═══════════════════════════ HELPERS ═══════════════════════════
+const $ = id => document.getElementById(id);
+const esc = s => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+// Map engine's sales-game letters (A=Value, B=Authority, C=Budget, D=Timeline) to Marc's VBAT labels.
+// But the VBAT classifier ALREADY uses Marc's letters (V/B/A/T/E/F) so we use them directly.
+const VBAT_LABELS = {
+  V: 'Value',
+  B: 'Budget',
+  A: 'Authority',
+  T: 'Timeline',
+  E: 'Good News Show',
+  F: 'Defensive Line',
+};
+const VBAT_DESC = {
+  V: 'Prospect articulated why they need this in their own words',
+  B: 'Budget / investment capacity discussed',
+  A: 'Decision-maker confirmed',
+  T: 'Concrete decision date committed to',
+  E: 'Incentive traded for a dated commitment',
+  F: 'Urgency pushed → prospect resisted → AE handled it',
+};
+
+function fmtDate(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function trendGlyph(trend){
+  if (trend === 'up')   return '<span class="trend trend-up">↑</span>';
+  if (trend === 'down') return '<span class="trend trend-down">↓</span>';
+  if (trend === 'new')  return '<span class="trend trend-new">·</span>';
+  return '<span class="trend trend-flat">→</span>';
+}
+
+function renderMarkdown(text){
+  if (!text) return '';
+  let t = esc(text);
+  // Headers: ### Title or #### Title
+  t = t.replace(/^#{3,4}\s+(.+)$/gm, '<h4>$1</h4>');
+  // Bold **x**
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Italic *x*
+  t = t.replace(/(^|\s)\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  // Bullet lists
+  t = t.replace(/^- (.+)$/gm, '• $1');
+  return t;
+}
+
+// ═══════════════════════════ TEAM VIEW ═══════════════════════════
+async function loadTeam(){
+  try {
+    $('app').innerHTML = '<div class="loading">Loading team…</div>';
+    const rows = await apiJSON('/api/v1/team');
+    if (!rows || !Array.isArray(rows)) throw new Error('No team data');
+    renderTeam(rows);
+  } catch(err){
+    $('app').innerHTML = `<div class="err">${esc(err.message||'Failed to load')}</div>`;
+  }
+}
+
+function renderTeam(rows){
+  let html = `<h2 class="pgtitle">Team</h2>
+    <div class="pgtitle-sub">VBAT hit rate across each AE's last 10 calls.</div>
+
+    <div class="card" id="link-analyze-card">
+      <h3>Analyze a specific call</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="link-url" type="text" placeholder="Paste Claap recording link…" style="flex:1;min-width:260px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')analyzeLink()">
+        <button class="pill-btn primary" id="link-btn" onclick="analyzeLink()">Open call</button>
+      </div>
+      <div id="link-status" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:16px"></div>
+    </div>
+
+    <div class="card" style="padding:0">`;
+
+  if (rows.length === 0) {
+    html += '<div class="empty">No AEs yet.</div>';
+  } else {
+    for (const ae of rows) {
+      const pct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
+      const analyzed = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} calls` : 'No VBAT data';
+      html += `
+        <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
+          <div class="name">${esc(ae.name)}</div>
+          <div class="meta-col">
+            <span class="big">${pct}</span>
+            <span>${esc(analyzed)}</span>
+          </div>
+          <div class="meta-col">
+            <span class="big">${ae.recent7Days}</span>
+            <span>last 7 days</span>
+          </div>
+          ${trendGlyph(ae.trend)}
+        </div>`;
+    }
+  }
+  html += '</div>';
+  $('app').innerHTML = html;
+}
+
+async function analyzeLink(){
+  const input = $('link-url');
+  const url = input ? input.value.trim() : '';
+  if (!url) return;
+  const btn = $('link-btn');
+  const status = $('link-status');
+  btn.disabled = true; btn.textContent = 'Looking up…';
+  status.textContent = '';
+  status.style.color = 'var(--text3)';
+
+  try {
+    const res = await api('/api/v1/analyze-link', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) { status.style.color = 'var(--red)'; status.textContent = data.error || 'Failed'; return; }
+
+    status.style.color = 'var(--green)';
+    const hints = [];
+    if (!data.hasAnalysis) hints.push('not analyzed yet');
+    else {
+      if (!data.hasVBAT) hints.push('no VBAT');
+      if (!data.hasNarrative) hints.push('no narrative');
+    }
+    status.textContent = `Found: ${data.title} (${data.durationMinutes}min)${hints.length ? ' — ' + hints.join(', ') + ' — open to generate' : ''}`;
+    setTimeout(() => loadCall(data.recordingId, data.recorderName), 400);
+  } catch(err) {
+    status.style.color = 'var(--red)';
+    status.textContent = err.message || 'Failed';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Open call';
+  }
+}
+
+// ═══════════════════════════ AE VIEW ═══════════════════════════
+async function loadAE(name){
+  try {
+    $('app').innerHTML = '<button class="back" onclick="loadTeam()">← Back to team</button><div class="loading">Loading AE…</div>';
+    const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name));
+    if (!data || data.error) throw new Error(data?.error || 'Failed');
+    renderAE(data);
+  } catch(err){
+    $('app').innerHTML = `<button class="back" onclick="loadTeam()">← Back</button><div class="err">${esc(err.message||'Failed')}</div>`;
+  }
+}
+
+function renderAE(data){
+  const { name, totalRecent, vbatAnalyzed, hitsByDim, weakestDimension, calls } = data;
+
+  let patternsHTML = '';
+  if (vbatAnalyzed > 0) {
+    patternsHTML = ['V','B','A','T'].map(d => {
+      const hits = hitsByDim[d] || 0;
+      const pct = Math.round((hits/vbatAnalyzed) * 100);
+      return `<div class="pattern-bar">
+        <div class="pb-label">${d} — ${esc(VBAT_LABELS[d])}</div>
+        <div class="pb-track"><div class="pb-fill" style="width:${pct}%"></div></div>
+        <div class="pb-num">${hits}/${vbatAnalyzed}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const weakestCallout = (weakestDimension && vbatAnalyzed >= 3)
+    ? `<div class="weakest-callout"><strong>Focus area:</strong> ${esc(VBAT_LABELS[weakestDimension])} — confirmed in ${hitsByDim[weakestDimension]}/${vbatAnalyzed} recent calls.<br>${esc(VBAT_DESC[weakestDimension])}.</div>`
+    : '';
+
+  let callRows = calls.slice(0, 20).map(c => {
+    const vb = c.vbat || {};
+    const dots = ['V','B','A','T'].map(d => {
+      const v = vb[d];
+      if (!v) return '<span class="dot none" title="No data">·</span>';
+      return `<span class="dot ${v.confirmed?'confirmed':'missed'}" title="${esc(VBAT_LABELS[d])}: ${v.confirmed?'confirmed':'not confirmed'}">${d}</span>`;
+    }).join('');
+    const tierCls = `tier-${c.tier || 'B'}`;
+    return `<div class="call-list-item" onclick="loadCall('${esc(c.recordingId)}','${esc(name)}')">
+      <span class="call-date">${fmtDate(c.createdAt)}</span>
+      <span class="call-title">${esc(c.title)}</span>
+      <span class="tier-badge ${tierCls}">${c.tier || 'B'}</span>
+      <span class="call-dots">${dots}</span>
+    </div>`;
+  }).join('');
+
+  const html = `
+    <button class="back" onclick="loadTeam()">← Back to team</button>
+    <h2 class="pgtitle">${esc(name)}</h2>
+    <div class="pgtitle-sub">${totalRecent} recent calls · ${vbatAnalyzed} classified with VBAT</div>
+
+    <div class="card">
+      <h3>Pattern across last 10 calls</h3>
+      ${patternsHTML || '<div class="empty">VBAT data not computed yet for this AE.</div>'}
+      ${weakestCallout}
+    </div>
+
+    <div class="card" id="ae-deep-card">
+      <div class="regenerate-row">
+        <h3 style="margin:0">Coaching narrative <span class="meta" id="ae-deep-meta"></span></h3>
+        <button class="pill-btn" id="ae-deep-regen" onclick="regenerateAEDeep('${esc(name)}')">Regenerate</button>
+      </div>
+      <div id="ae-deep-body" class="narrative-body"><div class="narrative-loading">Loading cached analysis…</div></div>
+    </div>
+
+    <div class="card" style="padding:0">
+      <h3 style="padding:20px 20px 0">Recent calls</h3>
+      ${callRows || '<div class="empty">No calls.</div>'}
+    </div>
+
+    <details class="expander">
+      <summary>Deep dive — pillars, trends, calibration</summary>
+      <div class="expander-body">
+        <div id="ae-pillars-body" style="font-size:13px;color:var(--text2)">Loading pillars…</div>
+      </div>
+    </details>
+  `;
+  $('app').innerHTML = html;
+
+  // Load cached AE deep analysis (if any) + pillars in background
+  loadAEDeepAnalysis(name);
+  loadAEPillars(name);
+}
+
+async function loadAEDeepAnalysis(name){
+  try {
+    const res = await api('/api/ae/' + encodeURIComponent(name) + '/deep-analysis');
+    if (res.status === 404) {
+      $('ae-deep-body').innerHTML = '<div class="narrative-loading">No coaching narrative yet. Click Regenerate to create one.</div>';
+      $('ae-deep-meta').textContent = '(not generated yet)';
+      return;
+    }
+    const data = await res.json();
+    renderAEDeep(data);
+  } catch(err) {
+    $('ae-deep-body').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  }
+}
+
+function renderAEDeep(data){
+  const sections = [
+    { key:'overview',  label:'Overview',               icon:'●', text: data.overview,                   teaser:'Where this AE stands today' },
+    { key:'plan',      label:'Coaching plan',          icon:'◆', text: data.coachingPlan,               teaser:'Top 3 things to work on' },
+    { key:'control',   label:'Call control',           icon:'◉', text: data.callControl,                teaser:'Agenda, lead/follow, momentum' },
+    { key:'discovery', label:'Discovery & gap',        icon:'◎', text: data.discoveryAndGapCreation,    teaser:'Questions, gap creation, proof' },
+    { key:'objection', label:'Objection handling',     icon:'◊', text: data.objectionPatterns,          teaser:'How AE responds to pushback' },
+    { key:'closing',   label:'Closing behaviour',      icon:'▲', text: data.closingBehavior,            teaser:'Urgency, next steps, close' },
+    { key:'script',    label:'Script execution',       icon:'▬', text: data.scriptExecution,            teaser:'Pitch sections nailed / skipped' },
+  ].filter(s => s.text && s.text.trim());
+
+  if (sections.length === 0) {
+    $('ae-deep-body').innerHTML = '<div class="narrative-loading">No coaching narrative content.</div>';
+    return;
+  }
+
+  // Chip row + collapsible sections; first section open by default
+  const chipsHTML = sections.map(s =>
+    `<button class="chip" data-target="sec-${s.key}" onclick="toggleAESection('${s.key}')">${s.icon} ${esc(s.label)}</button>`
+  ).join('');
+
+  const sectionsHTML = sections.map((s, i) =>
+    `<details class="ae-section" id="sec-${s.key}" ${i === 0 ? 'open' : ''}>
+      <summary>
+        <span class="sec-icon">${s.icon}</span>
+        <span class="sec-label">${esc(s.label)}</span>
+        <span class="sec-teaser">${esc(s.teaser)}</span>
+        <span class="sec-caret">▾</span>
+      </summary>
+      <div class="sec-body">${renderMarkdown(s.text)}</div>
+    </details>`
+  ).join('');
+
+  $('ae-deep-body').innerHTML = `
+    <div class="chip-row">${chipsHTML}</div>
+    <div class="ae-sections">${sectionsHTML}</div>
+  `;
+
+  if (data._generatedAt) {
+    const d = new Date(data._generatedAt);
+    $('ae-deep-meta').textContent = `· generated ${d.toLocaleDateString()} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
+  }
+}
+
+function toggleAESection(key){
+  const el = document.getElementById('sec-' + key);
+  if (!el) return;
+  el.open = !el.open;
+  if (el.open) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function regenerateAEDeep(name){
+  const btn = $('ae-deep-regen');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  $('ae-deep-body').innerHTML = '<div class="narrative-loading">Streaming fresh analysis…</div>';
+
+  try {
+    const res = await api('/api/ae/' + encodeURIComponent(name) + '/deep-analysis/stream', {method:'POST'});
+    if (!res.ok) { throw new Error((await res.json()).error || 'Failed'); }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '';
+    $('ae-deep-body').innerHTML = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, {stream:true});
+      full += chunk;
+      $('ae-deep-body').innerHTML = renderMarkdown(full);
+      $('ae-deep-body').scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+    // Reload the parsed version from cache so it shows the nicer section structure
+    setTimeout(()=>loadAEDeepAnalysis(name), 500);
+  } catch(err) {
+    $('ae-deep-body').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Regenerate';
+  }
+}
+
+async function loadAEPillars(name){
+  try {
+    const pillars = await apiJSON('/api/ae/' + encodeURIComponent(name) + '/pillars');
+    if (!pillars || Object.keys(pillars).length === 0) {
+      $('ae-pillars-body').innerHTML = '<div class="empty">No pillar data.</div>';
+      return;
+    }
+    const order = ['control','discovery','gapCreation','objectionHandling','advancement'];
+    const labels = {control:'Call control',discovery:'Discovery',gapCreation:'Gap creation',objectionHandling:'Objection handling',advancement:'Advancement'};
+    const html = order.filter(k => pillars[k]).map(k => {
+      const p = pillars[k];
+      return `<div class="pattern-bar">
+        <div class="pb-label">${esc(labels[k] || k)}</div>
+        <div class="pb-track"><div class="pb-fill" style="width:${p.score}%"></div></div>
+        <div class="pb-num">${p.score} · ${esc(p.level)}</div>
+      </div>`;
+    }).join('');
+    $('ae-pillars-body').innerHTML = html || '<div class="empty">No pillar data.</div>';
+  } catch(err) {
+    $('ae-pillars-body').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════ CALL VIEW ═══════════════════════════
+let currentCallAE = '';
+
+async function loadCall(rid, aeName){
+  currentCallAE = aeName;
+  try {
+    $('app').innerHTML = `<button class="back" onclick="loadAE('${esc(aeName)}')">← Back to ${esc(aeName)}</button><div class="loading">Loading call…</div>`;
+    const [call, vbat] = await Promise.all([
+      apiJSON('/api/call/' + encodeURIComponent(rid)),
+      apiJSON('/api/call/' + encodeURIComponent(rid) + '/vbat').catch(()=>null),
+    ]);
+    if (!call || call.error) throw new Error(call?.error || 'Not found');
+    renderCall(call, vbat);
+  } catch(err){
+    $('app').innerHTML = `<button class="back" onclick="loadAE('${esc(aeName)}')">← Back</button><div class="err">${esc(err.message)}</div>`;
+  }
+}
+
+function renderCall(call, vbat){
+  const sr = call.smart_review || {};
+  const summary = sr.summary || '';
+  const oneThing = sr.oneThingToChange || '';
+  const url = call.recording_url || '';
+  const hasVBAT = vbat && !vbat.error;
+
+  const vbatCore = hasVBAT ? ['V','B','A','T'].map(d => renderVBATRow(call.recording_id, d, vbat[d], url)).join('') : '';
+  const vbatExpert = hasVBAT ? ['E','F'].map(d => renderVBATRow(call.recording_id, d, vbat[d], url)).join('') : '';
+
+  const hasNarrative = call.narrative_review && Object.keys(call.narrative_review).length > 0;
+
+  const html = `
+    <button class="back" onclick="loadAE('${esc(currentCallAE)}')">← Back to ${esc(currentCallAE)}</button>
+    <h2 class="pgtitle">${esc(call.title || 'Untitled')}</h2>
+    <div class="pgtitle-sub">${esc(call.recorder_name || '')} · ${fmtDate(call.created_at)} · ${Math.round((call.duration_seconds||0)/60)} min${url?' · <a href="'+esc(url)+'" target="_blank">Open in Claap ↗</a>':''}</div>
+
+    <div class="card">
+      <h3>What happened</h3>
+      <div class="summary-block">${summary ? esc(summary) : '<span style="color:var(--text3)">No summary generated.</span>'}</div>
+      ${oneThing ? `<div class="one-thing"><div class="label">The one thing to change</div><div class="text">${esc(oneThing)}</div></div>` : ''}
+    </div>
+
+    <div class="card">
+      <h3>VBAT — what the prospect said</h3>
+      ${hasVBAT ? `<div class="vbat-nav">${vbatCore}</div>` :
+        `<div class="narrative-loading">Not classified yet. <button class="pill-btn" onclick="regenerateVBAT('${esc(call.recording_id)}')">Classify now</button></div>`}
+
+      ${hasVBAT ? `<div class="expert-label">Expert level — advanced moves</div><div class="vbat-nav">${vbatExpert}</div>` : ''}
+      ${hasVBAT ? `<div style="margin-top:14px;text-align:right"><button class="pill-btn" onclick="regenerateVBAT('${esc(call.recording_id)}')">Re-classify</button></div>` : ''}
+    </div>
+
+    <div class="card" id="call-narrative-card">
+      <div class="regenerate-row">
+        <h3 style="margin:0">Full coaching narrative <span class="meta" id="call-narrative-meta"></span></h3>
+        <button class="pill-btn" id="call-narrative-regen" onclick="regenerateCallNarrative('${esc(call.recording_id)}')">${hasNarrative?'Regenerate':'Generate'}</button>
+      </div>
+      <div id="call-narrative-body" class="narrative-body"></div>
+    </div>
+
+    <details class="expander">
+      <summary>Deep dive — pillars, moments, script coverage</summary>
+      <div class="expander-body">${renderCallDeepDive(call)}</div>
+    </details>
+  `;
+  $('app').innerHTML = html;
+
+  // Render cached narrative
+  if (hasNarrative) renderCallNarrative(call.narrative_review);
+  else $('call-narrative-body').innerHTML = '<div class="narrative-loading">Not generated yet. Click Generate to create.</div>';
+}
+
+function renderVBATRow(rid, dim, verdict, recordingUrl){
+  if (!verdict) {
+    return `<div class="vbat-row missed">
+      <div class="vbat-letter missed">${dim}</div>
+      <div class="vbat-body">
+        <div class="vbat-label">${esc(VBAT_LABELS[dim])}</div>
+        <div class="vbat-evidence" style="color:var(--text3)">No verdict available.</div>
+      </div>
+    </div>`;
+  }
+  const cls = verdict.confirmed ? 'confirmed' : 'missed';
+  const conf = verdict.confidence || 'medium';
+  const tsDisplay = verdict.timestamp ? `<span class="ts">${esc(verdict.timestamp)}</span>` : '';
+  const evidence = verdict.evidence && verdict.evidence.trim()
+    ? `<div class="vbat-evidence">"${esc(verdict.evidence)}"</div>`
+    : `<div class="vbat-evidence" style="color:var(--text3)">No evidence captured.</div>`;
+  const jumpHandler = recordingUrl && verdict.timestamp
+    ? `onclick="jumpToMoment('${esc(recordingUrl)}','${esc(verdict.timestamp)}')"`
+    : '';
+  return `<div class="vbat-row ${cls}" ${jumpHandler}>
+    <div class="vbat-letter ${cls}">${dim}</div>
+    <div class="vbat-body">
+      <div class="vbat-label">${esc(VBAT_LABELS[dim])} — ${verdict.confirmed?'confirmed':'not confirmed'}<span class="conf-badge conf-${conf}">${esc(conf)}</span>${tsDisplay}</div>
+      ${evidence}
+      <div class="vbat-reasoning">${esc(verdict.reasoning || '')}</div>
+      <div class="vbat-actions" onclick="event.stopPropagation()">
+        <button class="vbat-wrong-btn" onclick="flagVBATWrong('${esc(rid)}','${dim}',${verdict.confirmed})">This is wrong</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function jumpToMoment(url, timestamp){
+  // Timestamp is MM:SS — convert to seconds for Claap deep link
+  const parts = String(timestamp).split(':').map(n => parseInt(n, 10));
+  if (parts.length !== 2 || parts.some(isNaN)) { window.open(url, '_blank'); return; }
+  const seconds = parts[0] * 60 + parts[1];
+  const sep = url.includes('?') ? '&' : '?';
+  window.open(`${url}${sep}t=${seconds}`, '_blank');
+}
+
+async function flagVBATWrong(rid, dim, verdictWas){
+  const note = prompt(`Why is the ${VBAT_LABELS[dim]} verdict wrong?\n(Current: ${verdictWas?'confirmed':'not confirmed'})`);
+  if (note === null) return;
+  try {
+    await api('/api/call/' + encodeURIComponent(rid) + '/vbat/feedback', {
+      method:'POST',
+      body: JSON.stringify({ dimension: dim, verdictWas: verdictWas, correctVerdict: !verdictWas, note }),
+    });
+    alert('Thanks — feedback recorded. Consider clicking "Re-classify" to regenerate.');
+  } catch(err) {
+    alert('Could not save feedback: ' + err.message);
+  }
+}
+
+async function regenerateVBAT(rid){
+  if (!confirm('Re-classify VBAT for this call? Uses one LLM call.')) return;
+  try {
+    $('app').querySelectorAll('.vbat-row').forEach(el => el.style.opacity = '.4');
+    const res = await api('/api/call/' + encodeURIComponent(rid) + '/vbat/regenerate', {method:'POST'});
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+    loadCall(rid, currentCallAE);
+  } catch(err) {
+    alert('Re-classify failed: ' + err.message);
+    $('app').querySelectorAll('.vbat-row').forEach(el => el.style.opacity = '1');
+  }
+}
+
+function renderCallNarrative(n){
+  const sections = [
+    ['Summary', n.summary],
+    ['Doubts & objections', n.objectionsAnalysis],
+    ['Buying signals', n.buyingSignalsAnalysis],
+    ['Coaching moments', n.coachingMoments],
+    ['Verdict', n.overallVerdict],
+  ].filter(([_, v]) => v && v.trim());
+
+  if (sections.length === 0) {
+    $('call-narrative-body').innerHTML = '<div class="narrative-loading">Narrative empty or not parsed.</div>';
+    return;
+  }
+  $('call-narrative-body').innerHTML = sections.map(([t,v]) => `<h4>${esc(t)}</h4>${renderMarkdown(v)}`).join('');
+  if (n.generatedAt) {
+    const d = new Date(n.generatedAt);
+    $('call-narrative-meta').textContent = `· generated ${d.toLocaleDateString()}`;
+  }
+}
+
+async function regenerateCallNarrative(rid){
+  const btn = $('call-narrative-regen');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  $('call-narrative-body').innerHTML = '<div class="narrative-loading">Streaming narrative…</div>';
+
+  try {
+    const res = await api('/api/call/' + encodeURIComponent(rid) + '/narrative/stream?force=true', {method:'POST'});
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '';
+    $('call-narrative-body').innerHTML = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      full += decoder.decode(value, {stream:true});
+      $('call-narrative-body').innerHTML = renderMarkdown(full);
+    }
+    // Reload to get the parsed cached version (nicer section layout)
+    setTimeout(async () => {
+      const call = await apiJSON('/api/call/' + encodeURIComponent(rid));
+      if (call.narrative_review) renderCallNarrative(call.narrative_review);
+    }, 800);
+  } catch(err){
+    $('call-narrative-body').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Regenerate';
+  }
+}
+
+function renderCallDeepDive(call){
+  // Pillars
+  const ps = call.pillar_scores || {};
+  const pillarOrder = ['control','discovery','gapCreation','objectionHandling','advancement'];
+  const pillarLabels = {control:'Call control',discovery:'Discovery',gapCreation:'Gap creation',objectionHandling:'Objection handling',advancement:'Advancement'};
+  const pillarsHTML = pillarOrder.filter(k => ps[k]).map(k => `
+    <div class="pattern-bar">
+      <div class="pb-label">${esc(pillarLabels[k])}</div>
+      <div class="pb-track"><div class="pb-fill" style="width:${ps[k].score||0}%"></div></div>
+      <div class="pb-num">${ps[k].score||0}</div>
+    </div>
+  `).join('');
+
+  // Metrics
+  const metricsHTML = `
+    <div class="pattern-bar"><div class="pb-label">Talk ratio</div><div class="pb-num" style="text-align:left;flex:1">${call.talk_ratio||0}%</div></div>
+    <div class="pattern-bar"><div class="pb-label">Questions</div><div class="pb-num" style="text-align:left;flex:1">${call.question_count||0}</div></div>
+    <div class="pattern-bar"><div class="pb-label">Script adherence</div><div class="pb-num" style="text-align:left;flex:1">${call.script_adherence||0}%</div></div>
+    <div class="pattern-bar"><div class="pb-label">Quality score</div><div class="pb-num" style="text-align:left;flex:1">${call.call_quality_score||0}</div></div>
+    <div class="pattern-bar"><div class="pb-label">Call tier</div><div class="pb-num" style="text-align:left;flex:1">${esc(call.call_tier||'B')}</div></div>
+    <div class="pattern-bar"><div class="pb-label">Meeting type</div><div class="pb-num" style="text-align:left;flex:1">${esc(call.meeting_type||'first')}</div></div>
+  `;
+
+  // Coachable moments from highlights
+  const hl = (call.highlights || []).filter(h => h.type === 'coachable').slice(0, 8);
+  const momentsHTML = hl.length ? hl.map(h => `
+    <div style="padding:10px 12px;background:var(--bg3);border-left:3px solid var(--orange);margin-bottom:6px;border-radius:0 8px 8px 0">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:3px"><strong style="color:var(--orange)">${esc(h.category||'')}</strong> · ${esc(h.timestampDisplay||'')}</div>
+      <div style="font-size:13px;color:var(--text2);font-style:italic">${esc(h.excerpt||'')}</div>
+      ${h.guidance ? `<div style="font-size:12px;color:var(--blue);margin-top:4px">${esc(h.guidance)}</div>` : ''}
+    </div>
+  `).join('') : '<div class="empty">No coachable moments flagged.</div>';
+
+  return `
+    <h4 style="margin:14px 0 10px;color:var(--text2);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Pillars</h4>
+    ${pillarsHTML || '<div class="empty">No pillar data.</div>'}
+    <h4 style="margin:20px 0 10px;color:var(--text2);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Metrics</h4>
+    ${metricsHTML}
+    <h4 style="margin:20px 0 10px;color:var(--text2);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Coachable moments</h4>
+    ${momentsHTML}
+  `;
+}
+
+// ═══════════════════════════ BOOT ═══════════════════════════
+if (authToken) loadTeam();
+</script>
+</body>
+</html>
