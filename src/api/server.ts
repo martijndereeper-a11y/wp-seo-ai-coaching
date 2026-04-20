@@ -157,6 +157,7 @@ app.get('/classic', (c) => serveDashboardFile(c, 'index.html'));
 app.get('/deep', (c) => serveDashboardFile(c, 'index.html'));
 app.get('/sales-os', (c) => serveDashboardFile(c, 'sales-os.html'));
 app.get('/pipeline', (c) => serveDashboardFile(c, 'pipeline.html'));
+app.get('/pre-meeting', (c) => serveDashboardFile(c, 'pre-meeting.html'));
 
 // ─── Export ─────────────────────────────────────────────────────────────────
 

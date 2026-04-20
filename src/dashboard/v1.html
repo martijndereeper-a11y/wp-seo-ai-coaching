@@ -343,10 +343,13 @@ async function loadTeam(){
 
 function renderTeam(rows){
   let html = `<h2 class="pgtitle">Team</h2>
-    <div class="pgtitle-sub">VBAT hit rate across each AE's last 10 calls.</div>
+    <div class="pgtitle-sub">VBAT hit rate across each AE's last 60 days. Trend compares most-recent 30 days vs prior 30 days.</div>
 
     <div class="card" id="link-analyze-card">
-      <h3>Analyze a specific call</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px;flex-wrap:wrap">
+        <h3 style="margin:0">Analyze a specific call</h3>
+        <button class="pill-btn primary" onclick="location.href='/pre-meeting'" style="white-space:nowrap">Pre-Meeting Brief →</button>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input id="link-url" type="text" placeholder="Paste Claap recording link…" style="flex:1;min-width:260px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')analyzeLink()">
         <button class="pill-btn primary" id="link-btn" onclick="analyzeLink()">Open call</button>
@@ -361,7 +364,8 @@ function renderTeam(rows){
   } else {
     for (const ae of rows) {
       const pct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
-      const analyzed = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} calls` : 'No VBAT data';
+      const analyzed = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} calls analyzed` : 'No VBAT data';
+      const recent = ae.recent60Days ?? ae.recent7Days ?? 0;
       html += `
         <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
           <div class="name">${esc(ae.name)}</div>
@@ -370,8 +374,8 @@ function renderTeam(rows){
             <span>${esc(analyzed)}</span>
           </div>
           <div class="meta-col">
-            <span class="big">${ae.recent7Days}</span>
-            <span>last 7 days</span>
+            <span class="big">${recent}</span>
+            <span>calls (60d)</span>
           </div>
           ${trendGlyph(ae.trend)}
         </div>`;
@@ -429,7 +433,7 @@ async function loadAE(name){
 }
 
 function renderAE(data){
-  const { name, totalRecent, vbatAnalyzed, hitsByDim, weakestDimension, calls } = data;
+  const { name, totalRecent, vbatAnalyzed, hitsByDim, weakestDimension, weeklyTrend, weakestPinnedCalls, calls } = data;
 
   let patternsHTML = '';
   if (vbatAnalyzed > 0) {
@@ -447,6 +451,102 @@ function renderAE(data){
   const weakestCallout = (weakestDimension && vbatAnalyzed >= 3)
     ? `<div class="weakest-callout"><strong>Focus area:</strong> ${esc(VBAT_LABELS[weakestDimension])} — confirmed in ${hitsByDim[weakestDimension]}/${vbatAnalyzed} recent calls.<br>${esc(VBAT_DESC[weakestDimension])}.</div>`
     : '';
+
+  // ─── Weekly trend chart (9 weeks) ───
+  let trendHTML = '';
+  if (weeklyTrend && weeklyTrend.length > 0 && vbatAnalyzed >= 3) {
+    const dimColors = { V: '#B748FF', B: '#3B82F6', A: '#10B981', T: '#F59E0B' };
+    const dims = ['V','B','A','T'];
+    const maxHeight = 120;
+    const barWidth = 100 / weeklyTrend.length;
+
+    const lines = dims.map(d => {
+      const points = weeklyTrend.map((w, i) => {
+        const val = w[d];
+        if (val === null) return null;
+        const x = (i + 0.5) * barWidth;
+        const y = maxHeight - (val / 100) * maxHeight;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).filter(p => p !== null);
+      return `<polyline points="${points.join(' ')}" fill="none" stroke="${dimColors[d]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>`;
+    }).join('');
+
+    const xLabels = weeklyTrend.map((w, i) => {
+      const x = (i + 0.5) * barWidth;
+      return `<text x="${x.toFixed(1)}" y="${maxHeight + 18}" text-anchor="middle" font-size="10" fill="var(--text3)">${esc(w.label)}</text>`;
+    }).join('');
+
+    const legend = dims.map(d => `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-right:14px"><span style="width:12px;height:3px;background:${dimColors[d]};border-radius:2px"></span>${d} — ${esc(VBAT_LABELS[d])}</span>`).join('');
+
+    trendHTML = `
+      <div class="card">
+        <h3>Weekly VBAT trend — last 9 weeks</h3>
+        <div style="margin:14px 0 8px">${legend}</div>
+        <svg viewBox="0 0 100 ${maxHeight + 24}" preserveAspectRatio="none" style="width:100%;height:180px;overflow:visible">
+          <line x1="0" y1="0" x2="100" y2="0" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
+          <line x1="0" y1="${maxHeight*0.25}" x2="100" y2="${maxHeight*0.25}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
+          <line x1="0" y1="${maxHeight*0.5}" x2="100" y2="${maxHeight*0.5}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
+          <line x1="0" y1="${maxHeight*0.75}" x2="100" y2="${maxHeight*0.75}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
+          <line x1="0" y1="${maxHeight}" x2="100" y2="${maxHeight}" stroke="var(--border)" stroke-width="0.3"/>
+          ${lines}
+          ${xLabels}
+          <text x="-1" y="4" text-anchor="end" font-size="8" fill="var(--text3)">100%</text>
+          <text x="-1" y="${maxHeight+2}" text-anchor="end" font-size="8" fill="var(--text3)">0%</text>
+        </svg>
+      </div>`;
+  }
+
+  // ─── Dimension heatmap ───
+  let heatmapHTML = '';
+  if (weeklyTrend && weeklyTrend.length > 0 && vbatAnalyzed >= 3) {
+    const dims = ['V','B','A','T'];
+    const heatColor = (val) => {
+      if (val === null) return 'var(--bg3)';
+      if (val >= 70) return 'rgba(16,185,129,.6)';
+      if (val >= 50) return 'rgba(16,185,129,.3)';
+      if (val >= 30) return 'rgba(245,158,11,.4)';
+      return 'rgba(239,68,68,.4)';
+    };
+    const header = '<div style="font-size:10px;color:var(--text3);padding:4px"></div>' + weeklyTrend.map(w => `<div style="font-size:10px;color:var(--text3);text-align:center;padding:4px">${esc(w.label)}</div>`).join('');
+    const rows = dims.map(d => {
+      const cells = weeklyTrend.map(w => {
+        const val = w[d];
+        const label = val === null ? '—' : `${val}%`;
+        return `<div title="${esc(w.label)} · ${d}: ${label} (${w.calls} calls)" style="background:${heatColor(val)};color:var(--text);font-size:11px;text-align:center;padding:8px 4px;border-radius:4px;min-height:28px;display:flex;align-items:center;justify-content:center">${label}</div>`;
+      }).join('');
+      return `<div style="font-size:12px;color:var(--text2);padding:4px;font-weight:600">${d}</div>${cells}`;
+    }).join('');
+    heatmapHTML = `
+      <div class="card">
+        <h3>VBAT heatmap — dimension × week</h3>
+        <div style="display:grid;grid-template-columns:40px repeat(${weeklyTrend.length}, 1fr);gap:3px;margin-top:12px">
+          ${header}
+          ${rows}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px">Green ≥70% · light green 50-69% · orange 30-49% · red &lt;30% · grey = no calls that week</div>
+      </div>`;
+  }
+
+  // ─── Pinned worst-miss calls (weakest dimension) ───
+  let pinnedHTML = '';
+  if (weakestPinnedCalls && weakestPinnedCalls.length > 0 && weakestDimension) {
+    const items = weakestPinnedCalls.map(c => {
+      const evidence = c.evidence ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic">"${esc(c.evidence.slice(0, 160))}${c.evidence.length > 160 ? '…' : ''}"</div>` : '';
+      return `<div class="call-list-item" onclick="loadCall('${esc(c.recordingId)}','${esc(name)}')">
+        <span class="call-date">${fmtDate(c.createdAt)}</span>
+        <div style="flex:1;min-width:0">
+          <div class="call-title">${esc(c.title)}</div>
+          ${evidence}
+        </div>
+      </div>`;
+    }).join('');
+    pinnedHTML = `
+      <div class="card" style="padding:0">
+        <h3 style="padding:20px 20px 4px">Calls to study — ${esc(VBAT_LABELS[weakestDimension])} was missed</h3>
+        <div style="padding:0 20px 12px;font-size:12px;color:var(--text3)">These are recent calls where the focus dimension wasn't confirmed. Listen for what went differently.</div>
+        ${items}
+      </div>`;
+  }
 
   let callRows = calls.slice(0, 20).map(c => {
     const vb = c.vbat || {};
@@ -467,13 +567,17 @@ function renderAE(data){
   const html = `
     <button class="back" onclick="loadTeam()">← Back to team</button>
     <h2 class="pgtitle">${esc(name)}</h2>
-    <div class="pgtitle-sub">${totalRecent} recent calls · ${vbatAnalyzed} classified with VBAT</div>
+    <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${vbatAnalyzed} classified with VBAT · <a onclick="event.stopPropagation();location.href='/pre-meeting?ae=${encodeURIComponent(name)}'" style="cursor:pointer;color:var(--purple)">Prep next meeting →</a></div>
 
     <div class="card">
-      <h3>Pattern across last 10 calls</h3>
+      <h3>Pattern across last 60 days</h3>
       ${patternsHTML || '<div class="empty">VBAT data not computed yet for this AE.</div>'}
       ${weakestCallout}
     </div>
+
+    ${trendHTML}
+    ${heatmapHTML}
+    ${pinnedHTML}
 
     <div class="card" id="ae-deep-card">
       <div class="regenerate-row">

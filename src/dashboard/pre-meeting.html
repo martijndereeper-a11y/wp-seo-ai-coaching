@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WP SEO AI — Pre-Meeting Brief</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f042c;--bg2:#1a0e3a;--bg3:#260e49;--border:#3b1d6e;--border-soft:rgba(59,29,110,.55);
+  --text:#FFFFFF;--text2:#C2BAD6;--text3:#8A82A0;
+  --purple:#B748FF;--purple2:#7c3aed;--purple-soft:#BEB5FF;
+  --green:#10B981;--red:#EF4444;--orange:#F59E0B;--blue:#3B82F6;
+  --radius:14px;--radius-sm:10px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased}
+body{font-family:'Archivo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;background:radial-gradient(ellipse 80% 60% at 30% 20%,#1a0e3a 0%,#0f042c 100%) fixed}
+
+.topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.topbar .logo svg{height:22px}
+.topbar h1{font-size:15px;font-weight:500;color:var(--text2)}
+.topbar .spacer{flex:1}
+.topbar a{color:var(--text2);text-decoration:none;font-size:13px;padding:6px 14px;border:1px solid var(--border);border-radius:8px;font-weight:600}
+.topbar a:hover{border-color:var(--purple);color:var(--text)}
+
+.container{max-width:900px;margin:0 auto;padding:32px 24px}
+
+.hero{text-align:center;margin-bottom:28px}
+.hero h2{font-size:26px;font-weight:700;margin-bottom:8px}
+.hero p{color:var(--text2);font-size:14px;max-width:580px;margin:0 auto;line-height:1.6}
+
+.form-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px}
+.form-card label{font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.form-card select,.form-card textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;outline:none;font-family:inherit;transition:border .15s}
+.form-card select:focus,.form-card textarea:focus{border-color:var(--purple)}
+.form-card textarea{min-height:140px;resize:vertical;line-height:1.5}
+.form-row{margin-bottom:16px}
+.form-row:last-child{margin-bottom:0}
+.btn-primary{background:var(--purple);color:white;border:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
+.btn-primary:hover{background:var(--purple2)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+.example-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.example-chips .chip{background:var(--bg3);border:1px solid var(--border);padding:6px 12px;border-radius:9999px;font-size:12px;color:var(--text2);cursor:pointer}
+.example-chips .chip:hover{border-color:var(--purple);color:var(--text)}
+
+.loading{text-align:center;padding:48px 20px;color:var(--text2)}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.brief{display:none}
+.brief.show{display:block}
+.brief-meta{font-size:12px;color:var(--text3);margin-bottom:18px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.brief-meta strong{color:var(--text)}
+
+.section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.section h3{font-size:13px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.section h3 .num{background:var(--purple);color:white;width:22px;height:22px;border-radius:50%;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.section p,.section li{font-size:14px;line-height:1.6;color:var(--text)}
+.section .prospect-read{font-size:15px;line-height:1.55;color:var(--text)}
+
+.focus-banner{background:linear-gradient(90deg,rgba(183,72,255,.18),rgba(124,58,237,.08));border:1px solid var(--purple);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.focus-banner .label{font-size:10px;color:var(--purple-soft);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px}
+.focus-banner .dim{font-size:20px;font-weight:700;margin-bottom:6px}
+.focus-banner .dim .letter{color:var(--purple);font-size:26px;margin-right:8px}
+.focus-banner .why{font-size:13px;color:var(--text2);line-height:1.5}
+
+.industry-match{display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap}
+.industry-match .tag{background:var(--purple);color:white;padding:4px 12px;border-radius:9999px;font-size:12px;font-weight:600}
+.industry-match .count{font-size:12px;color:var(--text2)}
+
+ul.q-list{list-style:none;padding:0;margin:0}
+ul.q-list li{padding:10px 14px;margin:6px 0;background:var(--bg3);border-left:3px solid var(--purple);border-radius:0 8px 8px 0;font-size:14px;line-height:1.5}
+
+.objection-block{padding:10px 14px;margin:6px 0;background:var(--bg3);border-radius:8px}
+.objection-block .obj{font-weight:600;color:var(--orange);margin-bottom:4px;font-size:13px}
+.objection-block .resp{font-size:13px;color:var(--text2);line-height:1.5}
+
+.flag-list{display:flex;flex-wrap:wrap;gap:6px}
+.flag-list .flag{background:rgba(239,68,68,.12);color:var(--red);padding:5px 11px;border-radius:9999px;font-size:12px;font-weight:500}
+
+.opening-line{font-size:16px;font-style:italic;color:var(--text);padding:14px 18px;background:rgba(183,72,255,.08);border-left:3px solid var(--purple);border-radius:0 8px 8px 0;line-height:1.55}
+
+.error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px 18px;color:var(--red);font-size:13px;margin-bottom:20px}
+
+.action-bar{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text);padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600}
+.btn-ghost:hover{border-color:var(--purple);color:var(--purple)}
+
+@media print {
+  .topbar,.form-card,.example-chips,.action-bar{display:none}
+  body{background:white;color:black}
+  .section{background:#f8f8f8;border:1px solid #ddd;page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo"><svg width="1338" height="204" viewBox="0 0 1338 204" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M55.9393 204L0 12H51.3402L80.3423 137.812H81.9379L115.07 12H156.93L190.062 138.094H191.658L220.754 12H272L216.155 204H171.384L136.751 87.5625H135.249L100.616 204H55.9393Z" fill="#B748FF"/><path d="M292 204V12H371.313C385.688 12 398.094 14.8125 408.531 20.4375C419.031 26 427.125 33.7812 432.813 43.7812C438.5 53.7188 442 65.3125 442 78.5C442 91.75 438.438 103.312 432.625 113.25C426.875 123.125 418.656 130.781 407.969 136.219C397.281 141.656 384.594 144.375 369.906 144.375H320.969V107.812H361.281C368.281 107.812 374.125 106.594 378.812 104.156C383.562 101.719 387.156 98.3125 389.594 93.9375C392.031 89.5 393.25 84.3437 393.25 78.4687C393.25 72.5312 392.031 67.4062 389.594 63.0938C387.156 58.7188 383.562 55.3438 378.812 52.9688C374.062 50.5938 368.219 49.4063 361.281 49.4063H338.406V204H292Z" fill="#B748FF"/><path d="M715.504 162.034V126.926H800.25V86.3314H715.504V53.9657H804.25V12H662.25V204H804.25V162.034H715.504Z" fill="white"/><path d="M1125.68 204H1070L1132.73 12H1203.27L1266 204H1210.32L1168.74 64.875H1167.26L1125.68 204ZM1115.29 128.25H1219.97V167.25H1115.29V128.25Z" fill="#B748FF"/><path d="M1338 12V204H1286V12H1338Z" fill="#B748FF"/></svg></span>
+  <h1>Pre-Meeting Brief</h1>
+  <div class="spacer"></div>
+  <a href="/v1">← Back to VBAT</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <h2>Prep in 90 seconds</h2>
+    <p>Drop in your prospect context. The brief combines your VBAT history with WP SEO AI's industry data to give you focus questions, proof points, and likely objections — tailored to you.</p>
+  </div>
+
+  <div class="form-card" id="form-card">
+    <div class="form-row">
+      <label for="ae-select">Account Executive</label>
+      <select id="ae-select">
+        <option value="">Loading AEs…</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label for="context">Prospect context</label>
+      <textarea id="context" placeholder="e.g. 'Meeting with De Turfvaart tomorrow at 2pm. Hospitality/restaurant in NL, family business, they reached out via inbound. Currently using a local SEO agency they're unhappy with. Founder will be on the call.'"></textarea>
+      <div class="example-chips">
+        <span class="chip" onclick="useExample(0)">Restaurant, inbound</span>
+        <span class="chip" onclick="useExample(1)">Construction, referral</span>
+        <span class="chip" onclick="useExample(2)">B2B SaaS, cold outbound</span>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="generate-btn" onclick="generateBrief()">Generate brief</button>
+  </div>
+
+  <div id="error-area"></div>
+
+  <div class="loading" id="loading" style="display:none">
+    <div class="spinner"></div>
+    <div>Generating brief — pulling your VBAT history, matching industry, drafting questions…</div>
+  </div>
+
+  <div class="brief" id="brief-result"></div>
+</div>
+
+<script>
+const EXAMPLES = [
+  `Meeting with a restaurant owner in Amsterdam at 14:00. Family-run, 2 locations. They replied to our inbound newsletter. Currently running Google Ads but no SEO. Founder + marketing manager will join.`,
+  `Referral from existing customer. Construction contractor in Finland (Oulu area), specializes in roof renovations. They've tried SEO before with a local agency — disappointed. Owner is the decision-maker.`,
+  `Cold outbound. Dutch B2B SaaS for HR/workforce management. ~50 employees. Marketing lead is taking the call. They indicated "AI content concerns" on the LinkedIn InMail reply.`,
+];
+
+const TOKEN = localStorage.getItem('auth_token') || '';
+
+async function loadAEs() {
+  try {
+    const res = await fetch('/api/v1/team', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    const data = await res.json();
+    const sel = document.getElementById('ae-select');
+    sel.innerHTML = '<option value="">Select an AE…</option>' + data.map(ae => `<option value="${escapeAttr(ae.name)}">${escapeAttr(ae.name)} — VBAT ${ae.vbatHitRate != null ? ae.vbatHitRate + '%' : '—'}</option>`).join('');
+
+    // Pre-select AE from URL query param
+    const urlAE = new URLSearchParams(location.search).get('ae');
+    if (urlAE) sel.value = urlAE;
+  } catch (e) {
+    document.getElementById('ae-select').innerHTML = '<option value="">Failed to load AEs</option>';
+  }
+}
+
+function useExample(i) {
+  document.getElementById('context').value = EXAMPLES[i];
+}
+
+async function generateBrief() {
+  const aeName = document.getElementById('ae-select').value;
+  const context = document.getElementById('context').value.trim();
+  const errArea = document.getElementById('error-area');
+  errArea.innerHTML = '';
+
+  if (!aeName) { errArea.innerHTML = '<div class="error">Pick an AE first.</div>'; return; }
+  if (!context) { errArea.innerHTML = '<div class="error">Add some context about the prospect.</div>'; return; }
+
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('brief-result').classList.remove('show');
+  document.getElementById('brief-result').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/v1/pre-meeting-brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+      body: JSON.stringify({ aeName, prospectContext: context }),
+    });
+    const data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    if (data.error) {
+      errArea.innerHTML = `<div class="error">${escapeHTML(data.error)}</div>`;
+    } else {
+      renderBrief(data);
+    }
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    errArea.innerHTML = `<div class="error">Request failed: ${escapeHTML(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderBrief(data) {
+  const { brief, aeName, aeStats, generatedAt } = data;
+  const target = document.getElementById('brief-result');
+
+  const qList = (brief.questionsToAsk || []).map(q => `<li>${escapeHTML(q)}</li>`).join('');
+  const objList = (brief.likelyObjections || []).map(o => `
+    <div class="objection-block">
+      <div class="obj">${escapeHTML(o.objection)}</div>
+      <div class="resp">${escapeHTML(o.response)}</div>
+    </div>`).join('');
+  const flags = (brief.redFlags || []).map(f => `<span class="flag">${escapeHTML(f)}</span>`).join('');
+
+  const im = brief.industryMatch || {};
+
+  target.innerHTML = `
+    <div class="brief-meta">
+      <span><strong>${escapeHTML(aeName)}</strong></span>
+      <span>·</span>
+      <span>Based on ${aeStats.vbatCallsAnalyzed} analyzed calls in last 60 days</span>
+      <span>·</span>
+      <span>Generated ${new Date(generatedAt).toLocaleString()}</span>
+    </div>
+
+    <div class="focus-banner">
+      <div class="label">Your focus dimension for this meeting</div>
+      <div class="dim"><span class="letter">${escapeHTML(brief.focusDimension?.letter || 'T')}</span>${escapeHTML(brief.focusDimension?.name || 'Timeline')}</div>
+      <div class="why">${escapeHTML(brief.focusDimension?.why || '')}</div>
+    </div>
+
+    <div class="section">
+      <h3><span class="num">1</span>Prospect read</h3>
+      <p class="prospect-read">${escapeHTML(brief.prospectRead || '')}</p>
+    </div>
+
+    ${im.primary ? `
+    <div class="section">
+      <h3><span class="num">2</span>Industry match</h3>
+      <div class="industry-match">
+        <span class="tag">${escapeHTML(im.primary)}</span>
+        <span class="count">${im.customerCount || 0} customers in this category</span>
+      </div>
+      <p>${escapeHTML(im.proofPoint || '')}</p>
+    </div>` : ''}
+
+    <div class="section">
+      <h3><span class="num">3</span>Opening line</h3>
+      <div class="opening-line">"${escapeHTML(brief.openingLine || '')}"</div>
+    </div>
+
+    ${qList ? `
+    <div class="section">
+      <h3><span class="num">4</span>Questions to ask early</h3>
+      <ul class="q-list">${qList}</ul>
+    </div>` : ''}
+
+    ${objList ? `
+    <div class="section">
+      <h3><span class="num">5</span>Likely objections</h3>
+      ${objList}
+    </div>` : ''}
+
+    ${flags ? `
+    <div class="section">
+      <h3><span class="num">6</span>Red flags to watch</h3>
+      <div class="flag-list">${flags}</div>
+    </div>` : ''}
+
+    <div class="action-bar">
+      <button class="btn-ghost" onclick="window.print()">Print / Save PDF</button>
+      <button class="btn-ghost" onclick="copyBrief()">Copy as text</button>
+      <button class="btn-ghost" onclick="location.reload()">New brief</button>
+    </div>
+  `;
+  target.classList.add('show');
+  window.scrollTo({ top: target.offsetTop - 80, behavior: 'smooth' });
+  window._briefData = data;
+}
+
+function copyBrief() {
+  const d = window._briefData;
+  if (!d) return;
+  const b = d.brief;
+  const text = [
+    `PRE-MEETING BRIEF — ${d.aeName}`,
+    `Generated ${new Date(d.generatedAt).toLocaleString()}`,
+    ``,
+    `FOCUS: ${b.focusDimension?.letter} ${b.focusDimension?.name}`,
+    `${b.focusDimension?.why}`,
+    ``,
+    `PROSPECT READ: ${b.prospectRead}`,
+    ``,
+    b.industryMatch?.primary ? `INDUSTRY MATCH: ${b.industryMatch.primary} (${b.industryMatch.customerCount} customers)\n${b.industryMatch.proofPoint}\n` : '',
+    `OPENING: "${b.openingLine}"`,
+    ``,
+    `QUESTIONS:`,
+    ...(b.questionsToAsk || []).map(q => `• ${q}`),
+    ``,
+    `LIKELY OBJECTIONS:`,
+    ...(b.likelyObjections || []).map(o => `• "${o.objection}" → ${o.response}`),
+    ``,
+    `RED FLAGS: ${(b.redFlags || []).join(' · ')}`,
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target;
+    const prev = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => btn.textContent = prev, 1500);
+  });
+}
+
+function escapeHTML(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function escapeAttr(s) {
+  return escapeHTML(s).replace(/'/g, '&#39;');
+}
+
+loadAEs();
+</script>
+</body>
+</html>

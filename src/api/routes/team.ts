@@ -274,63 +274,66 @@ routes.get('/dashboard', async (c) => {
 
 // ─── V1 endpoints — simplified team + AE views ──────────────────────────────
 
-// V1 Team — AE rows with VBAT hit rate and recent call count
+// V1 Team — AE rows with VBAT hit rate across last 60 days
 routes.get('/v1/team', async (c) => {
   const cached = getCached('v1-team');
   if (cached) return c.json(cached);
 
-  const windowCutoff = coachingWindowCutoff();
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
   const [{ data: profiles }, { data: recentCalls }] = await Promise.all([
     supabase.from('ae_coaching_profiles').select('recorder_name, total_calls'),
     supabase.from('ae_call_analysis')
       .select('recorder_name, created_at, vbat_classification, call_tier, call_quality_score')
-      .gte('created_at', windowCutoff)
+      .gte('created_at', sixtyDaysAgo)
       .order('created_at', { ascending: false })
-      .limit(800),
+      .limit(2000),
   ]);
 
   if (!profiles) return c.json([]);
 
-  // Filter out excluded AEs
   const activeProfiles = profiles.filter((p: any) => !isExcludedAE(p.recorder_name));
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const tenCallsByAE = new Map<string, any[]>();
-  const recent7DayByAE = new Map<string, number>();
+  const callsByAE = new Map<string, any[]>();
+  const recent60DayByAE = new Map<string, number>();
 
   for (const call of recentCalls || []) {
     const name = call.recorder_name;
     if (!name) continue;
-    if (!tenCallsByAE.has(name)) tenCallsByAE.set(name, []);
-    const list = tenCallsByAE.get(name)!;
-    if (list.length < 20) list.push(call);
-    if (call.created_at >= sevenDaysAgo) recent7DayByAE.set(name, (recent7DayByAE.get(name) || 0) + 1);
+    if (!callsByAE.has(name)) callsByAE.set(name, []);
+    callsByAE.get(name)!.push(call);
+    recent60DayByAE.set(name, (recent60DayByAE.get(name) || 0) + 1);
   }
 
   const rows = activeProfiles.map((p: any) => {
-    const calls = tenCallsByAE.get(p.recorder_name) || [];
-    const last10 = calls.slice(0, 10);
-    const prev10 = calls.slice(10, 20);
+    const calls = callsByAE.get(p.recorder_name) || [];
+    const last30 = calls.filter((c: any) => c.created_at >= thirtyDaysAgo);
+    const prev30 = calls.filter((c: any) => c.created_at < thirtyDaysAgo);
 
-    // VBAT hit rate: average of hitCount/4 across last 10 calls (only calls that have VBAT data)
-    const vbatCalls = last10.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
+    // VBAT hit rate across full 60-day window
+    const vbatCalls = calls.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
     const vbatTotal = vbatCalls.reduce((s: number, c: any) => s + ((c.vbat_classification as any).hitCount || 0), 0);
     const vbatMax = vbatCalls.length * 4;
     const vbatPct = vbatMax > 0 ? Math.round((vbatTotal / vbatMax) * 100) : null;
 
-    // Trend: compare last10 to prev10
-    const prevVbat = prev10.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
+    // Trend: last 30 days vs prior 30 days
+    const lastVbat = last30.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
+    const prevVbat = prev30.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
+    const lastTotal = lastVbat.reduce((s: number, c: any) => s + ((c.vbat_classification as any).hitCount || 0), 0);
     const prevTotal = prevVbat.reduce((s: number, c: any) => s + ((c.vbat_classification as any).hitCount || 0), 0);
+    const lastMax = lastVbat.length * 4;
     const prevMax = prevVbat.length * 4;
+    const lastPct = lastMax > 0 ? Math.round((lastTotal / lastMax) * 100) : null;
     const prevPct = prevMax > 0 ? Math.round((prevTotal / prevMax) * 100) : null;
     let trend: 'up' | 'flat' | 'down' | 'new' = 'flat';
-    if (vbatPct === null || prevPct === null) trend = 'new';
-    else if (vbatPct - prevPct > 5) trend = 'up';
-    else if (vbatPct - prevPct < -5) trend = 'down';
+    if (lastPct === null || prevPct === null) trend = 'new';
+    else if (lastPct - prevPct > 5) trend = 'up';
+    else if (lastPct - prevPct < -5) trend = 'down';
 
     return {
       name: p.recorder_name,
       totalCalls: p.total_calls || calls.length,
-      recent7Days: recent7DayByAE.get(p.recorder_name) || 0,
+      recent60Days: recent60DayByAE.get(p.recorder_name) || 0,
       vbatHitRate: vbatPct,
       vbatCallsAnalyzed: vbatCalls.length,
       trend,
@@ -414,18 +417,20 @@ routes.post('/v1/analyze-link', requireRole('lead'), async (c) => {
 routes.get('/v1/ae/:name', async (c) => {
   const name = decodeURIComponent(c.req.param('name'));
   if (isExcludedAE(name)) return c.json({ error: 'AE excluded from coaching view' }, 404);
+
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+
   const { data: calls } = await supabase
     .from('ae_call_analysis')
-    .select('recording_id, title, created_at, duration_seconds, outcome, call_tier, call_quality_score, vbat_classification, smart_review')
+    .select('recording_id, title, created_at, duration_seconds, outcome, call_tier, call_quality_score, vbat_classification, smart_review, recording_url')
     .eq('recorder_name', name)
-    .gte('created_at', coachingWindowCutoff())
+    .gte('created_at', sixtyDaysAgo)
     .order('created_at', { ascending: false })
-    .limit(20);
+    .limit(200);
 
   if (!calls) return c.json({ error: 'Not found' }, 404);
 
-  const last10 = calls.slice(0, 10);
-  const vbatCalls = last10.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
+  const vbatCalls = calls.filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
   const dims: Array<'V' | 'B' | 'A' | 'T'> = ['V', 'B', 'A', 'T'];
   const hitsByDim: Record<string, number> = { V: 0, B: 0, A: 0, T: 0 };
   for (const call of vbatCalls) {
@@ -434,7 +439,7 @@ routes.get('/v1/ae/:name', async (c) => {
   }
   const totalAnalyzed = vbatCalls.length;
 
-  // Find the most common miss — the dimension with the lowest hit rate
+  // Weakest dimension overall
   let weakest: string | null = null;
   let weakestRate = 2;
   for (const d of dims) {
@@ -443,13 +448,58 @@ routes.get('/v1/ae/:name', async (c) => {
     if (rate < weakestRate) { weakestRate = rate; weakest = d; }
   }
 
+  // ── Weekly trend: 9 weeks, hit rate per dimension per week
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const weeklyTrend: Array<{ weekStart: string; label: string; calls: number; V: number | null; B: number | null; A: number | null; T: number | null; overall: number | null }> = [];
+  for (let i = 8; i >= 0; i--) {
+    const end = now - (i * weekMs);
+    const start = end - weekMs;
+    const inWeek = vbatCalls.filter((c: any) => {
+      const t = new Date(c.created_at).getTime();
+      return t >= start && t < end;
+    });
+    const callCount = inWeek.length;
+    const dimRates: Record<string, number | null> = { V: null, B: null, A: null, T: null };
+    let overallHits = 0;
+    for (const d of dims) {
+      const hits = inWeek.filter((c: any) => (c.vbat_classification as any)[d]?.confirmed).length;
+      dimRates[d] = callCount > 0 ? Math.round((hits / callCount) * 100) : null;
+      overallHits += hits;
+    }
+    const overallMax = callCount * 4;
+    const overallRate = overallMax > 0 ? Math.round((overallHits / overallMax) * 100) : null;
+    const weekStart = new Date(start).toISOString().slice(0, 10);
+    const labelDate = new Date(start);
+    const label = `${labelDate.toLocaleDateString('en', { month: 'short' })} ${labelDate.getDate()}`;
+    weeklyTrend.push({ weekStart, label, calls: callCount, V: dimRates.V, B: dimRates.B, A: dimRates.A, T: dimRates.T, overall: overallRate });
+  }
+
+  // ── Worst-miss pinned calls: 3 recent calls where weakest dimension was missed
+  let weakestPinnedCalls: any[] = [];
+  if (weakest) {
+    weakestPinnedCalls = vbatCalls
+      .filter((c: any) => (c.vbat_classification as any)[weakest!]?.confirmed === false)
+      .slice(0, 3)
+      .map((c: any) => ({
+        recordingId: c.recording_id,
+        title: c.title || 'Untitled',
+        createdAt: c.created_at,
+        recordingUrl: c.recording_url || '',
+        evidence: (c.vbat_classification as any)[weakest!]?.evidence || '',
+      }));
+  }
+
   return c.json({
     name,
-    totalRecent: last10.length,
+    windowDays: 60,
+    totalRecent: calls.length,
     vbatAnalyzed: totalAnalyzed,
     hitsByDim,
     weakestDimension: weakest,
-    calls: calls.map((c: any) => ({
+    weeklyTrend,
+    weakestPinnedCalls,
+    calls: calls.slice(0, 30).map((c: any) => ({
       recordingId: c.recording_id,
       title: c.title || 'Untitled',
       createdAt: c.created_at,
@@ -462,6 +512,174 @@ routes.get('/v1/ae/:name', async (c) => {
       summary: (c.smart_review as any)?.summary || '',
     })),
   });
+});
+
+// V1 — Pre-meeting brief
+// Given an AE and prospect context, generate a Sonnet-powered prep brief
+// that surfaces the AE's weakest VBAT dimensions, industry-matched customer proof,
+// and concrete questions to ask early in the meeting.
+routes.post('/v1/pre-meeting-brief', async (c) => {
+  const { aeName, prospectContext } = await c.req.json() as { aeName: string; prospectContext: string };
+  if (!aeName?.trim() || !prospectContext?.trim()) {
+    return c.json({ error: 'aeName and prospectContext are required' }, 400);
+  }
+
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Pull AE VBAT history
+  const { data: calls } = await supabase
+    .from('ae_call_analysis')
+    .select('vbat_classification, created_at, title, call_quality_score, outcome')
+    .eq('recorder_name', aeName)
+    .gte('created_at', sixtyDaysAgo)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const vbatCalls = (calls || []).filter((c: any) => c.vbat_classification && typeof (c.vbat_classification as any).hitCount === 'number');
+  const dims: Array<'V' | 'B' | 'A' | 'T'> = ['V', 'B', 'A', 'T'];
+  const hits: Record<string, number> = { V: 0, B: 0, A: 0, T: 0 };
+  for (const call of vbatCalls) {
+    const vb = call.vbat_classification as any;
+    for (const d of dims) if (vb[d]?.confirmed) hits[d]++;
+  }
+  const hitRates: Record<string, number | null> = {};
+  for (const d of dims) {
+    hitRates[d] = vbatCalls.length > 0 ? Math.round((hits[d] / vbatCalls.length) * 100) : null;
+  }
+
+  // Weakest dimension
+  let weakestDim: string | null = null;
+  let weakestRate = 101;
+  for (const d of dims) {
+    if (hitRates[d] !== null && hitRates[d]! < weakestRate) {
+      weakestDim = d;
+      weakestRate = hitRates[d]!;
+    }
+  }
+
+  const VBAT_NAMES: Record<string, string> = { V: 'Value', B: 'Budget', A: 'Authority', T: 'Timeline' };
+
+  // Try to load industry database for relevant customer proof
+  let industryData: any = null;
+  try {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const path = join(process.cwd(), 'industries-data.json');
+    industryData = JSON.parse(readFileSync(path, 'utf-8'));
+  } catch {
+    // Industry data optional — brief still works without it
+  }
+
+  // Call Sonnet for brief
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const anthropic = new Anthropic();
+
+  const aeStatsBlock = vbatCalls.length > 0
+    ? `${aeName}'s VBAT performance over last 60 days (${vbatCalls.length} classified calls):
+- V (Value): ${hitRates.V}% confirmation rate
+- B (Budget): ${hitRates.B}% confirmation rate
+- A (Authority): ${hitRates.A}% confirmation rate
+- T (Timeline): ${hitRates.T}% confirmation rate
+
+Weakest dimension: ${weakestDim ? `${weakestDim} (${VBAT_NAMES[weakestDim]}) at ${weakestRate}%` : 'insufficient data'}`
+    : `No VBAT data available for ${aeName} yet — brief will rely on prospect context only.`;
+
+  const industryCatalog = industryData?.industries
+    ? industryData.industries.slice(0, 88).map((i: any, idx: number) =>
+        `${idx + 1}. ${i.industry} (${i.total_companies} customers, ${i.finland} FI / ${i.international} INTL)
+   Examples: ${i.sample_descriptions.slice(0, 2).join(' | ')}`
+      ).join('\n\n')
+    : '(Industry catalog unavailable)';
+
+  const systemPrompt = `You are a sales coach preparing an AE for a specific upcoming meeting. Your job: produce a tight, actionable pre-meeting brief.
+
+You have access to:
+1. The AE's VBAT qualification performance across their recent calls (which dimensions they consistently hit vs. miss)
+2. WP SEO AI's customer industry catalog for matching the prospect to relevant proof points
+
+VBAT = Marc's qualification framework used by WP SEO AI AEs:
+- V = Value (prospect articulates why they need this in their own words)
+- B = Budget (explicit spend discussion)
+- A = Authority (decision-maker confirmed)
+- T = Timeline (concrete decision date within ~1 week)
+
+INDUSTRY CATALOG (WP SEO AI's customer base, 2,490 customers across 88 industries):
+${industryCatalog}
+
+Your brief must be SHORT, CONCRETE, and ACTIONABLE. AEs read this 5 minutes before their meeting. Every word earns its place.`;
+
+  const userPrompt = `AE STATS:
+${aeStatsBlock}
+
+PROSPECT CONTEXT (what the AE knows going in):
+${prospectContext}
+
+Generate the pre-meeting brief as ONLY valid JSON (no markdown):
+{
+  "prospectRead": "1-2 sentence read of who this prospect is and what they care about",
+  "industryMatch": {
+    "primary": "best-matching industry name from catalog",
+    "customerCount": number (from catalog),
+    "proofPoint": "one sentence the AE can say about similar customers WP SEO AI serves (use counts, not company names)"
+  },
+  "focusDimension": {
+    "letter": "${weakestDim || 'T'}",
+    "name": "${weakestDim ? VBAT_NAMES[weakestDim] : 'Timeline'}",
+    "why": "one sentence on why this is the AE's focus based on their history"
+  },
+  "questionsToAsk": [
+    "specific question 1 tailored to the prospect + focus dimension",
+    "specific question 2",
+    "specific question 3"
+  ],
+  "likelyObjections": [
+    {"objection": "prospect's likely pushback", "response": "one-line handle"}
+  ],
+  "openingLine": "a concrete opening hook the AE can use in the first 30 seconds",
+  "redFlags": ["things to watch for that signal the deal is at risk"]
+}
+
+Keep each field punchy. No fluff. Favor specifics from the prospect context over generic advice.`;
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: userPrompt },
+        ],
+      }],
+    });
+
+    const responseText = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
+    let parsed: any;
+    try {
+      parsed = JSON.parse(responseText.trim().replace(/^```json\s*/, '').replace(/\s*```$/, ''));
+    } catch {
+      return c.json({ error: 'AI returned malformed JSON', raw: responseText.slice(0, 300) }, 502);
+    }
+
+    return c.json({
+      aeName,
+      prospectContext,
+      generatedAt: new Date().toISOString(),
+      aeStats: {
+        vbatCallsAnalyzed: vbatCalls.length,
+        hitRates,
+        weakestDimension: weakestDim,
+      },
+      brief: parsed,
+      usage: {
+        input_tokens: msg.usage?.input_tokens,
+        output_tokens: msg.usage?.output_tokens,
+      },
+    });
+  } catch (err: any) {
+    return c.json({ error: 'Brief generation failed: ' + err.message }, 500);
+  }
 });
 
 export default routes;
