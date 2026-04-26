@@ -23,6 +23,7 @@ import { classifyVBAT } from './vbat-classifier.ts';
 import { analyzeCallNarrative, analyzeAEDeep } from './narrative-coach.ts';
 import { isExcludedAE } from '../config/excluded-aes.ts';
 import { COACHING_WINDOW_DAYS, coachingWindowCutoff } from '../config/coaching-window.ts';
+import { loadHubspotDeals, resolveOutcome } from './hubspot-outcomes.ts';
 
 const supabase = createSupabaseClient();
 const isFullMode = process.argv.includes('--full');
@@ -207,7 +208,7 @@ async function main() {
   while (true) {
     const { data: page, error } = await supabase
       .from('recordings')
-      .select('id, title, recorder_name, channel_name, transcript_text, duration_seconds, created_at, url, deal_name')
+      .select('id, title, recorder_name, channel_name, transcript_text, duration_seconds, created_at, url, deal_name, crm_deal_id')
       .not('transcript_text', 'is', null)
       .not('recorder_name', 'is', null)
       .range(from, from + pageSize - 1);
@@ -218,6 +219,9 @@ async function main() {
     from += pageSize;
   }
   console.log(`Found ${recordings.length} recordings with transcripts\n`);
+
+  // Load HubSpot deal map (ground truth for outcomes — keyed on recordings.crm_deal_id)
+  loadHubspotDeals();
 
   // Get already-analyzed IDs (skip if full mode)
   let analyzedIds = new Set<string>();
@@ -274,11 +278,9 @@ async function main() {
   for (const rec of toAnalyze) {
     const parsed = parseTranscript(rec.transcript_text, rec.recorder_name);
     const analysis = analyzeCall(parsed.turns, rec.recorder_name, rec.url);
-    // Determine outcome: channel name, deal name pattern, or unknown
-    let outcome = 'unknown';
-    if (rec.channel_name === 'Closed Won Analysis') outcome = 'won';
-    else if (rec.channel_name === 'Closed Lost Analysis') outcome = 'lost';
-    else if (/\b(starter|basic|pro|12m|12p|24m|12 month|24 month)\b/i.test(rec.deal_name || '')) outcome = 'won';
+    // Outcome from HubSpot ground truth (CSV map keyed on crm_deal_id).
+    // Returns 'won' | 'lost' | 'open' | 'unknown'.
+    const { outcome } = resolveOutcome(rec.crm_deal_id);
     // Classify meeting type
     const dealKey = (rec.deal_name || rec.deal_id || '').trim().toLowerCase();
     const dealRecIds = dealGroups.get(dealKey) || [];

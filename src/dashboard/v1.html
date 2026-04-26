@@ -330,32 +330,60 @@ function renderMarkdown(text){
 }
 
 // ═══════════════════════════ TEAM VIEW ═══════════════════════════
+function getViewMode(){
+  const url = new URLSearchParams(location.search);
+  const fromUrl = url.get('view');
+  if (fromUrl === 'call-engine' || fromUrl === 'vbat') return fromUrl;
+  return localStorage.getItem('v1ViewMode') === 'call-engine' ? 'call-engine' : 'vbat';
+}
+
+function setViewMode(mode){
+  localStorage.setItem('v1ViewMode', mode);
+  const url = new URL(location.href);
+  url.searchParams.set('view', mode);
+  history.replaceState(null, '', url.toString());
+  loadTeam();
+}
+
 async function loadTeam(){
   try {
     $('app').innerHTML = '<div class="loading">Loading team…</div>';
-    const rows = await apiJSON('/api/v1/team');
+    const mode = getViewMode();
+    const path = mode === 'call-engine' ? '/api/v1/team/call-engine' : '/api/v1/team';
+    const rows = await apiJSON(path);
     if (!rows || !Array.isArray(rows)) throw new Error('No team data');
-    renderTeam(rows);
+    if (mode === 'call-engine') renderTeamCallEngine(rows);
+    else renderTeamVBAT(rows);
   } catch(err){
     $('app').innerHTML = `<div class="err">${esc(err.message||'Failed to load')}</div>`;
   }
 }
 
-function renderTeam(rows){
-  let html = `<h2 class="pgtitle">Team</h2>
-    <div class="pgtitle-sub">VBAT hit rate across each AE's last 60 days. Trend compares most-recent 30 days vs prior 30 days.</div>
+function viewToggleHTML(active){
+  const btn = (mode, label) => `<button class="pill-btn${mode===active?' primary':''}" onclick="setViewMode('${mode}')" style="font-size:12px">${label}</button>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px">
+    ${btn('vbat', 'VBAT — qualification')}
+    ${btn('call-engine', 'Call Engine — behaviors')}
+  </div>`;
+}
 
-    <div class="card" id="link-analyze-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px;flex-wrap:wrap">
-        <h3 style="margin:0">Analyze a specific call</h3>
-        <button class="pill-btn primary" onclick="location.href='/pre-meeting'" style="white-space:nowrap">Pre-Meeting Brief →</button>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <input id="link-url" type="text" placeholder="Paste Claap recording link…" style="flex:1;min-width:260px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')analyzeLink()">
-        <button class="pill-btn primary" id="link-btn" onclick="analyzeLink()">Open call</button>
-      </div>
-      <div id="link-status" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:16px"></div>
+function analyzeCardHTML(){
+  return `<div class="card" id="link-analyze-card">
+    <h3 style="margin:0 0 10px 0">Analyze a specific call</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="link-url" type="text" placeholder="Paste Claap recording link…" style="flex:1;min-width:260px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')analyzeLink()">
+      <button class="pill-btn primary" id="link-btn" onclick="analyzeLink()">Open call</button>
     </div>
+    <div id="link-status" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:16px"></div>
+  </div>`;
+}
+
+function renderTeamVBAT(rows){
+  let html = `${viewToggleHTML('vbat')}
+    <h2 class="pgtitle">Team — VBAT view</h2>
+    <div class="pgtitle-sub">Real 60-day close rate (HubSpot won/lost). VBAT hit rate shown alongside. Trend compares most-recent 30 days vs prior 30 days.</div>
+
+    ${analyzeCardHTML()}
 
     <div class="card" style="padding:0">`;
 
@@ -363,21 +391,57 @@ function renderTeam(rows){
     html += '<div class="empty">No AEs yet.</div>';
   } else {
     for (const ae of rows) {
-      const pct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
-      const analyzed = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} calls analyzed` : 'No VBAT data';
-      const recent = ae.recent60Days ?? ae.recent7Days ?? 0;
+      const close = ae.closeRate == null ? '—' : ae.closeRate + '%';
+      const closeSub = ae.decidedCalls > 0 ? `${ae.wonCalls}W / ${ae.lostCalls}L (60d)` : 'No decided deals';
+      const vbatPct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
+      const vbatSub = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} VBAT-analyzed` : 'No VBAT data';
       html += `
         <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
           <div class="name">${esc(ae.name)}</div>
           <div class="meta-col">
-            <span class="big">${pct}</span>
-            <span>${esc(analyzed)}</span>
+            <span class="big">${close}</span>
+            <span>${esc(closeSub)}</span>
           </div>
           <div class="meta-col">
-            <span class="big">${recent}</span>
-            <span>calls (60d)</span>
+            <span class="big">${vbatPct}</span>
+            <span>${esc(vbatSub)}</span>
           </div>
-          ${trendGlyph(ae.trend)}
+          ${trendGlyph(ae.closeTrend)}
+        </div>`;
+    }
+  }
+  html += '</div>';
+  $('app').innerHTML = html;
+}
+
+function renderTeamCallEngine(rows){
+  let html = `${viewToggleHTML('call-engine')}
+    <h2 class="pgtitle">Team — Call Engine view</h2>
+    <div class="pgtitle-sub">Adoption rate across the four causally-validated winning behaviors (Contract / commitment, Assumptive close, ROI reframe, Compounding value) over each AE's last 60 days. Real close rate shown alongside.</div>
+
+    ${analyzeCardHTML()}
+
+    <div class="card" style="padding:0">`;
+
+  if (rows.length === 0) {
+    html += '<div class="empty">No AEs yet.</div>';
+  } else {
+    for (const ae of rows) {
+      const adopt = ae.adoptionRate == null ? '—' : ae.adoptionRate + '%';
+      const close = ae.closeRate == null ? '—' : ae.closeRate + '%';
+      const closeSub = ae.decidedCalls > 0 ? `${ae.wonCalls}W / ${ae.lostCalls}L (60d)` : 'No decided';
+      html += `
+        <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
+          <div class="name">${esc(ae.name)}</div>
+          <div class="meta-col">
+            <span class="big">${adopt}</span>
+            <span>4-behavior adoption</span>
+          </div>
+          <div class="meta-col">
+            <span class="big">${close}</span>
+            <span>${esc(closeSub)}</span>
+          </div>
+          ${trendGlyph(ae.adoptionTrend)}
         </div>`;
     }
   }
@@ -424,12 +488,162 @@ async function analyzeLink(){
 async function loadAE(name){
   try {
     $('app').innerHTML = '<button class="back" onclick="loadTeam()">← Back to team</button><div class="loading">Loading AE…</div>';
-    const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name));
-    if (!data || data.error) throw new Error(data?.error || 'Failed');
-    renderAE(data);
+    const mode = getViewMode();
+    if (mode === 'call-engine') {
+      const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name) + '/call-engine');
+      if (!data || data.error) throw new Error(data?.error || 'Failed');
+      renderAECallEngine(data);
+    } else {
+      const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name));
+      if (!data || data.error) throw new Error(data?.error || 'Failed');
+      renderAE(data);
+    }
   } catch(err){
     $('app').innerHTML = `<button class="back" onclick="loadTeam()">← Back</button><div class="err">${esc(err.message||'Failed')}</div>`;
   }
+}
+
+function renderAECallEngine(data){
+  const { name, totalRecent, behaviors, byBehavior, weeklyTrend, pinnedLostCalls, closeRate, decidedCalls, wonCalls, lostCalls, expectedRate, residual } = data;
+
+  // Header big-number block
+  const closeStr = closeRate == null ? '—' : closeRate + '%';
+  const residStr = residual == null ? '' : (residual >= 0 ? `+${residual}pp` : `${residual}pp`) + ' vs avg';
+
+  // Per-behavior cards (the four dimensions)
+  const dimColors = { contract: '#B748FF', assumptiveClose: '#3B82F6', roiReframe: '#10B981', compounding: '#F59E0B' };
+  const behaviorCardsHTML = behaviors.map(b => {
+    const stat = byBehavior[b.key];
+    if (!stat) return '';
+    const adopt = stat.adoption == null ? '—' : stat.adoption + '%';
+    const top = stat.topAvg == null ? '—' : stat.topAvg + '%';
+    const gap = stat.gap == null ? '' : (stat.gap >= 0 ? `+${stat.gap}pp` : `${stat.gap}pp`);
+    const gapColor = stat.gap == null ? 'var(--text3)' : stat.gap >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div class="card" style="border-left:3px solid ${dimColors[b.key]||'var(--border)'}">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">${esc(b.label)}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+        <span style="font-size:28px;font-weight:600">${adopt}</span>
+        <span style="font-size:12px;color:${gapColor}">${gap}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3)">Top performers: ${top}</div>
+    </div>`;
+  }).join('');
+
+  // Weekly trend SVG (4 lines, 9 weeks)
+  let trendHTML = '';
+  if (weeklyTrend && weeklyTrend.length > 0 && totalRecent >= 3) {
+    const dims = behaviors.map(b => b.key);
+    const maxHeight = 120;
+    const barWidth = 100 / weeklyTrend.length;
+    const lines = dims.map(d => {
+      const points = weeklyTrend.map((w, i) => {
+        const val = w[d];
+        if (val === null) return null;
+        const x = (i + 0.5) * barWidth;
+        const y = maxHeight - (val / 100) * maxHeight;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).filter(p => p !== null);
+      return `<polyline points="${points.join(' ')}" fill="none" stroke="${dimColors[d]||'#888'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>`;
+    }).join('');
+    const xLabels = weeklyTrend.map((w, i) => {
+      const x = (i + 0.5) * barWidth;
+      return `<text x="${x.toFixed(1)}" y="${maxHeight + 18}" text-anchor="middle" font-size="10" fill="var(--text3)">${esc(w.label)}</text>`;
+    }).join('');
+    const legend = behaviors.map(b => `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-right:14px"><span style="width:12px;height:3px;background:${dimColors[b.key]};border-radius:2px"></span>${esc(b.label)}</span>`).join('');
+    trendHTML = `<div class="card">
+      <h3>Weekly behavior adoption — last 9 weeks</h3>
+      <div style="margin:14px 0 8px">${legend}</div>
+      <svg viewBox="0 0 100 ${maxHeight + 24}" preserveAspectRatio="none" style="width:100%;height:180px;overflow:visible">
+        <line x1="0" y1="0" x2="100" y2="0" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
+        <line x1="0" y1="${maxHeight*0.5}" x2="100" y2="${maxHeight*0.5}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
+        <line x1="0" y1="${maxHeight}" x2="100" y2="${maxHeight}" stroke="var(--border)" stroke-width="0.3"/>
+        ${lines}
+        ${xLabels}
+        <text x="-1" y="4" text-anchor="end" font-size="8" fill="var(--text3)">100%</text>
+        <text x="-1" y="${maxHeight+2}" text-anchor="end" font-size="8" fill="var(--text3)">0%</text>
+      </svg>
+    </div>`;
+  }
+
+  // Heatmap: behavior × week
+  let heatmapHTML = '';
+  if (weeklyTrend && weeklyTrend.length > 0 && totalRecent >= 3) {
+    const heatColor = (val) => {
+      if (val === null) return 'var(--bg3)';
+      if (val >= 70) return 'rgba(16,185,129,.6)';
+      if (val >= 50) return 'rgba(16,185,129,.3)';
+      if (val >= 30) return 'rgba(245,158,11,.4)';
+      return 'rgba(239,68,68,.4)';
+    };
+    const header = '<div style="font-size:10px;color:var(--text3);padding:4px"></div>' + weeklyTrend.map(w => `<div style="font-size:10px;color:var(--text3);text-align:center;padding:4px">${esc(w.label)}</div>`).join('');
+    const rowsHTML = behaviors.map(b => {
+      const cells = weeklyTrend.map(w => {
+        const val = w[b.key];
+        const label = val === null ? '—' : `${val}%`;
+        return `<div title="${esc(w.label)} · ${esc(b.label)}: ${label} (${w.calls} calls)" style="background:${heatColor(val)};color:var(--text);font-size:11px;text-align:center;padding:8px 4px;border-radius:4px;min-height:28px;display:flex;align-items:center;justify-content:center">${label}</div>`;
+      }).join('');
+      return `<div style="font-size:11px;color:var(--text2);padding:4px;font-weight:600">${esc(b.short)}</div>${cells}`;
+    }).join('');
+    heatmapHTML = `<div class="card">
+      <h3>Behavior heatmap — dimension × week</h3>
+      <div style="display:grid;grid-template-columns:32px repeat(${weeklyTrend.length}, 1fr);gap:3px;margin-top:12px">
+        ${header}
+        ${rowsHTML}
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px">C = Contract · A = Assumptive close · R = ROI reframe · V = Compounding value</div>
+    </div>`;
+  }
+
+  // Pinned: lost calls where the AE missed the most behaviors
+  let pinnedHTML = '';
+  if (pinnedLostCalls && pinnedLostCalls.length > 0) {
+    const items = pinnedLostCalls.map(c => {
+      const missedLabels = c.missedKeys.map(k => {
+        const b = behaviors.find(x => x.key === k);
+        return b ? b.short : k;
+      }).join(' · ');
+      return `<div class="call-list-item" onclick="loadCall('${esc(c.recordingId)}','${esc(name)}')">
+        <span class="call-date">${fmtDate(c.createdAt)}</span>
+        <div style="flex:1;min-width:0">
+          <div class="call-title">${esc(c.title)}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">Missed ${c.missedCount}/4 behaviors: ${esc(missedLabels)}</div>
+          ${c.summary ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic">"${esc(c.summary.slice(0, 160))}${c.summary.length > 160 ? '…' : ''}"</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    pinnedHTML = `<div class="card" style="padding:0">
+      <h3 style="padding:20px 20px 4px">Lost deals — most behaviors missed</h3>
+      <div style="padding:0 20px 12px;font-size:12px;color:var(--text3)">Recent lost calls where the AE skipped the highest-causal winning behaviors. Listen for what could have changed the trajectory.</div>
+      ${items}
+    </div>`;
+  }
+
+  const html = `
+    ${viewToggleHTML('call-engine')}
+    <button class="back" onclick="loadTeam()">← Back to team</button>
+    <h2 class="pgtitle">${esc(name)}</h2>
+    <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${decidedCalls} decided (${wonCalls}W / ${lostCalls}L)</div>
+
+    <div class="card" style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px">60-day close rate</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:36px;font-weight:600">${closeStr}</span>
+          ${residStr ? `<span style="font-size:13px;color:${residual >= 0 ? 'var(--green)' : 'var(--red)'}">${residStr}</span>` : ''}
+        </div>
+      </div>
+      ${expectedRate !== null ? `<div style="font-size:12px;color:var(--text3)">Team avg: ${expectedRate}%</div>` : ''}
+    </div>
+
+    <div class="grid-2" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-top:14px">
+      ${behaviorCardsHTML}
+    </div>
+
+    ${trendHTML}
+    ${heatmapHTML}
+    ${pinnedHTML}
+  `;
+  $('app').innerHTML = html;
 }
 
 function renderAE(data){
@@ -564,13 +778,33 @@ function renderAE(data){
     </div>`;
   }).join('');
 
+  // Real close rate banner (HubSpot-grounded)
+  const closeStr = data.closeRate == null ? '—' : data.closeRate + '%';
+  const decided = data.decidedCalls || 0;
+  const wonLost = decided > 0 ? `${data.wonCalls}W / ${data.lostCalls}L` : 'No decided deals in last 60d';
+  const closeDelta = (data.lastClose != null && data.prevClose != null) ? data.lastClose - data.prevClose : null;
+  const closeDeltaStr = closeDelta == null ? '' : (closeDelta > 0 ? `+${closeDelta}pp` : `${closeDelta}pp`) + ' last 30d vs prior 30d';
+  const closeDeltaColor = closeDelta == null ? 'var(--text3)' : closeDelta > 0 ? 'var(--green)' : closeDelta < 0 ? 'var(--red)' : 'var(--text3)';
+
   const html = `
+    ${viewToggleHTML('vbat')}
     <button class="back" onclick="loadTeam()">← Back to team</button>
     <h2 class="pgtitle">${esc(name)}</h2>
-    <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${vbatAnalyzed} classified with VBAT · <a onclick="event.stopPropagation();location.href='/pre-meeting?ae=${encodeURIComponent(name)}'" style="cursor:pointer;color:var(--purple)">Prep next meeting →</a></div>
+    <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${vbatAnalyzed} classified with VBAT</div>
+
+    <div class="card" style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px">60-day close rate</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:36px;font-weight:600">${closeStr}</span>
+          <span style="font-size:13px;color:var(--text3)">${esc(wonLost)}</span>
+        </div>
+      </div>
+      ${closeDeltaStr ? `<div style="font-size:13px;color:${closeDeltaColor}">${esc(closeDeltaStr)}</div>` : ''}
+    </div>
 
     <div class="card">
-      <h3>Pattern across last 60 days</h3>
+      <h3>VBAT pattern across last 60 days</h3>
       ${patternsHTML || '<div class="empty">VBAT data not computed yet for this AE.</div>'}
       ${weakestCallout}
     </div>
