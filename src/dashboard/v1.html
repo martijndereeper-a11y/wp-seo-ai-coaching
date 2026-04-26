@@ -381,7 +381,7 @@ function analyzeCardHTML(){
 function renderTeamVBAT(rows){
   let html = `${viewToggleHTML('vbat')}
     <h2 class="pgtitle">Team — VBAT view</h2>
-    <div class="pgtitle-sub">Real 60-day close rate (HubSpot won/lost). VBAT hit rate shown alongside. Trend compares most-recent 30 days vs prior 30 days.</div>
+    <div class="pgtitle-sub">VBAT hit rate across each AE's last 60 days. Trend compares most-recent 30 days vs prior 30 days.</div>
 
     ${analyzeCardHTML()}
 
@@ -391,22 +391,21 @@ function renderTeamVBAT(rows){
     html += '<div class="empty">No AEs yet.</div>';
   } else {
     for (const ae of rows) {
-      const close = ae.closeRate == null ? '—' : ae.closeRate + '%';
-      const closeSub = ae.decidedCalls > 0 ? `${ae.wonCalls}W / ${ae.lostCalls}L (60d)` : 'No decided deals';
       const vbatPct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
       const vbatSub = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} VBAT-analyzed` : 'No VBAT data';
+      const recent = ae.recent60Days || 0;
       html += `
         <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
           <div class="name">${esc(ae.name)}</div>
           <div class="meta-col">
-            <span class="big">${close}</span>
-            <span>${esc(closeSub)}</span>
-          </div>
-          <div class="meta-col">
             <span class="big">${vbatPct}</span>
             <span>${esc(vbatSub)}</span>
           </div>
-          ${trendGlyph(ae.closeTrend)}
+          <div class="meta-col">
+            <span class="big">${recent}</span>
+            <span>calls (60d)</span>
+          </div>
+          ${trendGlyph(ae.trend)}
         </div>`;
     }
   }
@@ -417,7 +416,7 @@ function renderTeamVBAT(rows){
 function renderTeamCallEngine(rows){
   let html = `${viewToggleHTML('call-engine')}
     <h2 class="pgtitle">Team — Call Engine view</h2>
-    <div class="pgtitle-sub">Adoption rate across the four causally-validated winning behaviors (Contract / commitment, Assumptive close, ROI reframe, Compounding value) over each AE's last 60 days. Real close rate shown alongside.</div>
+    <div class="pgtitle-sub">Adoption rate across the four causally-validated winning behaviors (Contract / commitment, Assumptive close, ROI reframe, Compounding value) over each AE's last 60 days.</div>
 
     ${analyzeCardHTML()}
 
@@ -428,8 +427,7 @@ function renderTeamCallEngine(rows){
   } else {
     for (const ae of rows) {
       const adopt = ae.adoptionRate == null ? '—' : ae.adoptionRate + '%';
-      const close = ae.closeRate == null ? '—' : ae.closeRate + '%';
-      const closeSub = ae.decidedCalls > 0 ? `${ae.wonCalls}W / ${ae.lostCalls}L (60d)` : 'No decided';
+      const recent = ae.recent60Days || 0;
       html += `
         <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
           <div class="name">${esc(ae.name)}</div>
@@ -438,8 +436,8 @@ function renderTeamCallEngine(rows){
             <span>4-behavior adoption</span>
           </div>
           <div class="meta-col">
-            <span class="big">${close}</span>
-            <span>${esc(closeSub)}</span>
+            <span class="big">${recent}</span>
+            <span>calls (60d)</span>
           </div>
           ${trendGlyph(ae.adoptionTrend)}
         </div>`;
@@ -666,50 +664,6 @@ function renderAE(data){
     ? `<div class="weakest-callout"><strong>Focus area:</strong> ${esc(VBAT_LABELS[weakestDimension])} — confirmed in ${hitsByDim[weakestDimension]}/${vbatAnalyzed} recent calls.<br>${esc(VBAT_DESC[weakestDimension])}.</div>`
     : '';
 
-  // ─── Weekly trend chart (9 weeks) ───
-  let trendHTML = '';
-  if (weeklyTrend && weeklyTrend.length > 0 && vbatAnalyzed >= 3) {
-    const dimColors = { V: '#B748FF', B: '#3B82F6', A: '#10B981', T: '#F59E0B' };
-    const dims = ['V','B','A','T'];
-    const maxHeight = 120;
-    const barWidth = 100 / weeklyTrend.length;
-
-    const lines = dims.map(d => {
-      const points = weeklyTrend.map((w, i) => {
-        const val = w[d];
-        if (val === null) return null;
-        const x = (i + 0.5) * barWidth;
-        const y = maxHeight - (val / 100) * maxHeight;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).filter(p => p !== null);
-      return `<polyline points="${points.join(' ')}" fill="none" stroke="${dimColors[d]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>`;
-    }).join('');
-
-    const xLabels = weeklyTrend.map((w, i) => {
-      const x = (i + 0.5) * barWidth;
-      return `<text x="${x.toFixed(1)}" y="${maxHeight + 18}" text-anchor="middle" font-size="10" fill="var(--text3)">${esc(w.label)}</text>`;
-    }).join('');
-
-    const legend = dims.map(d => `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-right:14px"><span style="width:12px;height:3px;background:${dimColors[d]};border-radius:2px"></span>${d} — ${esc(VBAT_LABELS[d])}</span>`).join('');
-
-    trendHTML = `
-      <div class="card">
-        <h3>Weekly VBAT trend — last 9 weeks</h3>
-        <div style="margin:14px 0 8px">${legend}</div>
-        <svg viewBox="0 0 100 ${maxHeight + 24}" preserveAspectRatio="none" style="width:100%;height:180px;overflow:visible">
-          <line x1="0" y1="0" x2="100" y2="0" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
-          <line x1="0" y1="${maxHeight*0.25}" x2="100" y2="${maxHeight*0.25}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
-          <line x1="0" y1="${maxHeight*0.5}" x2="100" y2="${maxHeight*0.5}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
-          <line x1="0" y1="${maxHeight*0.75}" x2="100" y2="${maxHeight*0.75}" stroke="var(--border)" stroke-width="0.3" stroke-dasharray="1,1"/>
-          <line x1="0" y1="${maxHeight}" x2="100" y2="${maxHeight}" stroke="var(--border)" stroke-width="0.3"/>
-          ${lines}
-          ${xLabels}
-          <text x="-1" y="4" text-anchor="end" font-size="8" fill="var(--text3)">100%</text>
-          <text x="-1" y="${maxHeight+2}" text-anchor="end" font-size="8" fill="var(--text3)">0%</text>
-        </svg>
-      </div>`;
-  }
-
   // ─── Dimension heatmap ───
   let heatmapHTML = '';
   if (weeklyTrend && weeklyTrend.length > 0 && vbatAnalyzed >= 3) {
@@ -809,7 +763,6 @@ function renderAE(data){
       ${weakestCallout}
     </div>
 
-    ${trendHTML}
     ${heatmapHTML}
     ${pinnedHTML}
 
