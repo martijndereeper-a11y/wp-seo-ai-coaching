@@ -228,7 +228,19 @@ button:focus-visible,.chip:focus-visible,details summary:focus-visible,a:focus-v
   <h1>Sales Coaching</h1>
   <div class="spacer"></div>
   <button class="pill-btn" onclick="goClassic()">Deep view</button>
+  <button class="pill-btn" onclick="showExplanation()">Explanation</button>
   <button class="pill-btn" onclick="logout()">Log out</button>
+</div>
+
+<!-- Explanation modal -->
+<div id="explain-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;padding:32px;overflow-y:auto" onclick="if(event.target===this)hideExplanation()">
+  <div style="max-width:760px;margin:0 auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px;color:var(--text)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h2 id="explain-title" style="margin:0;font-size:20px"></h2>
+      <button class="pill-btn" onclick="hideExplanation()">Close ✕</button>
+    </div>
+    <div id="explain-body" style="line-height:1.55;font-size:14px;color:var(--text2)"></div>
+  </div>
 </div>
 
 <div class="container" id="app">
@@ -343,6 +355,72 @@ function setViewMode(mode){
   url.searchParams.set('view', mode);
   history.replaceState(null, '', url.toString());
   loadTeam();
+}
+
+// ═══════════════════════════ EXPLANATION ═══════════════════════════
+const EXPLAIN_VBAT = `
+  <h3 style="color:var(--text);font-size:15px;margin:0 0 6px 0">What it is</h3>
+  <p>VBAT is the qualification framework: <strong>V</strong>alue, <strong>B</strong>udget, <strong>A</strong>uthority, <strong>T</strong>imeline. For every first-meeting recording, an LLM listens to the transcript and decides whether each of the four dimensions was confirmed in the prospect's own words.</p>
+  <ul>
+    <li><strong>V — Value:</strong> the prospect articulates a problem, outcome, or use case in their own language (not the AE's pitch repeated back).</li>
+    <li><strong>B — Budget:</strong> the prospect makes an explicit spend statement — current marketing budget, what they pay an agency, a bracket they could approve, etc.</li>
+    <li><strong>A — Authority:</strong> the decision-maker is identified and either on the call or named as the next required step.</li>
+    <li><strong>T — Timeline:</strong> a concrete decision date or trigger event is agreed (within ~1 week is the standard; "we'll think about it" does not count).</li>
+  </ul>
+
+  <h3 style="color:var(--text);font-size:15px;margin:18px 0 6px 0">Why we calculate it</h3>
+  <p>VBAT is the team's existing qualification language and Marc's framework — it tells the AE whether they actually qualified the prospect, independent of how the call "felt." Discovery quality is the leading indicator that's most under the AE's control, and dimensions consistently missed across an AE's calls become the coaching focus.</p>
+
+  <h3 style="color:var(--text);font-size:15px;margin:18px 0 6px 0">How it's calculated</h3>
+  <ol>
+    <li>For each Claap recording, the transcript is sent to a Haiku-class model with the VBAT rubric and the AE's name (so we know who's the rep vs the prospect).</li>
+    <li>The model returns <code>{ V, B, A, T }</code>, each with <code>confirmed: true | false</code> plus a verbatim evidence quote pulled from the transcript.</li>
+    <li>The 60-day window collects every classified call. <em>Hit rate per dimension</em> = confirmed-count ÷ classified-count. <em>Overall VBAT %</em> on the team page = total confirmations ÷ (calls × 4 dimensions).</li>
+    <li>The <em>weakest dimension</em> = the dimension with the lowest 60-day hit rate. The pinned worst-miss calls are recent calls where that dimension specifically was marked <code>confirmed: false</code> — so the AE can re-listen and see what they could have asked.</li>
+    <li>The trend glyph compares the most recent 30 days vs the prior 30 days (≥+5pp = up, ≤−5pp = down, otherwise flat).</li>
+  </ol>
+  <p style="font-size:13px;color:var(--text3)">VBAT is computed only on first meetings classified as such by the meeting classifier. Internal meetings, customer-success calls, and follow-up demos are excluded.</p>
+`;
+
+const EXPLAIN_CALL_ENGINE = `
+  <h3 style="color:var(--text);font-size:15px;margin:0 0 6px 0">What it is</h3>
+  <p>The Call Engine view scores AEs on their adoption of <strong>four behaviors that causally drive close rate</strong>, identified by within-AE analysis across 5,000+ recordings:</p>
+  <ul>
+    <li><strong>Contract / commitment:</strong> the AE uses commitment language toward the end — "contract", "sign", "agreement", "akkoord", "Vertrag". Strongest single signal in the dataset.</li>
+    <li><strong>Assumptive close:</strong> language that presumes the deal is happening — "when would you start", "which package fits", "I'll send the contract Thursday". Asks the next-step question instead of waiting for it.</li>
+    <li><strong>ROI reframe:</strong> price gets reframed as investment with payback — "investering" / "Investition" / "pay back", explicit ROI horizon. Removes the cost objection before it surfaces.</li>
+    <li><strong>Compounding value framing:</strong> the AE explains that value compounds over time — "snowball", "stapelt", "exponentiell", "over time". Justifies a longer commitment.</li>
+  </ul>
+
+  <h3 style="color:var(--text);font-size:15px;margin:18px 0 6px 0">Why we calculate it</h3>
+  <p>VBAT measures qualification (did you get the right deal?). Call Engine measures <strong>technique</strong> (did you run the right play?). These four behaviors were chosen because they are <em>causally validated</em> — controlling for AE identity (so this isn't "top performers happen to use them"), each of these four independently lifts close rate by between 4% and 13% absolute, with 95% confidence intervals that exclude zero. They're also coachable: at least three of the four are pure language patterns an AE can adopt this week.</p>
+
+  <h3 style="color:var(--text);font-size:15px;margin:18px 0 6px 0">How it's calculated</h3>
+  <ol>
+    <li><strong>Behavior detection.</strong> Each transcript runs through a tri-lingual regex (NL + DE + EN) per behavior. A behavior is "present" on a call if the regex matches at least once in the AE's turns.</li>
+    <li><strong>Adoption rate (per AE, per behavior).</strong> Calls with the behavior present ÷ total calls in last 60 days.</li>
+    <li><strong>Per-AE 4-behavior adoption</strong> (the team-list metric) = average of the AE's four adoption rates.</li>
+    <li><strong>Top-performer benchmark.</strong> The "Top performers" % shown beside each behavior is the average adoption across the top 25% of AEs by real 60-day close rate (≥10 won/lost calls in window). The gap (+/- pp) tells the AE how far above or below the playbook they currently sit.</li>
+    <li><strong>Causal validation</strong> behind the choice of these four behaviors uses Frisch–Waugh–Lovell within-AE demeaning — both behavior and outcome are demeaned by the AE's own mean before regression, so the estimate is the effect of one AE varying their own use of the behavior across their own calls. This removes any AE-level confounders (skill, territory, market).</li>
+    <li><strong>Real close rate</strong> on the AE detail header = won ÷ (won + lost) over decided HubSpot deals in last 60 days. The "+/- vs avg" residual compares the AE to the team-wide average across all qualifying AEs.</li>
+    <li><strong>Pinned lost deals</strong> are recent <code>lost</code> calls ranked by how many of the four behaviors the AE skipped on that call. They're the highest-leverage replays.</li>
+  </ol>
+  <p style="font-size:13px;color:var(--text3)">Outcomes are sourced from the HubSpot all-deals export joined to <code>recordings.crm_deal_id</code>. Deal-stage changes since the last export aren't reflected until the CSV is refreshed.</p>
+`;
+
+function showExplanation(){
+  const mode = getViewMode();
+  const title = mode === 'call-engine' ? 'Call Engine — explanation' : 'VBAT — explanation';
+  const body = mode === 'call-engine' ? EXPLAIN_CALL_ENGINE : EXPLAIN_VBAT;
+  document.getElementById('explain-title').textContent = title;
+  document.getElementById('explain-body').innerHTML = body;
+  document.getElementById('explain-overlay').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function hideExplanation(){
+  document.getElementById('explain-overlay').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 async function loadTeam(){
