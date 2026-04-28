@@ -3,7 +3,7 @@
  * Mirrors layer35_profiling/profiler.py.
  */
 
-import { CallRow, FeatureMatrix } from './features.ts';
+import type { CallRow, FeatureMatrix } from './features.ts';
 import { mean, olsWithIntercept } from './stats.ts';
 
 export type AeProfile = {

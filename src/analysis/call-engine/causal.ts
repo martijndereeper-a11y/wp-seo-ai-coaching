@@ -3,7 +3,7 @@
  * Mirrors layer4_causal orchestration.
  */
 
-import { CallRow, FeatureMatrix } from './features.ts';
+import type { CallRow, FeatureMatrix } from './features.ts';
 import { withinAe, type WithinAeResult } from './stats.ts';
 
 export type CausalEstimate = {

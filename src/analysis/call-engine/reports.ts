@@ -4,9 +4,9 @@
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { FeatureMatrix, CallRow } from './features.ts';
-import { CausalEstimate, QualityAssociation } from './causal.ts';
-import { AeProfile, ProfilingResult } from './profiler.ts';
+import type { FeatureMatrix, CallRow } from './features.ts';
+import type { CausalEstimate, QualityAssociation } from './causal.ts';
+import type { AeProfile, ProfilingResult } from './profiler.ts';
 import { fmtPct, mean } from './stats.ts';
 
 const BEHAVIOR_LABELS: Record<string, string> = {
