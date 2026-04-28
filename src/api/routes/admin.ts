@@ -18,6 +18,7 @@ import { getAdminAnalyticsPassword } from '../../config/settings.ts';
 import { loadFeatureMatrix } from '../../analysis/call-engine/features.ts';
 import { runCausalAnalysis, runQualityAssociations } from '../../analysis/call-engine/causal.ts';
 import { profileAes } from '../../analysis/call-engine/profiler.ts';
+import { getCoaching } from './admin-behavior-content.ts';
 
 const routes = new Hono();
 
@@ -178,6 +179,121 @@ routes.get('/analysis', requireAdmin, async (c) => {
   } catch (err: any) {
     return c.json({ error: 'Analysis failed: ' + err.message }, 500);
   }
+});
+
+// ─── Behavior detail (rich expand-on-click panel) ─────────────────────────────
+
+routes.get('/behavior/:key', requireAdmin, async (c) => {
+  const key = c.req.param('key');
+
+  // Pull last-60d call analyses with patterns + outcome
+  const sinceIso = new Date(Date.now() - 60 * 86400000).toISOString();
+  const allCalls: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('ae_call_analysis')
+      .select('recording_id, recorder_name, title, outcome, patterns, call_quality_score, deal_name, created_at, recording_url')
+      .gte('created_at', sinceIso)
+      .range(from, from + 999);
+    if (error) return c.json({ error: error.message }, 500);
+    if (!data || data.length === 0) break;
+    allCalls.push(...data);
+    if (data.length < 1000) break;
+    from += 1000;
+  }
+
+  // Per-AE adoption (≥5 calls)
+  const byAe: Record<string, { with: number; total: number; calls: any[] }> = {};
+  for (const c of allCalls) {
+    if (!c.recorder_name) continue;
+    if (!byAe[c.recorder_name]) byAe[c.recorder_name] = { with: 0, total: 0, calls: [] };
+    byAe[c.recorder_name].total++;
+    byAe[c.recorder_name].calls.push(c);
+    if (((c.patterns as any)?.[key] || 0) >= 1) byAe[c.recorder_name].with++;
+  }
+  const aeAdoption = Object.entries(byAe)
+    .filter(([, v]) => v.total >= 5)
+    .map(([name, v]) => ({ aeName: name, adoption: Math.round((v.with / v.total) * 100), withBehavior: v.with, totalCalls: v.total }))
+    .sort((a, b) => a.adoption - b.adoption);
+
+  // Win/loss differential
+  const wonCalls = allCalls.filter(c => c.outcome === 'won');
+  const lostCalls = allCalls.filter(c => c.outcome === 'lost');
+  const presentInWon = wonCalls.filter(c => ((c.patterns as any)?.[key] || 0) >= 1).length;
+  const presentInLost = lostCalls.filter(c => ((c.patterns as any)?.[key] || 0) >= 1).length;
+  const wonRate = wonCalls.length > 0 ? Math.round((presentInWon / wonCalls.length) * 100) : null;
+  const lostRate = lostCalls.length > 0 ? Math.round((presentInLost / lostCalls.length) * 100) : null;
+
+  // Exemplar wins: top 3 won calls where the behavior is densely present (highest count + quality)
+  const exemplarWins = wonCalls
+    .map(c => ({
+      ...c,
+      count: ((c.patterns as any)?.[key] || 0),
+    }))
+    .filter(c => c.count >= 1)
+    .sort((a, b) => (b.count - a.count) || ((b.call_quality_score || 0) - (a.call_quality_score || 0)))
+    .slice(0, 3)
+    .map(c => ({
+      recordingId: c.recording_id,
+      title: c.title || 'Untitled',
+      aeName: c.recorder_name,
+      outcome: 'won',
+      callQuality: c.call_quality_score,
+      occurrenceCount: c.count,
+      recordingUrl: c.recording_url || '',
+      createdAt: c.created_at,
+    }));
+
+  // Anti-exemplar losses: 3 most recent lost calls where the behavior was absent
+  const antiExemplars = lostCalls
+    .filter(c => ((c.patterns as any)?.[key] || 0) === 0)
+    .slice(0, 3)
+    .map(c => ({
+      recordingId: c.recording_id,
+      title: c.title || 'Untitled',
+      aeName: c.recorder_name,
+      outcome: 'lost',
+      callQuality: c.call_quality_score,
+      recordingUrl: c.recording_url || '',
+      createdAt: c.created_at,
+    }));
+
+  // Causal estimate from cached analysis
+  let causal: any = null;
+  if (analysisCache && Date.now() - analysisCache.computedAt < ANALYSIS_TTL_MS) {
+    const est = (analysisCache.data.causalEstimates || []).find((e: any) => e.method === 'within_ae' && e.treatment === key);
+    if (est) causal = { effect: est.effect, ciLower: est.ciLower, ciUpper: est.ciUpper, pValue: est.pValue, classification: est.classification, nAes: est.nAes };
+    const diff = analysisCache.data.behaviorDifferentials?.[key];
+    if (diff) {
+      const coaching = getCoaching(key, key, diff.classification);
+      return c.json({
+        key,
+        label: coaching.label,
+        coaching,
+        causal,
+        differential: diff,
+        winLossRate: { wonRate, lostRate, wonCalls: wonCalls.length, lostCalls: lostCalls.length },
+        aeAdoption,
+        exemplarWins,
+        antiExemplars,
+      });
+    }
+  }
+
+  // Fallback if no cached analysis
+  const coaching = getCoaching(key, key, 'PRACTICE');
+  return c.json({
+    key,
+    label: coaching.label,
+    coaching,
+    causal,
+    differential: null,
+    winLossRate: { wonRate, lostRate, wonCalls: wonCalls.length, lostCalls: lostCalls.length },
+    aeAdoption,
+    exemplarWins,
+    antiExemplars,
+  });
 });
 
 // ─── Chat tools (Sonnet calls these on demand) ────────────────────────────────

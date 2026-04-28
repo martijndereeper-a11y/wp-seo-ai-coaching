@@ -346,21 +346,27 @@ function renderAnalysis(d) {
     </div>
   `;
 
-  // Top-vs-rest behavior gaps
+  // Top-vs-rest behavior gaps (clickable rows)
   const gapsHTML = `
     <div class="card">
       <h3>Top-vs-rest behavior gaps (full set)</h3>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">The widest gaps point to the highest-leverage coaching changes. Intersect with the causal effects table to filter what's worth chasing.</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Click any row to open the coaching kit — definition, example phrases, common misses, drill, AE adoption ranking, and exemplar/anti-exemplar calls.</div>
       <table>
-        <thead><tr><th>Behavior</th><th class="num">Top</th><th class="num">Rest</th><th class="num">Δ</th><th>Class</th></tr></thead>
-        <tbody>
+        <thead><tr><th></th><th>Behavior</th><th class="num">Top</th><th class="num">Rest</th><th class="num">Δ</th><th>Class</th></tr></thead>
+        <tbody id="gaps-tbody">
           ${Object.entries(d.behaviorDifferentials).sort((a, b) => b[1].delta - a[1].delta).map(([b, diff]) => `
-            <tr>
-              <td>${esc(b)}</td>
+            <tr class="gap-row" data-key="${esc(b)}" onclick="toggleBehaviorDetail('${esc(b)}')" style="cursor:pointer">
+              <td style="width:18px;color:var(--text3)" id="caret-${esc(b)}">▸</td>
+              <td><strong>${esc(b)}</strong></td>
               <td class="num">${(diff.topRate * 100).toFixed(0)}%</td>
               <td class="num">${(diff.avgRate * 100).toFixed(0)}%</td>
               <td class="num ${diff.delta >= 0 ? 'delta-pos' : 'delta-neg'}">${diff.delta >= 0 ? '+' : ''}${(diff.delta * 100).toFixed(0)}pp</td>
               <td>${classificationBadge(diff.classification)}</td>
+            </tr>
+            <tr class="gap-detail-row" id="detail-${esc(b)}" style="display:none">
+              <td colspan="6" style="padding:0;background:var(--bg3)">
+                <div id="detail-content-${esc(b)}" style="padding:18px 22px;border-left:3px solid var(--purple)"></div>
+              </td>
             </tr>
           `).join('')}
         </tbody>
@@ -395,6 +401,201 @@ function renderAnalysis(d) {
   `;
 
   $('app').innerHTML = overviewHTML + estimatesHTML + cpHTML + topHTML + marketHTML + gapsHTML + chatHTML;
+}
+
+// ─── Behavior detail expansion ────────────────────────────────────────────────
+
+const behaviorDetailCache = {};
+
+async function toggleBehaviorDetail(key) {
+  const detailRow = document.getElementById('detail-' + key);
+  const caret = document.getElementById('caret-' + key);
+  if (!detailRow) return;
+  const isOpen = detailRow.style.display !== 'none';
+  if (isOpen) {
+    detailRow.style.display = 'none';
+    if (caret) caret.textContent = '▸';
+    return;
+  }
+  detailRow.style.display = '';
+  if (caret) caret.textContent = '▾';
+  const target = document.getElementById('detail-content-' + key);
+  if (behaviorDetailCache[key]) {
+    target.innerHTML = renderBehaviorDetail(behaviorDetailCache[key]);
+    return;
+  }
+  target.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:6px 0">Loading coaching kit…</div>';
+  try {
+    const res = await adminFetch('/api/admin/behavior/' + encodeURIComponent(key));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    behaviorDetailCache[key] = data;
+    target.innerHTML = renderBehaviorDetail(data);
+  } catch (e) {
+    target.innerHTML = '<div style="color:var(--red);font-size:12px">' + esc(e.message) + '</div>';
+  }
+}
+
+function renderBehaviorDetail(d) {
+  const c = d.coaching;
+  const causal = d.causal;
+  const wl = d.winLossRate;
+  const diff = d.differential;
+
+  // Causal block
+  let causalHTML = '';
+  if (causal) {
+    const sigTag = causal.classification === 'winning'
+      ? '<span style="color:var(--green);font-weight:600">✅ winning</span>'
+      : causal.classification === 'harmful'
+        ? '<span style="color:var(--red);font-weight:600">⛔ harmful</span>'
+        : '<span style="color:var(--text3)">neutral</span>';
+    causalHTML = `
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Causal evidence (within-AE FWL, last 60d)</div>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+          <span style="font-size:22px;font-weight:600;color:${causal.effect >= 0 ? 'var(--green)' : 'var(--red)'}">${(causal.effect * 100).toFixed(1)}pp</span>
+          <span style="color:var(--text3);font-size:12px">95% CI [${(causal.ciLower * 100).toFixed(1)}pp, ${(causal.ciUpper * 100).toFixed(1)}pp]</span>
+          <span style="color:var(--text3);font-size:12px">p=${causal.pValue !== null ? causal.pValue.toFixed(3) : '—'}</span>
+          <span style="color:var(--text3);font-size:12px">${causal.nAes} AEs</span>
+          <span>${sigTag}</span>
+        </div>
+      </div>
+    `;
+  } else {
+    causalHTML = `<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text3)">No within-AE causal estimate yet (insufficient AE-level variation, or not enough decided calls).</div>`;
+  }
+
+  // Win/loss differential
+  const wlHTML = (wl.wonRate !== null && wl.lostRate !== null) ? `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Win/loss differential (descriptive)</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><strong>${wl.wonRate}%</strong> <span style="color:var(--text3);font-size:12px">of won calls (${wl.wonCalls})</span></div>
+        <div><strong>${wl.lostRate}%</strong> <span style="color:var(--text3);font-size:12px">of lost calls (${wl.lostCalls})</span></div>
+        <div style="color:${wl.wonRate - wl.lostRate >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:600">${wl.wonRate - wl.lostRate >= 0 ? '+' : ''}${wl.wonRate - wl.lostRate}pp gap</div>
+      </div>
+    </div>
+  ` : '';
+
+  // Coaching content
+  const coachingHTML = `
+    <div style="margin-bottom:18px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">What it is</div>
+      <div style="line-height:1.55;color:var(--text)">${esc(c.definition)}</div>
+    </div>
+    <div style="margin-bottom:18px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Why it matters</div>
+      <div style="line-height:1.55;color:var(--text2)">${esc(c.whyItMatters)}</div>
+    </div>
+  `;
+
+  // Example phrases
+  const phrases = c.examplePhrases || { nl: [], de: [], en: [] };
+  let phrasesHTML = '';
+  if ((phrases.nl?.length || phrases.de?.length || phrases.en?.length)) {
+    const block = (label, lines) => lines && lines.length > 0 ? `
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${label}</div>
+        <ul style="margin:0;padding-left:18px;line-height:1.6">${lines.map(p => `<li style="color:var(--text)">${esc(p)}</li>`).join('')}</ul>
+      </div>
+    ` : '';
+    phrasesHTML = `
+      <div style="background:var(--bg2);border-radius:8px;padding:14px 16px;margin-bottom:18px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Example phrases the AE can actually say</div>
+        ${block('Dutch (NL)', phrases.nl)}
+        ${block('German (DE)', phrases.de)}
+        ${block('English (EN)', phrases.en)}
+      </div>
+    `;
+  }
+
+  // Common misses
+  let missesHTML = '';
+  if (c.commonMisses && c.commonMisses.length > 0) {
+    missesHTML = `
+      <div style="margin-bottom:18px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Common misses</div>
+        <ul style="margin:0;padding-left:18px;line-height:1.6">${c.commonMisses.map(m => `<li style="color:var(--text2)">${esc(m)}</li>`).join('')}</ul>
+      </div>
+    `;
+  }
+
+  // Coaching drill
+  let drillHTML = '';
+  if (c.coachingDrill) {
+    drillHTML = `
+      <div style="background:rgba(183,72,255,.08);border-left:3px solid var(--purple);border-radius:4px;padding:12px 14px;margin-bottom:18px">
+        <div style="font-size:11px;color:var(--purple-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600">Coaching drill</div>
+        <div style="line-height:1.55;color:var(--text)">${esc(c.coachingDrill)}</div>
+      </div>
+    `;
+  }
+
+  // AE adoption ranking
+  let aeHTML = '';
+  if (d.aeAdoption && d.aeAdoption.length > 0) {
+    const worst = d.aeAdoption.slice(0, 8);
+    const best = [...d.aeAdoption].sort((a, b) => b.adoption - a.adoption).slice(0, 5);
+    aeHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Lowest adoption (highest leverage to coach)</div>
+          <table style="font-size:12px"><tbody>${worst.map(a => `
+            <tr><td style="padding:4px 8px 4px 0;color:var(--text)">${esc(a.aeName)}</td><td class="num" style="padding:4px 0;color:var(--red);font-weight:600">${a.adoption}%</td><td class="num" style="padding:4px 0 4px 8px;color:var(--text3)">${a.withBehavior}/${a.totalCalls}</td></tr>
+          `).join('')}</tbody></table>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Highest adoption (peer learners)</div>
+          <table style="font-size:12px"><tbody>${best.map(a => `
+            <tr><td style="padding:4px 8px 4px 0;color:var(--text)">${esc(a.aeName)}</td><td class="num" style="padding:4px 0;color:var(--green);font-weight:600">${a.adoption}%</td><td class="num" style="padding:4px 0 4px 8px;color:var(--text3)">${a.withBehavior}/${a.totalCalls}</td></tr>
+          `).join('')}</tbody></table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Exemplar wins + anti-exemplars
+  const callRow = (call, isAnti) => `
+    <div style="background:var(--bg2);border-radius:6px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div style="min-width:0;flex:1">
+        <div style="font-weight:500">${esc(call.title)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(call.aeName)} · ${new Date(call.createdAt).toLocaleDateString()} · quality ${call.callQuality || '—'}${call.occurrenceCount ? ' · ' + call.occurrenceCount + 'x present' : ''}</div>
+      </div>
+      ${call.recordingUrl ? `<a href="${esc(call.recordingUrl)}" target="_blank" rel="noopener" style="font-size:11px;text-decoration:none;color:var(--purple-soft)">Open in Claap →</a>` : ''}
+    </div>
+  `;
+
+  let callsHTML = '';
+  if ((d.exemplarWins && d.exemplarWins.length > 0) || (d.antiExemplars && d.antiExemplars.length > 0)) {
+    callsHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div>
+          <div style="font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600">✅ Exemplar wins (study these)</div>
+          ${(d.exemplarWins || []).length === 0 ? '<div style="font-size:12px;color:var(--text3)">No exemplars found.</div>' : d.exemplarWins.map(c => callRow(c)).join('')}
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600">⛔ Anti-exemplars (lost without it)</div>
+          ${(d.antiExemplars || []).length === 0 ? '<div style="font-size:12px;color:var(--text3)">No anti-exemplars found.</div>' : d.antiExemplars.map(c => callRow(c, true)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <strong style="font-size:15px">${esc(c.label)}</strong>
+      ${classificationBadge(c.classification)}
+    </div>
+    ${causalHTML}
+    ${wlHTML}
+    ${coachingHTML}
+    ${phrasesHTML}
+    ${missesHTML}
+    ${drillHTML}
+    ${aeHTML}
+    ${callsHTML}
+  `;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
