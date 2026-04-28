@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Analytics — WP SEO AI</title>
+<style>
+:root {
+  --bg: #0A0817;
+  --bg2: #15112B;
+  --bg3: #1E1838;
+  --border: #2A2447;
+  --text: #F5F2FF;
+  --text2: #C4BCD9;
+  --text3: #847BA0;
+  --purple: #B748FF;
+  --purple-soft: #B796E5;
+  --green: #10B981;
+  --red: #EF4444;
+  --orange: #F59E0B;
+  --blue: #3B82F6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+.topbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 24px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+}
+.topbar h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+.topbar .spacer { flex: 1; }
+.pill-btn {
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); padding: 6px 14px; border-radius: 999px;
+  font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.pill-btn:hover { background: var(--border); color: var(--text); }
+.pill-btn.primary { background: var(--purple); color: white; border-color: var(--purple); }
+.container { max-width: 1240px; margin: 24px auto; padding: 0 24px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+.card h3 { margin: 0 0 12px 0; font-size: 14px; font-weight: 600; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.kpi { background: var(--bg3); border-radius: 8px; padding: 14px 16px; }
+.kpi-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; }
+.kpi-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+.kpi-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+.badge-trainable { background: rgba(16,185,129,.15); color: var(--green); }
+.badge-practice { background: rgba(183,72,255,.15); color: var(--purple-soft); }
+.badge-innate { background: rgba(245,158,11,.15); color: var(--orange); }
+.badge-structural { background: rgba(59,130,246,.15); color: var(--blue); }
+.classification-trainable, .classification-practice, .classification-innate, .classification-structural { font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.classification-trainable { color: var(--green); }
+.classification-practice { color: var(--purple-soft); }
+.classification-innate { color: var(--orange); }
+.classification-structural { color: var(--blue); }
+.delta-pos { color: var(--green); }
+.delta-neg { color: var(--red); }
+.row-effect { font-weight: 600; }
+.empty { padding: 28px; color: var(--text3); text-align: center; font-size: 13px; }
+.loading { padding: 40px; text-align: center; color: var(--text3); }
+.err { padding: 18px; color: var(--red); background: rgba(239,68,68,.08); border-radius: 8px; margin-bottom: 14px; }
+/* Login */
+.login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.login-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 36px 38px; width: 380px; }
+.login-card h2 { margin: 0 0 8px 0; font-size: 18px; }
+.login-card p { color: var(--text3); font-size: 13px; margin: 0 0 18px 0; }
+.login-card input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 14px; outline: none; font-family: inherit; }
+.login-card button { margin-top: 12px; width: 100%; padding: 10px; border-radius: 8px; background: var(--purple); color: white; border: 0; font-weight: 600; cursor: pointer; }
+.login-err { margin-top: 8px; color: var(--red); font-size: 12px; min-height: 16px; }
+/* Chat */
+.chat-card { padding: 0; display: flex; flex-direction: column; height: 580px; }
+.chat-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.chat-msg { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
+.chat-msg.user { align-self: flex-end; align-items: flex-end; }
+.chat-msg.assistant { align-self: flex-start; }
+.chat-bubble { padding: 10px 14px; border-radius: 12px; line-height: 1.5; font-size: 13px; white-space: pre-wrap; word-wrap: break-word; }
+.chat-msg.user .chat-bubble { background: var(--purple); color: white; }
+.chat-msg.assistant .chat-bubble { background: var(--bg3); color: var(--text); }
+.chat-tools { font-size: 10px; color: var(--text3); padding: 0 4px; }
+.chat-input-wrap { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.chat-input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 13px; font-family: inherit; outline: none; resize: none; min-height: 38px; max-height: 120px; }
+.chat-send { background: var(--purple); color: white; border: 0; padding: 0 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 12px; }
+.chat-suggestion { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 4px 10px; border-radius: 999px; font-size: 11px; cursor: pointer; }
+.chat-suggestion:hover { background: var(--border); color: var(--text); }
+a { color: var(--purple-soft); }
+code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <h2>Admin Analytics</h2>
+    <p>This area is gated separately from the team dashboard. Enter the analytics admin password.</p>
+    <input id="login-pw" type="password" placeholder="Admin password" autofocus onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Sign in</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <h1>Admin Analytics</h1>
+  <span class="spacer"></span>
+  <button class="pill-btn" onclick="refreshAnalysis()">Refresh analysis</button>
+  <button class="pill-btn" onclick="location.href='/v1'">← Back to dashboard</button>
+  <button class="pill-btn" onclick="logoutAdmin()">Sign out</button>
+</div>
+
+<div class="container" id="app">
+  <div class="loading">Loading analysis…</div>
+</div>
+
+<script>
+let adminToken = localStorage.getItem('admin_token') || '';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const fmtPct = (x) => x == null || !isFinite(x) ? '—' : (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
+const fmtRate = (x) => x == null ? '—' : Math.round(x * 100) + '%';
+
+async function doLogin() {
+  const pw = $('login-pw').value.trim();
+  if (!pw) return;
+  try {
+    const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+    const data = await res.json();
+    if (!res.ok) { $('login-err').textContent = data.error || 'Login failed'; return; }
+    adminToken = data.token;
+    localStorage.setItem('admin_token', adminToken);
+    $('login-overlay').style.display = 'none';
+    loadAnalysis();
+  } catch (e) {
+    $('login-err').textContent = 'Connection error';
+  }
+}
+
+function logoutAdmin() {
+  adminToken = '';
+  localStorage.removeItem('admin_token');
+  location.reload();
+}
+
+async function adminFetch(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': adminToken,
+      ...(opts.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('admin_token');
+    location.reload();
+    return;
+  }
+  return res;
+}
+
+async function loadAnalysis(force = false) {
+  $('app').innerHTML = '<div class="loading">Computing call-engine analysis (may take a few seconds)…</div>';
+  try {
+    const res = await adminFetch('/api/admin/analysis' + (force ? '?refresh=true' : ''));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    renderAnalysis(data);
+  } catch (e) {
+    $('app').innerHTML = `<div class="err">${esc(e.message || 'Failed to load')}</div>`;
+  }
+}
+
+function refreshAnalysis() { loadAnalysis(true); }
+
+function classificationBadge(cls) {
+  const c = (cls || 'practice').toLowerCase();
+  return `<span class="badge badge-${c}">${esc(cls)}</span>`;
+}
+
+function renderAnalysis(d) {
+  const cal = d.overview.calibration;
+  const calNote = cal.healthy
+    ? `<span style="color:var(--green)">✅ Calibration healthy</span> · median AE close rate ${cal.medianAeWinRate}%`
+    : `<span style="color:var(--orange)">⚠ Calibration check</span> · median AE close rate ${cal.medianAeWinRate}%, ${cal.inflatedAEs} AE(s) above 85%`;
+
+  const overviewHTML = `
+    <div class="card">
+      <h3>Overview</h3>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-label">Total calls (won/lost)</div>
+          <div class="kpi-value">${d.overview.totalCalls.toLocaleString()}</div>
+          <div class="kpi-sub">${d.overview.won} W / ${d.overview.lost} L</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Overall close rate</div>
+          <div class="kpi-value">${d.overview.overallCloseRate}%</div>
+          <div class="kpi-sub">first meetings, last 60 days</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">AEs profiled</div>
+          <div class="kpi-value">${d.overview.aesProfiled}</div>
+          <div class="kpi-sub">${d.overview.topPerformers} top performers</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Markets</div>
+          <div class="kpi-value">${d.overview.markets.length}</div>
+          <div class="kpi-sub">${d.overview.markets.join(' · ')}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Behaviors tested</div>
+          <div class="kpi-value">${d.overview.behaviorsTested}</div>
+          <div class="kpi-sub">tri-lingual NL/DE/EN</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:var(--text3)">Generated ${new Date(d.generatedAt).toLocaleString()} · ${calNote}</div>
+    </div>
+  `;
+
+  // Causal estimates table
+  const sortedEst = [...d.causalEstimates].sort((a, b) => b.effect - a.effect);
+  const estimatesHTML = `
+    <div class="card">
+      <h3>Behavior causal effects (within-AE FWL, last 60 days)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Behavior</th>
+            <th class="num">Effect</th>
+            <th>95% CI</th>
+            <th class="num">Base→Treated</th>
+            <th class="num">n (T/C)</th>
+            <th class="num">AEs</th>
+            <th class="num">p</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedEst.map(e => `
+            <tr>
+              <td><strong>${esc(e.treatment)}</strong></td>
+              <td class="num row-effect ${e.effect > 0 ? 'delta-pos' : 'delta-neg'}">${fmtPct(e.effect)}</td>
+              <td><span style="font-size:12px;color:var(--text3)">[${fmtPct(e.ciLower)}, ${fmtPct(e.ciUpper)}]</span></td>
+              <td class="num">${(e.baseRate * 100).toFixed(0)}% → ${(e.treatedRate * 100).toFixed(0)}%</td>
+              <td class="num">${e.nTreated}/${e.nControl}</td>
+              <td class="num">${e.nAes}</td>
+              <td class="num">${e.pValue !== null ? e.pValue.toFixed(3) : '—'}</td>
+              <td>${e.classification === 'winning' ? '<span style="color:var(--green)">✅ winning</span>' : e.classification === 'harmful' ? '<span style="color:var(--red)">⛔ harmful</span>' : '<span style="color:var(--text3)">neutral</span>'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Top performers
+  const topHTML = `
+    <div class="card">
+      <h3>Top performers (top 25% by residual close rate)</h3>
+      ${d.topPerformers.length === 0 ? '<div class="empty">No top performers profiled yet.</div>' : `
+      <table>
+        <thead>
+          <tr><th>Rank</th><th>AE</th><th>Market</th><th class="num">Calls</th><th class="num">W/L</th><th class="num">Close rate</th><th class="num">Residual</th><th>Strengths</th></tr>
+        </thead>
+        <tbody>
+          ${d.topPerformers.map(p => `
+            <tr>
+              <td>#${p.residualRank}</td>
+              <td><strong>${esc(p.aeName)}</strong></td>
+              <td>${esc(p.market)}</td>
+              <td class="num">${p.totalCalls}</td>
+              <td class="num">${p.wonCount}/${p.lostCount}</td>
+              <td class="num">${(p.closeRateRaw * 100).toFixed(0)}%</td>
+              <td class="num delta-pos">${fmtPct(p.residual)}</td>
+              <td><span style="font-size:11px;color:var(--text3)">${(p.strengths || []).slice(0, 4).map(esc).join(', ')}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      `}
+    </div>
+  `;
+
+  // Coaching priorities
+  const cpHTML = `
+    <div class="card">
+      <h3>Coaching priorities (causal + top-rest gap + trainable/practice)</h3>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Behaviors with significant causal effect, the widest top-vs-rest gap, and a classification that's coachable. Prioritize this list when planning the next coaching cycle.</div>
+      ${d.coachingPriorities.length === 0 ? '<div class="empty">No priority intersections found yet.</div>' : `
+      <table>
+        <thead>
+          <tr><th>Behavior</th><th class="num">Top adoption</th><th class="num">Rest adoption</th><th class="num">Δ</th><th class="num">Causal effect</th><th>Class</th></tr>
+        </thead>
+        <tbody>
+          ${d.coachingPriorities.map(p => `
+            <tr>
+              <td><strong>${esc(p.behavior)}</strong></td>
+              <td class="num">${(p.topRate * 100).toFixed(0)}%</td>
+              <td class="num">${(p.avgRate * 100).toFixed(0)}%</td>
+              <td class="num delta-pos">+${(p.delta * 100).toFixed(0)}pp</td>
+              <td class="num delta-pos">${fmtPct(p.causal.effect)}</td>
+              <td>${classificationBadge(p.classification)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      `}
+    </div>
+  `;
+
+  // Market summary
+  const marketHTML = `
+    <div class="card">
+      <h3>Market breakdown</h3>
+      <table>
+        <thead>
+          <tr><th>Market</th><th class="num">Calls</th><th class="num">Won</th><th class="num">Lost</th><th class="num">Close rate</th><th class="num">Median quality</th><th>Significant behaviors</th></tr>
+        </thead>
+        <tbody>
+          ${d.marketSummary.filter(m => m.calls > 0).map(m => `
+            <tr>
+              <td><strong>${esc(m.market)}</strong></td>
+              <td class="num">${m.calls}</td>
+              <td class="num">${m.won}</td>
+              <td class="num">${m.lost}</td>
+              <td class="num">${m.closeRate}%</td>
+              <td class="num">${m.medianQuality}</td>
+              <td><span style="font-size:11px;color:var(--text3)">${m.sigBehaviors.slice(0, 4).map(b => `${esc(b.treatment)} ${fmtPct(b.effect)}`).join(' · ') || '—'}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Top-vs-rest behavior gaps
+  const gapsHTML = `
+    <div class="card">
+      <h3>Top-vs-rest behavior gaps (full set)</h3>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">The widest gaps point to the highest-leverage coaching changes. Intersect with the causal effects table to filter what's worth chasing.</div>
+      <table>
+        <thead><tr><th>Behavior</th><th class="num">Top</th><th class="num">Rest</th><th class="num">Δ</th><th>Class</th></tr></thead>
+        <tbody>
+          ${Object.entries(d.behaviorDifferentials).sort((a, b) => b[1].delta - a[1].delta).map(([b, diff]) => `
+            <tr>
+              <td>${esc(b)}</td>
+              <td class="num">${(diff.topRate * 100).toFixed(0)}%</td>
+              <td class="num">${(diff.avgRate * 100).toFixed(0)}%</td>
+              <td class="num ${diff.delta >= 0 ? 'delta-pos' : 'delta-neg'}">${diff.delta >= 0 ? '+' : ''}${(diff.delta * 100).toFixed(0)}pp</td>
+              <td>${classificationBadge(diff.classification)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Chat panel
+  const chatHTML = `
+    <div class="card chat-card">
+      <div class="chat-header">
+        <h3 style="margin:0">Ask the data</h3>
+        <span style="font-size:11px;color:var(--text3)">Sonnet 4.6 · grounded in this analysis + live Supabase</span>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg assistant">
+          <div class="chat-bubble">Ask me anything about the data — AE comparisons, behavior trends, specific lost deals, coaching plans. I have the full analysis above and can pull individual calls, transcripts, or AE profiles on demand.</div>
+        </div>
+      </div>
+      <div class="chat-suggestions" id="chat-suggestions">
+        <button class="chat-suggestion" onclick="askChat(this.textContent)">What's the biggest coaching gap right now?</button>
+        <button class="chat-suggestion" onclick="askChat(this.textContent)">Why is Stijn closing more than Vincent Werner?</button>
+        <button class="chat-suggestion" onclick="askChat(this.textContent)">Show 3 lost deals where the AE skipped contract language</button>
+        <button class="chat-suggestion" onclick="askChat(this.textContent)">What are German AEs underusing the most?</button>
+        <button class="chat-suggestion" onclick="askChat(this.textContent)">Generate a 1-week coaching plan for our weakest performer</button>
+      </div>
+      <div class="chat-input-wrap">
+        <textarea id="chat-input" class="chat-input" placeholder="Ask a question…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+        <button id="chat-send-btn" class="chat-send" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+  `;
+
+  $('app').innerHTML = overviewHTML + estimatesHTML + cpHTML + topHTML + marketHTML + gapsHTML + chatHTML;
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+let chatHistory = [];
+let chatBusy = false;
+
+function appendChatMsg(role, content, toolsUsed) {
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.textContent = content;
+  wrap.appendChild(bubble);
+  if (toolsUsed && toolsUsed.length > 0) {
+    const tools = document.createElement('div');
+    tools.className = 'chat-tools';
+    tools.textContent = '↳ ' + toolsUsed.map(t => t.name).join(', ');
+    wrap.appendChild(tools);
+  }
+  $('chat-messages').appendChild(wrap);
+  $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+}
+
+function askChat(text) {
+  $('chat-input').value = text;
+  sendChat();
+}
+
+async function sendChat() {
+  if (chatBusy) return;
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  appendChatMsg('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  // Hide suggestions after first message
+  const sugg = $('chat-suggestions');
+  if (sugg) sugg.style.display = 'none';
+
+  chatBusy = true;
+  $('chat-send-btn').disabled = true;
+  $('chat-send-btn').textContent = 'Thinking…';
+
+  // Optimistic placeholder for the assistant reply
+  const placeholder = document.createElement('div');
+  placeholder.className = 'chat-msg assistant';
+  placeholder.innerHTML = '<div class="chat-bubble" style="color:var(--text3)">…</div>';
+  $('chat-messages').appendChild(placeholder);
+  $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+
+  try {
+    const res = await adminFetch('/api/admin/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages: chatHistory }),
+    });
+    const data = await res.json();
+    placeholder.remove();
+    if (!res.ok) {
+      appendChatMsg('assistant', '⚠ ' + (data.error || 'Chat failed'));
+    } else {
+      appendChatMsg('assistant', data.reply, data.toolsUsed);
+      chatHistory.push({ role: 'assistant', content: data.reply });
+    }
+  } catch (e) {
+    placeholder.remove();
+    appendChatMsg('assistant', '⚠ ' + (e.message || 'Connection error'));
+  } finally {
+    chatBusy = false;
+    $('chat-send-btn').disabled = false;
+    $('chat-send-btn').textContent = 'Send';
+    input.focus();
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+
+if (adminToken) {
+  $('login-overlay').style.display = 'none';
+  loadAnalysis();
+}
+</script>
+</body>
+</html>

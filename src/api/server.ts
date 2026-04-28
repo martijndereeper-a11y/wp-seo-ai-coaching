@@ -22,6 +22,7 @@ import dealRoutes from './routes/deals.ts';
 import gameRoutes from './routes/game.ts';
 import coachingRoutes from './routes/coaching.ts';
 import mmRoutes from './routes/mm.ts';
+import adminRoutes from './routes/admin.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = new Hono();
@@ -103,6 +104,10 @@ app.get('/api/auth/me', async (c) => {
   return c.json({ error: 'Invalid token' }, 401);
 });
 
+// ─── Admin Analytics (separate password gate, mounted before authMiddleware) ─
+
+app.route('/api/admin', adminRoutes);
+
 // ─── Auth middleware for all other /api/* routes ────────────────────────────
 
 app.use('/api/*', authMiddleware);
@@ -157,6 +162,7 @@ app.get('/classic', (c) => serveDashboardFile(c, 'index.html'));
 app.get('/deep', (c) => serveDashboardFile(c, 'index.html'));
 app.get('/sales-os', (c) => serveDashboardFile(c, 'sales-os.html'));
 app.get('/pipeline', (c) => serveDashboardFile(c, 'pipeline.html'));
+app.get('/admin', (c) => serveDashboardFile(c, 'admin.html'));
 
 // ─── Export ─────────────────────────────────────────────────────────────────
 

@@ -27,6 +27,14 @@ export async function getPasswords(): Promise<{ae: string; lead: string}> {
   return s.auth_passwords || { ae: 'wpseoai2026', lead: 'coaching2026!' };
 }
 
+/** Separate admin-analytics password for /admin (call-engine analysis + data chat).
+ * Resolution: ADMIN_ANALYTICS_PASSWORD env var → platform_settings → fallback. */
+export async function getAdminAnalyticsPassword(): Promise<string> {
+  if (process.env.ADMIN_ANALYTICS_PASSWORD) return process.env.ADMIN_ANALYTICS_PASSWORD;
+  const s = await loadSettings();
+  return s.admin_analytics_password || 'admin-analytics-2026!';
+}
+
 export async function getQualityWeights() {
   const s = await loadSettings();
   return s.quality_weights || { talkBalance: 25, discovery: 20, scriptAdherence: 20, engagement: 15, coachable: 20 };
