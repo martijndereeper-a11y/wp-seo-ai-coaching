@@ -675,18 +675,7 @@ function renderAECallEngine(data){
     ${viewToggleHTML('call-engine')}
     <button class="back" onclick="loadTeam()">← Back to team</button>
     <h2 class="pgtitle">${esc(name)}</h2>
-    <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${decidedCalls} decided (${wonCalls}W / ${lostCalls}L)</div>
-
-    <div class="card" style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px">60-day close rate</div>
-        <div style="display:flex;align-items:baseline;gap:10px">
-          <span style="font-size:36px;font-weight:600">${closeStr}</span>
-          ${residStr ? `<span style="font-size:13px;color:${residual >= 0 ? 'var(--green)' : 'var(--red)'}">${residStr}</span>` : ''}
-        </div>
-      </div>
-      ${expectedRate !== null ? `<div style="font-size:12px;color:var(--text3)">Team avg: ${expectedRate}%</div>` : ''}
-    </div>
+    <div class="pgtitle-sub">${totalRecent} calls in last 60 days</div>
 
     <div class="grid-2" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-top:14px">
       ${behaviorCardsHTML}
@@ -799,17 +788,6 @@ function renderAE(data){
     <button class="back" onclick="loadTeam()">← Back to team</button>
     <h2 class="pgtitle">${esc(name)}</h2>
     <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${vbatAnalyzed} classified with VBAT</div>
-
-    <div class="card" style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px">60-day close rate</div>
-        <div style="display:flex;align-items:baseline;gap:10px">
-          <span style="font-size:36px;font-weight:600">${closeStr}</span>
-          <span style="font-size:13px;color:var(--text3)">${esc(wonLost)}</span>
-        </div>
-      </div>
-      ${closeDeltaStr ? `<div style="font-size:13px;color:${closeDeltaColor}">${esc(closeDeltaStr)}</div>` : ''}
-    </div>
 
     <div class="card">
       <h3>VBAT pattern across last 60 days</h3>
