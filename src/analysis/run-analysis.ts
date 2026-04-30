@@ -223,14 +223,21 @@ async function main() {
   // Load HubSpot deal map (ground truth for outcomes — keyed on recordings.crm_deal_id)
   loadHubspotDeals();
 
-  // Get already-analyzed IDs (skip if full mode)
+  // Get already-analyzed IDs (skip if full mode).
+  // Supabase caps single .select() at 1000 rows, so paginate explicitly —
+  // otherwise calls past row 1000 look unanalyzed and get re-processed every run.
   let analyzedIds = new Set<string>();
   if (!isFullMode) {
-    const { data: existing } = await supabase
-      .from('ae_call_analysis')
-      .select('recording_id');
-    if (existing) {
-      analyzedIds = new Set(existing.map(r => r.recording_id));
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: existing, error } = await supabase
+        .from('ae_call_analysis')
+        .select('recording_id')
+        .range(from, from + PAGE - 1);
+      if (error) { console.error('analyzed-IDs page error:', error.message); break; }
+      if (!existing || existing.length === 0) break;
+      for (const r of existing) analyzedIds.add(r.recording_id);
+      if (existing.length < PAGE) break;
     }
   }
 
