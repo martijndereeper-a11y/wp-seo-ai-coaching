@@ -227,9 +227,9 @@ button:focus-visible,.chip:focus-visible,details summary:focus-visible,a:focus-v
   </span>
   <h1>Sales Coaching</h1>
   <div class="spacer"></div>
-  <button class="pill-btn" onclick="goClassic()">Deep view</button>
+  <button class="pill-btn" id="btn-deep-view" onclick="goClassic()" style="display:none">Deep view</button>
   <button class="pill-btn" onclick="showExplanation()">Explanation</button>
-  <button class="pill-btn" onclick="location.href='/admin'">Admin</button>
+  <button class="pill-btn" id="btn-admin" onclick="location.href='/admin'" style="display:none">Admin</button>
   <button class="pill-btn" onclick="logout()">Log out</button>
 </div>
 
@@ -263,6 +263,7 @@ async function doLogin(){
     localStorage.setItem('auth_token', authToken);
     localStorage.setItem('auth_role', authRole);
     document.getElementById('login-overlay').style.display = 'none';
+    applyRoleVisibility();
     loadTeam();
   } catch(e){ document.getElementById('login-error').textContent = 'Connection error'; }
 }
@@ -276,7 +277,18 @@ function logout(){
 
 function goClassic(){ location.href = '/classic'; }
 
-if (authToken) document.getElementById('login-overlay').style.display = 'none';
+function applyRoleVisibility(){
+  const isLead = authRole === 'lead';
+  const deepBtn = document.getElementById('btn-deep-view');
+  if (deepBtn) deepBtn.style.display = isLead ? '' : 'none';
+  const adminBtn = document.getElementById('btn-admin');
+  if (adminBtn) adminBtn.style.display = isLead ? '' : 'none';
+}
+
+if (authToken) {
+  document.getElementById('login-overlay').style.display = 'none';
+  applyRoleVisibility();
+}
 
 // ═══════════════════════════ API ═══════════════════════════
 async function api(path, opts={}){

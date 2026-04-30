@@ -1282,11 +1282,7 @@ async function renderTeamLead() {
   '</div>';
   html += '</div>';
 
-  // Calibration Study
-  html += '<div class="card" id="calibration-card"><h3 style="font-size:14px;margin-bottom:4px">Threshold Calibration</h3><div style="font-size:11px;color:var(--text2);margin-bottom:12px">Do our scoring thresholds actually predict wins? Click to load empirical data.</div>'+
-    '<button id="cal-btn" onclick="loadCalibration()" style="padding:8px 16px;background:var(--purple2);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Run Calibration Study</button>'+
-    '<div id="calibration-result"></div>'+
-  '</div>';
+  // Calibration Study (hidden — close rates removed from UI)
 
   // Team Leaderboard
   html += '<div class="card"><h3 style="font-size:14px;margin-bottom:12px">Team Leaderboard</h3>';

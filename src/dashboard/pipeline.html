@@ -158,11 +158,6 @@ async function loadPipeline() {
         <div class="stat-sub">ARR</div>
       </div>
       <div class="card card-sm">
-        <div class="stat-label">Win Rate (90d)</div>
-        <div class="stat">${l90.win_rate != null ? l90.win_rate + '%' : '--'}</div>
-        <div class="stat-sub">${l90.won || 0}W / ${l90.lost || 0}L</div>
-      </div>
-      <div class="card card-sm">
         <div class="stat-label">Avg Cycle</div>
         <div class="stat">${l90.avg_cycle_days || '--'}</div>
         <div class="stat-sub">days to close</div>
@@ -187,19 +182,14 @@ async function loadContentPerf() {
   }
   const sorted = data.sort((a, b) => (b.win_rate || 0) - (a.win_rate || 0));
   el.innerHTML = `<div class="card"><table>
-    <thead><tr><th>Content</th><th>Version</th><th>Segment</th><th>Used</th><th>Advanced</th><th>Won</th><th>Lost</th><th>Win Rate</th><th>Avg Velocity</th></tr></thead>
+    <thead><tr><th>Content</th><th>Version</th><th>Segment</th><th>Used</th><th>Advanced</th><th>Avg Velocity</th></tr></thead>
     <tbody>${sorted.map(p => {
-      const wr = p.win_rate != null ? p.win_rate : '--';
-      const badge = wr === '--' ? '' : wr >= 60 ? 'badge-green' : wr >= 40 ? 'badge-yellow' : 'badge-red';
       return `<tr>
         <td style="font-weight:600;color:var(--blackish)">${p.content_name}</td>
         <td>${p.content_version || '--'}</td>
         <td><span class="badge badge-purple">${p.segment}</span></td>
         <td>${p.times_used}</td>
         <td>${p.deals_advanced}</td>
-        <td>${p.deals_won}</td>
-        <td>${p.deals_lost}</td>
-        <td><span class="badge ${badge}">${wr}${wr !== '--' ? '%' : ''}</span></td>
         <td>${p.avg_deal_velocity_days ? p.avg_deal_velocity_days + 'd' : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
