@@ -32,10 +32,11 @@ jobs:
           CLAAP_API_KEY: ${{ secrets.CLAAP_API_KEY }}
 
       - name: Analyze new recordings
-        run: npx tsx src/analysis/run-analysis.ts
+        run: npx tsx src/analysis/run-analysis.ts --llm
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Measure coaching interventions
         run: |
