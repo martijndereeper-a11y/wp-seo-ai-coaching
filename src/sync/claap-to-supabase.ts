@@ -25,7 +25,13 @@ const TARGET_CHANNELS: Record<string, string> = {
 const INTERNAL_DOMAIN = 'wpseoai.com';
 
 // Personal meetings — synced by recorder email regardless of channel
-const PERSONAL_RECORDER_EMAIL = 'martijn.dereeper@wpseoai.com';
+const PERSONAL_RECORDER_EMAILS = [
+  'martijn.dereeper@wpseoai.com',
+  'chris.pinto@wpseoai.com',
+  'christian.vandehoef@wpseoai.com',
+  'carmen.lorje@wpseoai.com',
+  'melissa.husmann@wpseoai.com',
+];
 
 // ─── Transform ──────────────────────────────────────────────────────────────────
 
@@ -388,7 +394,9 @@ async function main() {
   }
 
   // Sync personal meetings (catches recordings in any channel)
-  total += await syncPersonalMeetings(PERSONAL_RECORDER_EMAIL, fullSync, sinceDate);
+  for (const email of PERSONAL_RECORDER_EMAILS) {
+    total += await syncPersonalMeetings(email, fullSync, sinceDate);
+  }
 
   console.log(`\nSync complete: ${total} new recordings added`);
 }

@@ -695,11 +695,12 @@ async function fillLLMGaps() {
     try {
       const { data: rec } = await supabase
         .from('recordings')
-        .select('transcript_text')
+        .select('transcript_text, transcript_lang')
         .eq('id', id)
         .single();
       if (!rec?.transcript_text) { skipped++; return; }
       const parsed = parseTranscript(rec.transcript_text, row.recorder_name);
+      const callLang = (rec.transcript_lang || 'en').toLowerCase();
       const needVBAT = !row.vbat_classification || Object.keys(row.vbat_classification as object).length === 0;
       const needNar = !row.narrative_review || Object.keys(row.narrative_review as object).length === 0;
 
@@ -708,7 +709,7 @@ async function fillLLMGaps() {
 
       if (needVBAT) {
         tasks.push((async () => {
-          const result = await classifyVBAT(parsed.turns, row.recorder_name, row.title || 'Untitled', row.duration_seconds || 0);
+          const result = await classifyVBAT(parsed.turns, row.recorder_name, row.title || 'Untitled', row.duration_seconds || 0, callLang);
           if (result) { updates.vbat_classification = result; return true; }
           return false;
         })());
@@ -721,7 +722,7 @@ async function fillLLMGaps() {
             type: h.type, category: h.category, timestamp: h.timestampDisplay, excerpt: h.excerpt, guidance: h.guidance || '',
           }));
           const result = await analyzeCallNarrative(
-            rec.transcript_text, row.recorder_name, row.title || 'Untitled', Math.round((row.duration_seconds || 0) / 60), flagged,
+            rec.transcript_text, row.recorder_name, row.title || 'Untitled', Math.round((row.duration_seconds || 0) / 60), flagged, callLang,
           );
           if (result) { updates.narrative_review = result; return true; }
           return false;
@@ -830,12 +831,34 @@ async function refreshAEDeepAnalyses() {
     // pull in stale context the AE can't act on anymore.
     const { data: calls } = await supabase
       .from('ae_call_analysis')
-      .select('title, created_at, duration_seconds, talk_ratio, question_count, script_adherence, call_quality_score, outcome, smart_review, call_verdict, sections_missed')
+      .select('recording_id, title, created_at, duration_seconds, talk_ratio, question_count, script_adherence, call_quality_score, outcome, smart_review, call_verdict, sections_missed')
       .eq('recorder_name', profile.recorder_name)
       .gte('created_at', coachingWindowCutoff())
       .order('created_at', { ascending: false })
       .limit(30);
     if (!calls || calls.length < 3) { skipped++; continue; }
+
+    // Determine the AE's dominant language across recent calls (for the deep analysis prompt).
+    // Only NL/DE/EN are valid coaching languages — all other ISO codes (unknown, nn, jw, ru, etc.)
+    // are noise from short-utterance mis-detections and excluded from the dominance computation.
+    const TARGET_LANGS = new Set(['nl', 'de', 'en']);
+    const recordingIds = calls.map((c: any) => c.recording_id).filter(Boolean);
+    let aeLang = 'en';
+    if (recordingIds.length > 0) {
+      const { data: langs } = await supabase
+        .from('recordings').select('transcript_lang').in('id', recordingIds);
+      const counts: Record<string, number> = {};
+      for (const r of langs || []) {
+        const l = (r.transcript_lang || '').toLowerCase();
+        if (!TARGET_LANGS.has(l)) continue;
+        counts[l] = (counts[l] || 0) + 1;
+      }
+      let best = 'en', bestN = 0;
+      for (const [k, v] of Object.entries(counts)) if (v > bestN) { best = k; bestN = v; }
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      // Require >=60% dominance over named languages, else default English
+      aeLang = total > 0 && bestN / total >= 0.6 ? best : 'en';
+    }
 
     const callSummaries = calls.map((c: any) => {
       const sr = c.smart_review || {};
@@ -868,7 +891,7 @@ async function refreshAEDeepAnalyses() {
     };
 
     try {
-      const analysis = await analyzeAEDeep(profile.recorder_name, callSummaries, profileData, teamBenchmarks);
+      const analysis = await analyzeAEDeep(profile.recorder_name, callSummaries, profileData, teamBenchmarks, aeLang);
       if (!analysis) { console.warn(`  [${profile.recorder_name}] analysis returned null`); continue; }
       await supabase.from('ae_deep_analyses').upsert({
         recorder_name: profile.recorder_name,

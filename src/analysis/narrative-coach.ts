@@ -58,9 +58,18 @@ export interface NarrativeReview {
   generatedAt: string;
 }
 
-// System prompt for AE-level deep analysis — static across AEs, cached.
-function buildAEDeepSystemPrompt(): string {
+const LANG_NAME: Record<string, string> = { nl: 'Dutch', de: 'German', en: 'English' };
+const LANG_DEFAULT_ISO = 'en';
+
+function langLabel(iso?: string | null): string {
+  const k = (iso || LANG_DEFAULT_ISO).toLowerCase();
+  return LANG_NAME[k] || LANG_NAME[LANG_DEFAULT_ISO];
+}
+
+// System prompt for AE-level deep analysis — keyed by language for cache locality.
+function buildAEDeepSystemPrompt(language: string = LANG_DEFAULT_ISO): string {
   const coachingRules = loadCoachingContext();
+  const ll = langLabel(language);
   return `You are a sales coaching analyst conducting comprehensive performance reviews of AEs at WP SEO AI, an AI-native SEO/GEO platform in the Netherlands selling to SMB founders.
 
 ## Coaching framework (from Koen, Commercial Director):
@@ -70,7 +79,7 @@ ${coachingRules.slice(0, 2000)}
 
 Write a comprehensive coaching review for the AE. This is for their lead to use in 1:1s and performance reviews. Be specific — reference actual calls by name, quote actual objection/buying signal exchanges, and identify PATTERNS across calls, not just individual moments.
 
-Write in English. Use ### headers exactly as shown below.
+Write in ${ll}. Use ### headers exactly as shown below.
 
 ### 1. OVERVIEW (3-4 sentences)
 Who is this AE? What is their overall level? What is the one-line summary of where they are?
@@ -97,12 +106,16 @@ The TOP 3 things this AE should work on, in priority order. For each:
 - How to practice it (concrete exercise or habit)?
 - How to measure progress?
 
-Be brutally honest but constructive. This is a coaching document, not a report card.`;
+Be brutally honest but constructive. This is a coaching document, not a report card.
+
+## Language
+Direct quotes from the transcript and call summaries must remain verbatim in their original language. All commentary, headers, recommendations, and scripted alternatives must be written in ${ll} so the AE can use them directly.`;
 }
 
-// System prompt for per-call narrative — static across all calls, cached.
-function buildCallNarrativeSystemPrompt(): string {
+// System prompt for per-call narrative — keyed by language for cache locality.
+function buildCallNarrativeSystemPrompt(language: string = LANG_DEFAULT_ISO): string {
   const coachingRules = loadCoachingContext();
+  const ll = langLabel(language);
   return `You are a sales coaching analyst reviewing sales calls for WP SEO AI, an AI-native SEO/GEO platform in the Netherlands.
 
 ## Your coaching framework (from Koen, Commercial Director):
@@ -110,7 +123,7 @@ ${coachingRules.slice(0, 3000)}
 
 ## Output format
 
-Analyze each call in depth. Write in English. Be specific — use exact timestamps (MM:SS format) and direct quotes from the transcript.
+Analyze each call in depth. Write in ${ll}. Be specific — use exact timestamps (MM:SS format) and direct quotes from the transcript.
 
 Provide your analysis in these 5 sections, using ### headers exactly as shown:
 
@@ -142,7 +155,10 @@ The 3 most impactful moments where the AE's behavior directly influenced the out
 ### 5. OVERALL VERDICT
 2-3 sentences: What is the single biggest thing this AE should work on based on this call? Be direct and specific, not generic.
 
-Be brutally honest but constructive. Use specific quotes and timestamps throughout. Never be vague.`;
+Be brutally honest but constructive. Use specific quotes and timestamps throughout. Never be vague.
+
+## Language
+Direct quotes from the transcript must remain verbatim in their original language. All commentary, suggestions, and scripted alternatives ("what the AE should have said") must be in ${ll} so the AE can use them directly.`;
 }
 
 export async function analyzeCallNarrative(
@@ -151,6 +167,7 @@ export async function analyzeCallNarrative(
   callTitle: string,
   callDuration: number,
   flaggedMoments: { type: string; category: string; timestamp: string; excerpt: string; guidance: string }[],
+  language: string = LANG_DEFAULT_ISO,
 ): Promise<NarrativeReview | null> {
   const apiKey = loadApiKey();
   if (!apiKey) {
@@ -179,7 +196,7 @@ ${trimmedTranscript}`;
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2500,
-      system: [{ type: 'text', text: buildCallNarrativeSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildCallNarrativeSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userMessage }],
     });
 
@@ -250,6 +267,7 @@ export async function analyzeAEDeep(
     avgQuestions: number;
     avgQuality: number;
   },
+  language: string = LANG_DEFAULT_ISO,
 ): Promise<AEDeepAnalysis | null> {
   const apiKey = loadApiKey();
   if (!apiKey) return null;
@@ -288,7 +306,7 @@ ${callData}`;
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 6000,
-      system: [{ type: 'text', text: buildAEDeepSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildAEDeepSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userMessage }],
     });
 
@@ -321,6 +339,7 @@ export async function* streamCallNarrative(
   callTitle: string,
   callDuration: number,
   flaggedMoments: { type: string; category: string; timestamp: string; excerpt: string; guidance: string }[],
+  language: string = LANG_DEFAULT_ISO,
 ): AsyncGenerator<string, void, unknown> {
   const apiKey = loadApiKey();
   if (!apiKey) { yield 'ERROR: ANTHROPIC_API_KEY not set'; return; }
@@ -346,7 +365,7 @@ ${trimmedTranscript}`;
     const stream = await client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 2500,
-      system: [{ type: 'text', text: buildCallNarrativeSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildCallNarrativeSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userMessage }],
     });
     for await (const event of stream) {
@@ -364,6 +383,7 @@ export async function* streamAEDeep(
   callSummaries: any[],
   profileData: any,
   teamBenchmarks: any,
+  language: string = LANG_DEFAULT_ISO,
 ): AsyncGenerator<string, void, unknown> {
   const apiKey = loadApiKey();
   if (!apiKey) { yield 'ERROR: ANTHROPIC_API_KEY not set'; return; }
@@ -400,7 +420,7 @@ ${callData}`;
     const stream = await client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 6000,
-      system: [{ type: 'text', text: buildAEDeepSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: buildAEDeepSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userMessage }],
     });
     for await (const event of stream) {

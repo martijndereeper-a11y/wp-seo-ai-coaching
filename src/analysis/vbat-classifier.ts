@@ -88,7 +88,18 @@ function buildTranscriptForPrompt(turns: TranscriptTurn[], recorderName: string)
   return lines.join('\n');
 }
 
-const SYSTEM_PROMPT = `You are a sales qualification analyst for WP SEO AI, an AI-native SEO/GEO platform selling to Dutch SMB founders. You evaluate sales calls against Marc's VBAT qualification framework plus two expert-level actions from the Sales Game playbook.
+const LANG_NAME: Record<string, string> = { nl: 'Dutch', de: 'German', en: 'English' };
+const LANG_DEFAULT_ISO = 'en';
+
+function resolveLanguage(iso?: string | null): { iso: string; name: string } {
+  const k = (iso || LANG_DEFAULT_ISO).toLowerCase();
+  const name = LANG_NAME[k] || LANG_NAME[LANG_DEFAULT_ISO];
+  return { iso: LANG_NAME[k] ? k : LANG_DEFAULT_ISO, name };
+}
+
+function buildSystemPrompt(language: string): string {
+  const { name: langLabel } = resolveLanguage(language);
+  return `You are a sales qualification analyst for WP SEO AI, an AI-native SEO/GEO platform selling to Dutch SMB founders. You evaluate sales calls against Marc's VBAT qualification framework plus two expert-level actions from the Sales Game playbook.
 
 You return verdicts as structured JSON via the classify_call tool. Every verdict must cite a direct quote from the transcript (prospect's or AE's exact words) with its timestamp, so the AE can verify the verdict themselves.
 
@@ -135,7 +146,11 @@ Three-step sequence: (1) AE pushes urgency on a tight timeline, (2) prospect res
 - If a dimension was never addressed at all, set confirmed=false, evidence="", speaker="none", timestamp="", and reasoning should say the AE never attempted it.
 - Confidence calibration: "high" = clear, unambiguous. "medium" = present but imperfect (e.g., value referenced but not enthusiastically). "low" = borderline, could go either way.
 - Be strict. False positives destroy AE trust. When in doubt, mark NOT confirmed and explain why.
-- Respond in Dutch for the "reasoning" field when the call is in Dutch; otherwise match the call's language.`;
+
+## Language
+
+The transcript is in ${langLabel}. Write the "reasoning" field in ${langLabel}. The "evidence" field is a verbatim quote from the transcript and must remain in the original language exactly as spoken. Other fields (speaker, timestamp, confidence) are technical enums and stay as-is.`;
+}
 
 // Anthropic tool schema for structured output
 const CLASSIFY_TOOL = {
@@ -188,6 +203,7 @@ export async function classifyVBAT(
   recorderName: string,
   callTitle: string,
   durationSeconds: number,
+  language: string = LANG_DEFAULT_ISO,
   model: string = VBAT_DEFAULT_MODEL,
 ): Promise<VBATClassification | null> {
   const apiKey = loadApiKey();
@@ -219,8 +235,8 @@ Classify this call on all six dimensions (V/B/A/T/E/F). Cite direct quotes and t
     const response = await client.messages.create({
       model,
       max_tokens: 2000,
-      // Cache the static system prompt (~2k tokens of framework definition) — reused on every call.
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      // Cache the static system prompt — keyed by language so each cohort hits the cache.
+      system: [{ type: 'text', text: buildSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
       tools: [CLASSIFY_TOOL],
       tool_choice: { type: 'tool', name: 'classify_call' },
       messages: [{ role: 'user', content: userMessage }],
