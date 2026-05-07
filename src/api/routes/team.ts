@@ -365,7 +365,8 @@ routes.get('/v1/team', async (c) => {
 });
 
 // V1 — Analyze Claap link → find call, trigger LLM regenerate, return recordingId
-routes.post('/v1/analyze-link', requireRole('lead'), async (c) => {
+// Available to all authenticated users (AEs need this to dig into their own calls + peer calls).
+routes.post('/v1/analyze-link', async (c) => {
   const { url } = await c.req.json() as { url: string };
   if (!url) return c.json({ error: 'Missing url' }, 400);
 

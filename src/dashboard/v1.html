@@ -469,72 +469,144 @@ function analyzeCardHTML(){
   </div>`;
 }
 
-function renderTeamVBAT(rows){
-  let html = `${viewToggleHTML('vbat')}
-    <h2 class="pgtitle">Team — VBAT view</h2>
-    <div class="pgtitle-sub">VBAT hit rate across each AE's last 60 days. Trend compares most-recent 30 days vs prior 30 days.</div>
-
-    ${analyzeCardHTML()}
-
-    <div class="card" style="padding:0">`;
-
-  if (rows.length === 0) {
-    html += '<div class="empty">No AEs yet.</div>';
-  } else {
-    for (const ae of rows) {
+// Team membership — recorder_name partial match (case-insensitive includes).
+// Edit lists below as AEs join/leave; "Marie" / "Tine" use first-name-only match
+// because they don't have transcripts in Claap yet.
+const TEAM_MEMBERS = {
+  de: [
+    'Carmen Lorjé',
+    'Chris Pinto',
+    'Vincent Keizer',
+    'Marie',
+    'Melissa Husmann',
+    'Olivia Wyatt',
+    'Tina Mitterlehner',
+    'Tine',
+    'Tobias Holz',
+    'Vincent Werner',
+  ],
+  nl: [
+    'Ben Aranovich',
+    'Bram Reitsma',
+    'Christian van de Hoef',
+    'Daan de Jong',
+    'Diederik Lankhof',
+    'Dirk Schaftenaar',
+    'Eli van Lieshout',
+    'Felix Grosfeld',
+    'Gerard den Heeten',
+    'Jasper van den Hoek',
+    'Jan Dirk Schepers',
+    'Jelle Stekelbos',
+    'Stijn Kat',
+    'Lino Elshof',
+    'Loeka Luijcks',
+    'Milo Ferron',
+    'Alexander Mosselman',
+    'Rory Nyenhuis',
+    'Victor Versluijs',
+    'Willem van Oordt',
+  ],
+};
+function getActiveTeam(){ return localStorage.getItem('teamFilter') || 'de'; }
+function setActiveTeam(t){ localStorage.setItem('teamFilter', t); loadTeam(); }
+function inTeam(name, team){
+  const list = TEAM_MEMBERS[team] || [];
+  const n = (name || '').toLowerCase();
+  return list.some(member => n.includes(member.toLowerCase()) || member.toLowerCase().split(' ')[0] === n.split(' ')[0]);
+}
+function teamFilterRows(rows){
+  const team = getActiveTeam();
+  const q = (document.getElementById('ae-search')?.value || '').trim().toLowerCase();
+  return rows.filter(r => {
+    if (!inTeam(r.name, team)) return false;
+    if (q && !(r.name || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+function teamControlsHTML(){
+  const team = getActiveTeam();
+  const btn = (t, label) => `<button class="pill-btn${t===team?' primary':''}" onclick="setActiveTeam('${t}')" style="font-size:12px">${label}</button>`;
+  return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
+    <input id="ae-search" type="text" placeholder="Search AE by name…" oninput="onAeSearchInput()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;font-family:inherit;margin-bottom:10px">
+    <div style="display:flex;gap:6px">
+      ${btn('de', `German team (${TEAM_MEMBERS.de.length})`)}
+      ${btn('nl', `Dutch team (${TEAM_MEMBERS.nl.length})`)}
+    </div>
+  </div>`;
+}
+function onAeSearchInput(){
+  const list = document.getElementById('team-list');
+  if (!list) return;
+  const rows = window.__teamRows || [];
+  const filtered = teamFilterRows(rows);
+  list.innerHTML = renderTeamRowsHTML(filtered, window.__teamMode || 'vbat');
+}
+function renderTeamRowsHTML(rows, mode){
+  if (rows.length === 0) return '<div class="empty">No AEs match.</div>';
+  let html = '';
+  for (const ae of rows) {
+    if (mode === 'call-engine') {
+      const adoption = ae.fourBehaviorAdoption == null ? '—' : Math.round(ae.fourBehaviorAdoption * 100) + '%';
+      const recent = ae.recent60Days || 0;
+      html += `
+        <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
+          <div class="name">${esc(ae.name)}</div>
+          <div class="meta-col"><span class="big">${adoption}</span><span>4-behavior adoption</span></div>
+          <div class="meta-col"><span class="big">${recent}</span><span>calls (60d)</span></div>
+          ${trendGlyph(ae.trend)}
+        </div>`;
+    } else {
       const vbatPct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
       const vbatSub = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} VBAT-analyzed` : 'No VBAT data';
       const recent = ae.recent60Days || 0;
       html += `
         <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
           <div class="name">${esc(ae.name)}</div>
-          <div class="meta-col">
-            <span class="big">${vbatPct}</span>
-            <span>${esc(vbatSub)}</span>
-          </div>
-          <div class="meta-col">
-            <span class="big">${recent}</span>
-            <span>calls (60d)</span>
-          </div>
+          <div class="meta-col"><span class="big">${vbatPct}</span><span>${esc(vbatSub)}</span></div>
+          <div class="meta-col"><span class="big">${recent}</span><span>calls (60d)</span></div>
           ${trendGlyph(ae.trend)}
         </div>`;
     }
   }
-  html += '</div>';
+  return html;
+}
+
+function renderTeamVBAT(rows){
+  // Persist for client-side re-filtering on search input
+  window.__teamRows = rows;
+  window.__teamMode = 'vbat';
+  // Map raw rows to a unified shape for renderTeamRowsHTML (preserve fields it expects)
+  const filtered = teamFilterRows(rows);
+  let html = `${viewToggleHTML('vbat')}
+    <h2 class="pgtitle">Team — VBAT view</h2>
+    <div class="pgtitle-sub">VBAT hit rate across each AE's last 60 days. Trend compares most-recent 30 days vs prior 30 days.</div>
+
+    ${analyzeCardHTML()}
+    ${teamControlsHTML()}
+
+    <div class="card" style="padding:0" id="team-list">${renderTeamRowsHTML(filtered, 'vbat')}</div>`;
   $('app').innerHTML = html;
 }
 
 function renderTeamCallEngine(rows){
+  // Normalize call-engine field names so the shared renderer can use them
+  const normalized = rows.map(ae => ({
+    ...ae,
+    fourBehaviorAdoption: typeof ae.adoptionRate === 'number' ? ae.adoptionRate / 100 : ae.fourBehaviorAdoption,
+    trend: ae.adoptionTrend ?? ae.trend,
+  }));
+  window.__teamRows = normalized;
+  window.__teamMode = 'call-engine';
+  const filtered = teamFilterRows(normalized);
   let html = `${viewToggleHTML('call-engine')}
     <h2 class="pgtitle">Team — Call Engine view</h2>
     <div class="pgtitle-sub">Adoption rate across the four causally-validated winning behaviors (Contract / commitment, Assumptive close, ROI reframe, Compounding value) over each AE's last 60 days.</div>
 
     ${analyzeCardHTML()}
+    ${teamControlsHTML()}
 
-    <div class="card" style="padding:0">`;
-
-  if (rows.length === 0) {
-    html += '<div class="empty">No AEs yet.</div>';
-  } else {
-    for (const ae of rows) {
-      const adopt = ae.adoptionRate == null ? '—' : ae.adoptionRate + '%';
-      const recent = ae.recent60Days || 0;
-      html += `
-        <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
-          <div class="name">${esc(ae.name)}</div>
-          <div class="meta-col">
-            <span class="big">${adopt}</span>
-            <span>4-behavior adoption</span>
-          </div>
-          <div class="meta-col">
-            <span class="big">${recent}</span>
-            <span>calls (60d)</span>
-          </div>
-          ${trendGlyph(ae.adoptionTrend)}
-        </div>`;
-    }
-  }
-  html += '</div>';
+    <div class="card" style="padding:0" id="team-list">${renderTeamRowsHTML(filtered, 'call-engine')}</div>`;
   $('app').innerHTML = html;
 }
 
