@@ -35,6 +35,7 @@ async function main() {
   const today = new Date().toISOString().split("T")[0];
   const digestDir = join(__dirname, "../../work/enablement/digests");
   const htmlPath = join(digestDir, `email-${today}-combined.html`);
+  const dataPath = join(digestDir, `digest-${today}-data.json`);
 
   let html: string;
   try {
@@ -45,8 +46,34 @@ async function main() {
     process.exit(1);
   }
 
-  // Testing phase: send only to Martijn until pitch-alignment filter is validated
-  const to = isTest ? user : (process.env.DIGEST_TO || "martijn.dereeper@wpseoai.com");
+  // Guard: never send an empty digest. If the crawler returned zero nuggets,
+  // skip the send so AEs don't get a "0 golden nuggets" email.
+  try {
+    const data = JSON.parse(readFileSync(dataPath, "utf-8")) as {
+      global?: unknown[]; nl?: unknown[]; fi?: unknown[]; de?: unknown[];
+      totalScanned?: number;
+    };
+    const nuggetCount =
+      (data.global?.length ?? 0) +
+      (data.nl?.length ?? 0) +
+      (data.fi?.length ?? 0) +
+      (data.de?.length ?? 0);
+
+    if (nuggetCount === 0) {
+      console.error("⚠ Skipping send — digest contains 0 golden nuggets.");
+      console.error(`   totalScanned: ${data.totalScanned ?? "unknown"}`);
+      console.error("   Crawler likely failed or no relevant articles this period.");
+      console.error("   Investigate work/enablement/digests/ and crawler logs before next run.");
+      process.exit(0);
+    }
+    console.log(`✓ Pre-flight: ${nuggetCount} golden nuggets — proceeding to send.`);
+  } catch (err) {
+    console.error(`✗ Could not read digest data at ${dataPath}:`, (err as Error).message);
+    console.error("  Aborting send — refusing to ship an unverified digest.");
+    process.exit(1);
+  }
+
+  const to = isTest ? user : (process.env.DIGEST_TO || "ae-sales@wpseoai.com");
   const cc = "";
 
   const info = await transport.sendMail({
