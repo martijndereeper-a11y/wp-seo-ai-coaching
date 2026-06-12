@@ -6,6 +6,35 @@ import { coachingWindowCutoff, COACHING_WINDOW_DAYS } from '../../config/coachin
 
 const routes = new Hono();
 
+// Team (market) derived from each AE's dominant call language.
+// nl → Netherlands, de → Germany, en → UK. Other languages don't count
+// toward the assignment; an AE with no recognized-language calls is "Other".
+const LANG_TEAM: Record<string, string> = { nl: 'Netherlands', de: 'Germany', en: 'UK' };
+
+/** Map recorder_name → team label by tallying transcript_lang across all recordings. */
+async function aeTeamMap(): Promise<Record<string, string>> {
+  const tally: Record<string, Record<string, number>> = {};
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('recordings')
+      .select('recorder_name, transcript_lang')
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    for (const r of data) {
+      const team = LANG_TEAM[(r.transcript_lang || '').toLowerCase()];
+      if (!r.recorder_name || !team) continue;
+      (tally[r.recorder_name] ||= {})[team] = (tally[r.recorder_name]?.[team] || 0) + 1;
+    }
+    if (data.length < PAGE) break;
+  }
+  const result: Record<string, string> = {};
+  for (const [ae, teams] of Object.entries(tally)) {
+    result[ae] = Object.entries(teams).sort((a, b) => b[1] - a[1])[0][0];
+  }
+  return result;
+}
+
 // Team overview
 routes.get('/team', async (c) => {
   const cached = getCached('team');
@@ -222,13 +251,14 @@ routes.get('/dashboard', async (c) => {
   const cached = getCached('dashboard');
   if (cached) return c.json(cached);
 
-  const [teamRes, benchRes, pillarsRes] = await Promise.all([
+  const [teamRes, benchRes, pillarsRes, teamByAE] = await Promise.all([
     supabase.from('ae_coaching_profiles').select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence, top_strengths, top_weaknesses, coaching_recs, avg_patterns_all').order('avg_call_quality', { ascending: false }),
     supabase.from('ae_coaching_profiles').select('avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence'),
     supabase.from('ae_call_analysis').select('recorder_name, pillar_scores').order('created_at', { ascending: false }).limit(500),
+    aeTeamMap(),
   ]);
 
-  const team = teamRes.data || [];
+  const team = (teamRes.data || []).map((ae: any) => ({ ...ae, team: teamByAE[ae.recorder_name] || 'Other' }));
   const bench = benchRes.data || [];
 
   const pillarsByAE: Record<string, any> = {};

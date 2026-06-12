@@ -464,6 +464,7 @@ function scriptPillsHTML(sectionsHit, sectionsMissed) {
   return html;
 }
 let teamData = [];
+let teamFilter = 'all'; // 'all' or a team label (Netherlands, Germany, UK, Other)
 let benchData = {};
 let insightsData = {};
 let teamPillarsData = {};
@@ -1053,25 +1054,65 @@ async function loadTeam() {
 //  AE VIEW (TEAM)
 // ════════════════════════════════════════════════════════
 
+// Team display order + flags. Unknown teams fall back to the Other bucket.
+const TEAM_ORDER = ['Netherlands', 'Germany', 'UK', 'Other'];
+const TEAM_FLAG = { Netherlands: '&#127475;&#127473;', Germany: '&#127465;&#127466;', UK: '&#127468;&#127463;', Other: '&#127757;' };
+
+function setTeamFilter(t) { teamFilter = t; renderTeamAE(); }
+
+function aeCardHTML(ae) {
+  const q = ae.avg_call_quality || 0;
+  const name = ae.recorder_name || '';
+  const calls = ae.total_calls || 0;
+  const talk = ae.avg_talk_ratio || 0;
+  const script = ae.avg_script_adherence || 0;
+  const aePillars = teamPillarsData[name] || null;
+  return '<div class="ae-card" onclick="loadAEDetail(\''+esc(name)+'\')">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+      '<div style="font-weight:600;font-size:15px">'+name+'</div>'+
+      '<div style="font-size:22px;font-weight:700;color:'+qClr(q)+'">'+q+'</div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+calls+' calls &middot; Talk: '+talk+'% &middot; Script: '+script+'%</div>'+
+    pillarBadgesHTML(aePillars)+
+  '</div>';
+}
+
 function renderTeamAE() {
   const teamAvgQ = teamData.length ? Math.round(teamData.reduce((s,a)=>s+(a.avg_call_quality||0),0)/teamData.length) : 0;
-  const html = '<div style="margin-bottom:20px"><h2 style="font-size:20px">Team — AE Coaching Cards</h2><p style="color:var(--text2);font-size:13px;margin-top:4px">'+teamData.length+' AEs &middot; Team avg quality: <strong>'+teamAvgQ+'</strong> &middot; Scores combine talk balance, discovery depth, script coverage, prospect engagement, and call discipline</p></div>'+
-    '<div class="grid-3">'+teamData.map(ae => {
-      const q = ae.avg_call_quality || 0;
-      const name = ae.recorder_name || '';
-      const calls = ae.total_calls || 0;
-      const talk = ae.avg_talk_ratio || 0;
-      const script = ae.avg_script_adherence || 0;
-      const aePillars = teamPillarsData[name] || null;
-      return '<div class="ae-card" onclick="loadAEDetail(\''+esc(name)+'\')">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
-          '<div style="font-weight:600;font-size:15px">'+name+'</div>'+
-          '<div style="font-size:22px;font-weight:700;color:'+qClr(q)+'">'+q+'</div>'+
-        '</div>'+
-        '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+calls+' calls &middot; Talk: '+talk+'% &middot; Script: '+script+'%</div>'+
-        pillarBadgesHTML(aePillars)+
-      '</div>';
-    }).join('')+'</div>'+
+
+  // Group AEs by team, preserving the avg_call_quality sort within each group.
+  const groups = {};
+  teamData.forEach(ae => {
+    const t = TEAM_ORDER.indexOf(ae.team) >= 0 ? ae.team : 'Other';
+    (groups[t] = groups[t] || []).push(ae);
+  });
+  const presentTeams = TEAM_ORDER.filter(t => groups[t] && groups[t].length);
+
+  // Filter bar — All + one chip per present team.
+  const chip = (label, val, count) =>
+    '<button class="tab-btn'+(teamFilter===val?' active':'')+'" onclick="setTeamFilter(\''+val+'\')" style="white-space:nowrap">'+label+(count!=null?' <span style="opacity:.6">'+count+'</span>':'')+'</button>';
+  const filterBar = '<div class="tab-toggle" style="margin-bottom:18px;flex-wrap:wrap">'+
+    chip('All', 'all', teamData.length)+
+    presentTeams.map(t => chip(TEAM_FLAG[t]+' '+t, t, groups[t].length)).join('')+
+  '</div>';
+
+  // Section per team (or just the selected one).
+  const teamsToShow = teamFilter==='all' ? presentTeams : presentTeams.filter(t => t===teamFilter);
+  const sections = teamsToShow.map(t => {
+    const aes = groups[t];
+    const avgQ = Math.round(aes.reduce((s,a)=>s+(a.avg_call_quality||0),0)/aes.length);
+    return '<div style="margin-bottom:28px">'+
+      '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">'+
+        '<h3 style="font-size:16px;margin:0">'+TEAM_FLAG[t]+' '+t+'</h3>'+
+        '<span style="color:var(--text2);font-size:12px">'+aes.length+' AE'+(aes.length===1?'':'s')+' &middot; avg quality <strong style="color:'+qClr(avgQ)+'">'+avgQ+'</strong></span>'+
+      '</div>'+
+      '<div class="grid-3">'+aes.map(aeCardHTML).join('')+'</div>'+
+    '</div>';
+  }).join('');
+
+  const html = '<div style="margin-bottom:18px"><h2 style="font-size:20px">Team — AE Coaching Cards</h2><p style="color:var(--text2);font-size:13px;margin-top:4px">'+teamData.length+' AEs across '+presentTeams.length+' teams &middot; Team avg quality: <strong>'+teamAvgQ+'</strong> &middot; Scores combine talk balance, discovery depth, script coverage, prospect engagement, and call discipline</p></div>'+
+    filterBar+
+    sections+
     '<div id="game-lb-ae"></div>';
   $('app').innerHTML = html;
   loadGameLeaderboard().then(function(lbHtml) {
