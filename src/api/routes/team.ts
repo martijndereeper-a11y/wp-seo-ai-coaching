@@ -44,8 +44,9 @@ routes.get('/team', async (c) => {
     .select('recorder_name, total_calls, avg_call_quality, avg_talk_ratio, avg_question_count, avg_script_adherence, top_strengths, top_weaknesses, coaching_recs, avg_patterns_all')
     .order('avg_call_quality', { ascending: false });
   if (error) return c.json({ error: error.message }, 500);
-  setCache('team', data);
-  return c.json(data);
+  const filtered = (data || []).filter((p: any) => !isExcludedAE(p.recorder_name));
+  setCache('team', filtered);
+  return c.json(filtered);
 });
 
 // Team benchmarks
@@ -258,7 +259,9 @@ routes.get('/dashboard', async (c) => {
     aeTeamMap(),
   ]);
 
-  const team = (teamRes.data || []).map((ae: any) => ({ ...ae, team: teamByAE[ae.recorder_name] || 'Other' }));
+  const team = (teamRes.data || [])
+    .filter((p: any) => !isExcludedAE(p.recorder_name))
+    .map((ae: any) => ({ ...ae, team: teamByAE[ae.recorder_name] || 'Other' }));
   const bench = benchRes.data || [];
 
   const pillarsByAE: Record<string, any> = {};
