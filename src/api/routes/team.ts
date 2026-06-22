@@ -315,13 +315,14 @@ routes.get('/v1/team', async (c) => {
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: profiles }, { data: recentCalls }] = await Promise.all([
+  const [{ data: profiles }, { data: recentCalls }, teamByAE] = await Promise.all([
     supabase.from('ae_coaching_profiles').select('recorder_name, total_calls'),
     supabase.from('ae_call_analysis')
       .select('recorder_name, created_at, vbat_classification, call_tier, call_quality_score, outcome')
       .gte('created_at', sixtyDaysAgo)
       .order('created_at', { ascending: false })
       .limit(2000),
+    aeTeamMap(),
   ]);
 
   if (!profiles) return c.json([]);
@@ -379,6 +380,7 @@ routes.get('/v1/team', async (c) => {
 
     return {
       name: p.recorder_name,
+      team: teamByAE[p.recorder_name] || 'Other',
       totalCalls: p.total_calls || calls.length,
       recent60Days: recent60DayByAE.get(p.recorder_name) || 0,
       vbatHitRate: vbatPct,
@@ -613,13 +615,14 @@ routes.get('/v1/team/call-engine', async (c) => {
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: profiles }, { data: recentCalls }] = await Promise.all([
+  const [{ data: profiles }, { data: recentCalls }, teamByAE] = await Promise.all([
     supabase.from('ae_coaching_profiles').select('recorder_name, total_calls'),
     supabase.from('ae_call_analysis')
       .select('recorder_name, created_at, patterns, outcome')
       .gte('created_at', sixtyDaysAgo)
       .order('created_at', { ascending: false })
       .limit(2000),
+    aeTeamMap(),
   ]);
 
   if (!profiles) return c.json([]);
@@ -637,6 +640,7 @@ routes.get('/v1/team/call-engine', async (c) => {
     if (calls.length === 0) {
       return {
         name: p.recorder_name,
+        team: teamByAE[p.recorder_name] || 'Other',
         totalCalls: p.total_calls || 0,
         recent60Days: 0,
         adoptionRate: null,
@@ -685,6 +689,7 @@ routes.get('/v1/team/call-engine', async (c) => {
 
     return {
       name: p.recorder_name,
+      team: teamByAE[p.recorder_name] || 'Other',
       totalCalls: p.total_calls || calls.length,
       recent60Days: calls.length,
       adoptionRate,

@@ -469,69 +469,50 @@ function analyzeCardHTML(){
   </div>`;
 }
 
-// Team membership — recorder_name partial match (case-insensitive includes).
-// Edit lists below as AEs join/leave; "Marie" / "Tine" use first-name-only match
-// because they don't have transcripts in Claap yet.
-const TEAM_MEMBERS = {
-  de: [
-    'Carmen Lorjé',
-    'Chris Pinto',
-    'Vincent Keizer',
-    'Marie',
-    'Melissa Husmann',
-    'Olivia Wyatt',
-    'Tina Mitterlehner',
-    'Tine',
-    'Tobias Holz',
-    'Vincent Werner',
-  ],
-  nl: [
-    'Ben Aranovich',
-    'Bram Reitsma',
-    'Christian van de Hoef',
-    'Daan de Jong',
-    'Diederik Lankhof',
-    'Dirk Schaftenaar',
-    'Eli van Lieshout',
-    'Felix Grosfeld',
-    'Gerard den Heeten',
-    'Jasper van den Hoek',
-    'Jan Dirk Schepers',
-    'Jelle Stekelbos',
-    'Stijn Kat',
-    'Lino Elshof',
-    'Loeka Luijcks',
-    'Milo Ferron',
-    'Alexander Mosselman',
-    'Rory Nyenhuis',
-    'Victor Versluijs',
-    'Willem van Oordt',
-  ],
-};
-function getActiveTeam(){ return localStorage.getItem('teamFilter') || 'de'; }
-function setActiveTeam(t){ localStorage.setItem('teamFilter', t); loadTeam(); }
-function inTeam(name, team){
-  const list = TEAM_MEMBERS[team] || [];
-  const n = (name || '').toLowerCase();
-  return list.some(member => n.includes(member.toLowerCase()) || member.toLowerCase().split(' ')[0] === n.split(' ')[0]);
+// Team grouping is data-driven: each row carries a `team` label assigned
+// server-side from the AE's dominant call language (Netherlands / Germany /
+// UK / Other). No hardcoded roster — toggles + counts follow the live data.
+const TEAM_DEFS = [
+  { key: 'Netherlands', label: 'Dutch team' },
+  { key: 'Germany', label: 'German team' },
+  { key: 'UK', label: 'UK team' },
+  { key: 'Other', label: 'Other' },
+];
+function teamCounts(rows){
+  const c = {};
+  for (const r of rows) { const t = r.team || 'Other'; c[t] = (c[t] || 0) + 1; }
+  return c;
 }
+function availableTeams(rows){
+  const c = teamCounts(rows);
+  return TEAM_DEFS.filter(d => (c[d.key] || 0) > 0);
+}
+function getActiveTeam(){
+  const avail = availableTeams(window.__teamRows || []);
+  const saved = localStorage.getItem('teamFilter');
+  if (saved && avail.some(d => d.key === saved)) return saved;
+  return avail.length ? avail[0].key : 'Netherlands';
+}
+function setActiveTeam(t){ localStorage.setItem('teamFilter', t); loadTeam(); }
 function teamFilterRows(rows){
   const team = getActiveTeam();
   const q = (document.getElementById('ae-search')?.value || '').trim().toLowerCase();
   return rows.filter(r => {
-    if (!inTeam(r.name, team)) return false;
+    if ((r.team || 'Other') !== team) return false;
     if (q && !(r.name || '').toLowerCase().includes(q)) return false;
     return true;
   });
 }
 function teamControlsHTML(){
-  const team = getActiveTeam();
-  const btn = (t, label) => `<button class="pill-btn${t===team?' primary':''}" onclick="setActiveTeam('${t}')" style="font-size:12px">${label}</button>`;
+  const rows = window.__teamRows || [];
+  const counts = teamCounts(rows);
+  const active = getActiveTeam();
+  const btn = (key, label) => `<button class="pill-btn${key===active?' primary':''}" onclick="setActiveTeam('${key}')" style="font-size:12px">${label} (${counts[key] || 0})</button>`;
+  const buttons = availableTeams(rows).map(d => btn(d.key, d.label)).join('\n      ');
   return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
     <input id="ae-search" type="text" placeholder="Search AE by name…" oninput="onAeSearchInput()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;outline:none;font-family:inherit;margin-bottom:10px">
-    <div style="display:flex;gap:6px">
-      ${btn('de', `German team (${TEAM_MEMBERS.de.length})`)}
-      ${btn('nl', `Dutch team (${TEAM_MEMBERS.nl.length})`)}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${buttons}
     </div>
   </div>`;
 }
