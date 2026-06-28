@@ -84,6 +84,12 @@ export interface ClaapInsightTemplate {
   insights: unknown[];
 }
 
+/** New flat AI-field structure. Replaces insightTemplates as of Claap's 2026-06-26 API change. */
+export interface ClaapAiField {
+  title: string;
+  description: string;
+}
+
 export interface ClaapCompany {
   id: string;
   name: string;
@@ -117,7 +123,9 @@ export interface ClaapRecording {
   actionItems?: ClaapActionItem[];
   keyTakeaways?: ClaapKeyTakeaway[];
   outlines?: ClaapOutline[];
+  /** @deprecated Claap stopped populating this on 2026-06-26. Use aiFields. */
   insightTemplates?: ClaapInsightTemplate[];
+  aiFields?: ClaapAiField[];
   companies?: ClaapCompany[];
   crmInfo?: ClaapCrmInfo;
   deal?: ClaapDeal;
@@ -145,6 +153,8 @@ export interface ListRecordingsParams {
   recorderEmail?: string;
   recorderId?: string;
   sort?: 'created_asc' | 'created_desc' | 'duration_asc' | 'duration_desc' | 'title_asc' | 'title_desc';
+  /** Request the new flat aiFields structure instead of deprecated insightTemplates. */
+  returnAiFields?: boolean;
 }
 
 export interface ListRecordingsResponse {
@@ -322,8 +332,9 @@ export class ClaapClient {
   }
 
   /** Get full details for a single recording, including AI insights and CRM data. */
-  async getRecording(recordingId: string): Promise<GetRecordingResponse> {
-    return this.request<GetRecordingResponse>('GET', `/v1/recordings/${encodeURIComponent(recordingId)}`);
+  async getRecording(recordingId: string, options?: { returnAiFields?: boolean }): Promise<GetRecordingResponse> {
+    const query = this.buildQuery({ returnAiFields: options?.returnAiFields });
+    return this.request<GetRecordingResponse>('GET', `/v1/recordings/${encodeURIComponent(recordingId)}${query}`);
   }
 
   /** Get the transcript for a recording in JSON (default) or text format. */

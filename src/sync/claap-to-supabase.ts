@@ -101,6 +101,21 @@ function toInsightRows(rec: ClaapRecording) {
     description: string | null;
   }> = [];
 
+  // New flat structure (Claap API change 2026-06-26): aiFields = [{ title, description }]
+  if (rec.aiFields && rec.aiFields.length > 0) {
+    for (const field of rec.aiFields) {
+      rows.push({
+        recording_id: rec.id,
+        template_title: 'AI Fields',
+        lang: null,
+        section_title: field.title,
+        description: field.description || null,
+      });
+    }
+    return rows;
+  }
+
+  // Legacy nested structure — no longer populated after 2026-06-26, kept for older records
   for (const template of rec.insightTemplates ?? []) {
     for (const insight of template.insights as Array<{ langIso2?: string; sections?: Array<{ title: string; description: string }> }>) {
       for (const section of insight.sections ?? []) {
@@ -150,7 +165,7 @@ async function fetchAndStoreRecording(
   supabase: SupabaseClient,
   recordingId: string,
 ): Promise<boolean> {
-  const full = await claap.getRecording(recordingId);
+  const full = await claap.getRecording(recordingId, { returnAiFields: true });
   const rec = full.result.recording as ClaapRecording;
 
   if (rec.state !== 'Ready') return false;
@@ -229,7 +244,7 @@ async function syncChannel(channelId: string, channelName: string, fullSync: boo
 
   try {
     do {
-      const response = await claap.listRecordings({ channelId, limit: 100, cursor, createdAfter: sinceDate });
+      const response = await claap.listRecordings({ channelId, limit: 100, cursor, createdAfter: sinceDate, returnAiFields: true });
       const recordings = response.result.recordings;
 
       if (recordings.length === 0) break;
@@ -316,7 +331,7 @@ async function syncPersonalMeetings(recorderEmail: string, fullSync: boolean, si
 
   try {
     do {
-      const response = await claap.listRecordings({ recorderEmail, limit: 100, cursor, createdAfter: sinceDate });
+      const response = await claap.listRecordings({ recorderEmail, limit: 100, cursor, createdAfter: sinceDate, returnAiFields: true });
       const recordings = response.result.recordings;
 
       if (recordings.length === 0) break;
