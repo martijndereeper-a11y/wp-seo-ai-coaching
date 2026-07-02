@@ -748,7 +748,9 @@ routes.get('/v1/ae/:name/call-engine', async (c) => {
     .filter(([, s]) => s.decided >= 10)
     .map(([n, s]) => ({ name: n, calls: s.calls, closeRate: s.wins / s.decided }))
     .sort((a, b) => b.closeRate - a.closeRate);
-  const topN = Math.max(1, Math.floor(aeRanked.length * 0.25));
+  // Guard: when no AE has enough decided (won/lost) calls, aeRanked is empty.
+  // Math.max(1, …) would otherwise force topN=1 and read aeRanked[0] (undefined) → 500.
+  const topN = aeRanked.length > 0 ? Math.max(1, Math.floor(aeRanked.length * 0.25)) : 0;
   const topCalls: any[] = [];
   for (let i = 0; i < topN; i++) topCalls.push(...aeRanked[i].calls);
 
