@@ -20,6 +20,10 @@ export const EXCLUDED_AES = new Set([
   'guido katwijk',
   'marc boels',
   'arshiya maskan',
+  'pierre nuytten',
+  'maartje kat',
+  'thomas alkema',
+  'sofia gettler',
 ]);
 
 export function isExcludedAE(name: string | null | undefined): boolean {
