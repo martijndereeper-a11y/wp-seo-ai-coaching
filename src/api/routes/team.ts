@@ -605,6 +605,122 @@ routes.get('/v1/ae/:name', async (c) => {
   });
 });
 
+// V1 AE — SPICED discovery pattern across last 60 days (mirrors /v1/ae/:name)
+routes.get('/v1/ae/:name/spiced', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  if (isExcludedAE(name)) return c.json({ error: 'AE excluded from coaching view' }, 404);
+
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: calls } = await supabase
+    .from('ae_call_analysis')
+    .select('recording_id, title, created_at, duration_seconds, outcome, call_tier, call_quality_score, spiced_classification, smart_review, recording_url')
+    .eq('recorder_name', name)
+    .gte('created_at', sixtyDaysAgo)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (!calls) return c.json({ error: 'Not found' }, 404);
+
+  const dims: Array<'S' | 'P' | 'I' | 'C' | 'D'> = ['S', 'P', 'I', 'C', 'D'];
+  const spicedCalls = calls.filter((c: any) => c.spiced_classification && typeof (c.spiced_classification as any).hitCount === 'number');
+  const hitsByDim: Record<string, number> = { S: 0, P: 0, I: 0, C: 0, D: 0 };
+  for (const call of spicedCalls) {
+    const sp = call.spiced_classification as any;
+    for (const d of dims) if (sp[d]?.confirmed) hitsByDim[d]++;
+  }
+  const totalAnalyzed = spicedCalls.length;
+
+  // Weakest dimension overall
+  let weakest: string | null = null;
+  let weakestRate = 2;
+  for (const d of dims) {
+    if (totalAnalyzed === 0) break;
+    const rate = hitsByDim[d] / totalAnalyzed;
+    if (rate < weakestRate) { weakestRate = rate; weakest = d; }
+  }
+
+  // Weekly trend: 9 weeks, hit rate per dimension per week
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const weeklyTrend: Array<Record<string, any>> = [];
+  for (let i = 8; i >= 0; i--) {
+    const end = now - (i * weekMs);
+    const start = end - weekMs;
+    const inWeek = spicedCalls.filter((c: any) => {
+      const t = new Date(c.created_at).getTime();
+      return t >= start && t < end;
+    });
+    const callCount = inWeek.length;
+    const dimRates: Record<string, number | null> = { S: null, P: null, I: null, C: null, D: null };
+    let overallHits = 0;
+    for (const d of dims) {
+      const hits = inWeek.filter((c: any) => (c.spiced_classification as any)[d]?.confirmed).length;
+      dimRates[d] = callCount > 0 ? Math.round((hits / callCount) * 100) : null;
+      overallHits += hits;
+    }
+    const overallMax = callCount * 5;
+    const overallRate = overallMax > 0 ? Math.round((overallHits / overallMax) * 100) : null;
+    const labelDate = new Date(start);
+    const label = `${labelDate.toLocaleDateString('en', { month: 'short' })} ${labelDate.getDate()}`;
+    weeklyTrend.push({ weekStart: new Date(start).toISOString().slice(0, 10), label, calls: callCount, ...dimRates, overall: overallRate });
+  }
+
+  // Worst-miss pinned calls: 3 recent calls where weakest dimension was missed
+  let weakestPinnedCalls: any[] = [];
+  if (weakest) {
+    weakestPinnedCalls = spicedCalls
+      .filter((c: any) => (c.spiced_classification as any)[weakest!]?.confirmed === false)
+      .slice(0, 3)
+      .map((c: any) => ({
+        recordingId: c.recording_id,
+        title: c.title || 'Untitled',
+        createdAt: c.created_at,
+        recordingUrl: c.recording_url || '',
+        evidence: (c.spiced_classification as any)[weakest!]?.reasoning || '',
+      }));
+  }
+
+  // Real close rate from HubSpot-grounded outcome
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const decided = calls.filter((c: any) => c.outcome === 'won' || c.outcome === 'lost');
+  const won = decided.filter((c: any) => c.outcome === 'won').length;
+  const closeRate = decided.length > 0 ? Math.round((won / decided.length) * 100) : null;
+  const lastDecided = decided.filter((c: any) => c.created_at >= thirtyDaysAgo);
+  const prevDecided = decided.filter((c: any) => c.created_at < thirtyDaysAgo);
+  const lastClose = lastDecided.length > 0 ? Math.round((lastDecided.filter((c: any) => c.outcome === 'won').length / lastDecided.length) * 100) : null;
+  const prevClose = prevDecided.length > 0 ? Math.round((prevDecided.filter((c: any) => c.outcome === 'won').length / prevDecided.length) * 100) : null;
+
+  return c.json({
+    name,
+    windowDays: 60,
+    totalRecent: calls.length,
+    spicedAnalyzed: totalAnalyzed,
+    hitsByDim,
+    weakestDimension: weakest,
+    weeklyTrend,
+    weakestPinnedCalls,
+    closeRate,
+    decidedCalls: decided.length,
+    wonCalls: won,
+    lostCalls: decided.length - won,
+    lastClose,
+    prevClose,
+    calls: calls.slice(0, 30).map((c: any) => ({
+      recordingId: c.recording_id,
+      title: c.title || 'Untitled',
+      createdAt: c.created_at,
+      duration: Math.round((c.duration_seconds || 0) / 60),
+      outcome: c.outcome || '',
+      tier: c.call_tier || 'B',
+      quality: c.call_quality_score || 0,
+      spiced: c.spiced_classification || null,
+      oneThingToChange: (c.smart_review as any)?.oneThingToChange || '',
+      summary: (c.smart_review as any)?.summary || '',
+    })),
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // V1 — Call Engine view (option A: behaviors as dimensions)
 // Powered by within-AE causal analysis. The 4 dimensions are the highest-impact

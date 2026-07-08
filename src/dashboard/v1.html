@@ -326,6 +326,20 @@ const VBAT_DESC = {
   E: 'Incentive traded for a dated commitment',
   F: 'Urgency pushed → prospect resisted → AE handled it',
 };
+const SPICED_LABELS = {
+  S: 'Situation',
+  P: 'Pain',
+  I: 'Impact',
+  C: 'Critical Event',
+  D: 'Decision',
+};
+const SPICED_DESC = {
+  S: 'Prospect described their current state (setup, tools, team, baseline)',
+  P: 'Prospect owned a concrete problem in their own words',
+  I: 'Pain tied to a business consequence, ideally quantified',
+  C: 'A dated compelling event forcing a decision on a timeline',
+  D: 'Decision process mapped + a concrete next step agreed',
+};
 
 function fmtDate(iso){
   if (!iso) return '';
@@ -666,6 +680,10 @@ async function loadAE(name){
       const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name) + '/call-engine');
       if (!data || data.error) throw new Error(data?.error || 'Failed');
       renderAECallEngine(data);
+    } else if (mode === 'spiced') {
+      const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name) + '/spiced');
+      if (!data || data.error) throw new Error(data?.error || 'Failed');
+      renderAESPICED(data);
     } else {
       const data = await apiJSON('/api/v1/ae/' + encodeURIComponent(name));
       if (!data || data.error) throw new Error(data?.error || 'Failed');
@@ -905,6 +923,135 @@ function renderAE(data){
   $('app').innerHTML = html;
 
   // Load cached AE deep analysis (if any) + pillars in background
+  loadAEDeepAnalysis(name);
+  loadAEPillars(name);
+}
+
+function renderAESPICED(data){
+  const { name, totalRecent, spicedAnalyzed, hitsByDim, weakestDimension, weeklyTrend, weakestPinnedCalls, calls } = data;
+  const dims = ['S','P','I','C','D'];
+
+  let patternsHTML = '';
+  if (spicedAnalyzed > 0) {
+    patternsHTML = dims.map(d => {
+      const hits = hitsByDim[d] || 0;
+      const pct = Math.round((hits/spicedAnalyzed) * 100);
+      return `<div class="pattern-bar">
+        <div class="pb-label">${d} — ${esc(SPICED_LABELS[d])}</div>
+        <div class="pb-track"><div class="pb-fill" style="width:${pct}%"></div></div>
+        <div class="pb-num">${hits}/${spicedAnalyzed}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const weakestCallout = (weakestDimension && spicedAnalyzed >= 3)
+    ? `<div class="weakest-callout"><strong>Focus area:</strong> ${esc(SPICED_LABELS[weakestDimension])} — confirmed in ${hitsByDim[weakestDimension]}/${spicedAnalyzed} recent calls.<br>${esc(SPICED_DESC[weakestDimension])}.</div>`
+    : '';
+
+  // Dimension heatmap
+  let heatmapHTML = '';
+  if (weeklyTrend && weeklyTrend.length > 0 && spicedAnalyzed >= 3) {
+    const heatColor = (val) => {
+      if (val === null) return 'var(--bg3)';
+      if (val >= 70) return 'rgba(16,185,129,.6)';
+      if (val >= 50) return 'rgba(16,185,129,.3)';
+      if (val >= 30) return 'rgba(245,158,11,.4)';
+      return 'rgba(239,68,68,.4)';
+    };
+    const header = '<div style="font-size:10px;color:var(--text3);padding:4px"></div>' + weeklyTrend.map(w => `<div style="font-size:10px;color:var(--text3);text-align:center;padding:4px">${esc(w.label)}</div>`).join('');
+    const rows = dims.map(d => {
+      const cells = weeklyTrend.map(w => {
+        const val = w[d];
+        const label = val === null ? '—' : `${val}%`;
+        return `<div title="${esc(w.label)} · ${d}: ${label} (${w.calls} calls)" style="background:${heatColor(val)};color:var(--text);font-size:11px;text-align:center;padding:8px 4px;border-radius:4px;min-height:28px;display:flex;align-items:center;justify-content:center">${label}</div>`;
+      }).join('');
+      return `<div style="font-size:12px;color:var(--text2);padding:4px;font-weight:600">${d}</div>${cells}`;
+    }).join('');
+    heatmapHTML = `
+      <div class="card">
+        <h3>SPICED heatmap — element × week</h3>
+        <div style="display:grid;grid-template-columns:40px repeat(${weeklyTrend.length}, 1fr);gap:3px;margin-top:12px">
+          ${header}
+          ${rows}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px">Green ≥70% · light green 50-69% · orange 30-49% · red &lt;30% · grey = no calls that week</div>
+      </div>`;
+  }
+
+  // Pinned worst-miss calls
+  let pinnedHTML = '';
+  if (weakestPinnedCalls && weakestPinnedCalls.length > 0 && weakestDimension) {
+    const items = weakestPinnedCalls.map(c => {
+      const evidence = c.evidence ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic">${esc(c.evidence.slice(0, 160))}${c.evidence.length > 160 ? '…' : ''}</div>` : '';
+      return `<div class="call-list-item" onclick="loadCall('${esc(c.recordingId)}','${esc(name)}')">
+        <span class="call-date">${fmtDate(c.createdAt)}</span>
+        <div style="flex:1;min-width:0">
+          <div class="call-title">${esc(c.title)}</div>
+          ${evidence}
+        </div>
+      </div>`;
+    }).join('');
+    pinnedHTML = `
+      <div class="card" style="padding:0">
+        <h3 style="padding:20px 20px 4px">Calls to study — ${esc(SPICED_LABELS[weakestDimension])} was missed</h3>
+        <div style="padding:0 20px 12px;font-size:12px;color:var(--text3)">Recent calls where the focus element wasn't confirmed. Listen for what went differently.</div>
+        ${items}
+      </div>`;
+  }
+
+  let callRows = calls.slice(0, 20).map(c => {
+    const sp = c.spiced || {};
+    const dots = dims.map(d => {
+      const v = sp[d];
+      if (!v) return '<span class="dot none" title="No data">·</span>';
+      return `<span class="dot ${v.confirmed?'confirmed':'missed'}" title="${esc(SPICED_LABELS[d])}: ${v.confirmed?'confirmed':'not confirmed'}">${d}</span>`;
+    }).join('');
+    const tierCls = `tier-${c.tier || 'B'}`;
+    return `<div class="call-list-item" onclick="loadCall('${esc(c.recordingId)}','${esc(name)}')">
+      <span class="call-date">${fmtDate(c.createdAt)}</span>
+      <span class="call-title">${esc(c.title)}</span>
+      <span class="tier-badge ${tierCls}">${c.tier || 'B'}</span>
+      <span class="call-dots">${dots}</span>
+    </div>`;
+  }).join('');
+
+  const html = `
+    ${viewToggleHTML('spiced')}
+    <button class="back" onclick="loadTeam()">← Back to team</button>
+    <h2 class="pgtitle">${esc(name)}</h2>
+    <div class="pgtitle-sub">${totalRecent} calls in last 60 days · ${spicedAnalyzed} classified with SPICED</div>
+
+    <div class="card">
+      <h3>SPICED pattern across last 60 days</h3>
+      ${patternsHTML || '<div class="empty">SPICED data not computed yet for this AE.</div>'}
+      ${weakestCallout}
+    </div>
+
+    ${heatmapHTML}
+    ${pinnedHTML}
+
+    <div class="card" id="ae-deep-card">
+      <div class="regenerate-row">
+        <h3 style="margin:0">Coaching narrative <span class="meta" id="ae-deep-meta"></span></h3>
+        <button class="pill-btn" id="ae-deep-regen" onclick="regenerateAEDeep('${esc(name)}')">Regenerate</button>
+      </div>
+      <div id="ae-deep-body" class="narrative-body"><div class="narrative-loading">Loading cached analysis…</div></div>
+    </div>
+
+    <div class="card" style="padding:0">
+      <h3 style="padding:20px 20px 0">Recent calls</h3>
+      ${callRows || '<div class="empty">No calls.</div>'}
+    </div>
+
+    <details class="expander">
+      <summary>Deep dive — pillars, trends, calibration</summary>
+      <div class="expander-body">
+        <div id="ae-pillars-body" style="font-size:13px;color:var(--text2)">Loading pillars…</div>
+      </div>
+    </details>
+  `;
+  $('app').innerHTML = html;
+
   loadAEDeepAnalysis(name);
   loadAEPillars(name);
 }
