@@ -36,6 +36,11 @@ const BEHAVIOR_LABELS: Record<string, string> = {
   theirBusiness: 'Discovery of their business',
   activeListening: 'Active listening cues',
   assumptiveClose: 'Assumptive close',
+  'spiced.situation': 'SPICED · Situation captured',
+  'spiced.pain': 'SPICED · Pain surfaced',
+  'spiced.impact': 'SPICED · Impact established',
+  'spiced.critical_event': 'SPICED · Critical Event identified',
+  'spiced.decision': 'SPICED · Decision process mapped',
 };
 
 function label(b: string): string { return BEHAVIOR_LABELS[b] ?? b; }

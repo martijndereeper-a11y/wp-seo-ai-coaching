@@ -358,8 +358,9 @@ function renderMarkdown(text){
 function getViewMode(){
   const url = new URLSearchParams(location.search);
   const fromUrl = url.get('view');
-  if (fromUrl === 'call-engine' || fromUrl === 'vbat') return fromUrl;
-  return localStorage.getItem('v1ViewMode') === 'call-engine' ? 'call-engine' : 'vbat';
+  if (fromUrl === 'call-engine' || fromUrl === 'vbat' || fromUrl === 'spiced') return fromUrl;
+  const saved = localStorage.getItem('v1ViewMode');
+  return (saved === 'call-engine' || saved === 'spiced') ? saved : 'vbat';
 }
 
 function setViewMode(mode){
@@ -444,6 +445,7 @@ async function loadTeam(){
     const rows = await apiJSON(path);
     if (!rows || !Array.isArray(rows)) throw new Error('No team data');
     if (mode === 'call-engine') renderTeamCallEngine(rows);
+    else if (mode === 'spiced') renderTeamSPICED(rows);
     else renderTeamVBAT(rows);
   } catch(err){
     $('app').innerHTML = `<div class="err">${esc(err.message||'Failed to load')}</div>`;
@@ -454,6 +456,7 @@ function viewToggleHTML(active){
   const btn = (mode, label) => `<button class="pill-btn${mode===active?' primary':''}" onclick="setViewMode('${mode}')" style="font-size:12px">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin-bottom:14px">
     ${btn('vbat', 'VBAT — qualification')}
+    ${btn('spiced', 'SPICED — discovery')}
     ${btn('call-engine', 'Call Engine — behaviors')}
   </div>`;
 }
@@ -537,6 +540,17 @@ function renderTeamRowsHTML(rows, mode){
           <div class="meta-col"><span class="big">${recent}</span><span>calls (60d)</span></div>
           ${trendGlyph(ae.trend)}
         </div>`;
+    } else if (mode === 'spiced') {
+      const spicedPct = ae.spicedHitRate == null ? '—' : ae.spicedHitRate + '%';
+      const spicedSub = ae.spicedCallsAnalyzed > 0 ? `${ae.spicedCallsAnalyzed} SPICED-analyzed` : 'No SPICED data';
+      const recent = ae.recent60Days || 0;
+      html += `
+        <div class="ae-row" onclick="loadAE('${esc(ae.name)}')">
+          <div class="name">${esc(ae.name)}</div>
+          <div class="meta-col"><span class="big">${spicedPct}</span><span>${esc(spicedSub)}</span></div>
+          <div class="meta-col"><span class="big">${recent}</span><span>calls (60d)</span></div>
+          ${trendGlyph(ae.spicedTrend ?? ae.trend)}
+        </div>`;
     } else {
       const vbatPct = ae.vbatHitRate == null ? '—' : ae.vbatHitRate + '%';
       const vbatSub = ae.vbatCallsAnalyzed > 0 ? `${ae.vbatCallsAnalyzed} VBAT-analyzed` : 'No VBAT data';
@@ -567,6 +581,23 @@ function renderTeamVBAT(rows){
     ${teamControlsHTML()}
 
     <div class="card" style="padding:0" id="team-list">${renderTeamRowsHTML(filtered, 'vbat')}</div>`;
+  $('app').innerHTML = html;
+}
+
+function renderTeamSPICED(rows){
+  window.__teamRows = rows;
+  window.__teamMode = 'spiced';
+  // Row renderer keys the trend glyph off `trend`; SPICED carries its own.
+  const withTrend = rows.map(ae => ({ ...ae, trend: ae.spicedTrend ?? ae.trend }));
+  const filtered = teamFilterRows(withTrend);
+  let html = `${viewToggleHTML('spiced')}
+    <h2 class="pgtitle">Team — SPICED view</h2>
+    <div class="pgtitle-sub">SPICED discovery hit rate (Situation, Pain, Impact, Critical Event, Decision — out of 5) across each AE's last 60 days. Trend compares most-recent 30 days vs prior 30 days.</div>
+
+    ${analyzeCardHTML()}
+    ${teamControlsHTML()}
+
+    <div class="card" style="padding:0" id="team-list">${renderTeamRowsHTML(filtered, 'spiced')}</div>`;
   $('app').innerHTML = html;
 }
 

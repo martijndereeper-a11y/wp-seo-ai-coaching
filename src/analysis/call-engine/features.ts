@@ -4,8 +4,11 @@
  */
 
 import { createSupabaseClient } from '../../database/supabase-client.ts';
+import { SPICED_BEHAVIOR_IDS, type SPICEDKey } from '../spiced-classifier.ts';
 
 const sb = createSupabaseClient();
+
+const SPICED_KEYS: SPICEDKey[] = ['S', 'P', 'I', 'C', 'D'];
 
 export type Market = 'NL' | 'DE' | 'EN' | 'OTHER';
 
@@ -69,7 +72,7 @@ export async function loadFeatureMatrix(opts?: { firstMeetingsOnly?: boolean }):
   // Pull call analysis rows with won/lost outcomes
   let callsRaw = await pageAll<any>(() => {
     let q = sb.from('ae_call_analysis')
-      .select('recording_id, recorder_name, outcome, call_quality_score, script_adherence, talk_ratio, question_count, longest_monologue, sections_hit, patterns, pillar_scores, meeting_type, deal_name, created_at, duration_seconds, recording_url')
+      .select('recording_id, recorder_name, outcome, call_quality_score, script_adherence, talk_ratio, question_count, longest_monologue, sections_hit, patterns, pillar_scores, spiced_classification, meeting_type, deal_name, created_at, duration_seconds, recording_url')
       .in('outcome', ['won', 'lost'])
       .not('patterns', 'is', null);
     if (firstOnly) q = q.or('meeting_type.eq.first,meeting_type.is.null');
@@ -96,6 +99,10 @@ export async function loadFeatureMatrix(opts?: { firstMeetingsOnly?: boolean }):
     const p = c.patterns || {};
     for (const k of Object.keys(p)) keyUnion.add(k);
   }
+  // SPICED elements are first-class behaviors: the LLM classifier produces a
+  // per-call verdict, we treat each confirmed element as behavior "present" and
+  // let the same within-AE causal engine measure its effect on close rate.
+  for (const k of SPICED_KEYS) keyUnion.add(SPICED_BEHAVIOR_IDS[k]);
   const behaviorIds = Array.from(keyUnion).sort();
 
   const pillarSet = new Set<string>();
@@ -116,6 +123,16 @@ export async function loadFeatureMatrix(opts?: { firstMeetingsOnly?: boolean }):
       const count = typeof raw === 'number' ? raw : 0;
       patternsObj[k] = count;
       binPatterns[k] = count >= BEHAVIOR_THRESHOLD ? 1 : 0;
+    }
+
+    // Overlay SPICED verdicts (source is spiced_classification, not patterns)
+    const spiced = c.spiced_classification;
+    if (spiced && typeof spiced === 'object') {
+      for (const k of SPICED_KEYS) {
+        const present = spiced[k]?.confirmed === true ? 1 : 0;
+        binPatterns[SPICED_BEHAVIOR_IDS[k]] = present;
+        patternsObj[SPICED_BEHAVIOR_IDS[k]] = present;
+      }
     }
 
     const pillars: Record<string, number> = {};

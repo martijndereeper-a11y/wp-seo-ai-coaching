@@ -20,6 +20,7 @@ import { scoreGame } from './sales-game.ts';
 import { classifyWithDealContext, classifyMeeting, type MeetingClassification } from './meeting-classifier.ts';
 import { classifyCallTier } from './call-tier.ts';
 import { classifyVBAT } from './vbat-classifier.ts';
+import { classifySPICED } from './spiced-classifier.ts';
 import { analyzeCallNarrative, analyzeAEDeep } from './narrative-coach.ts';
 import { isExcludedAE } from '../config/excluded-aes.ts';
 import { COACHING_WINDOW_DAYS, coachingWindowCutoff } from '../config/coaching-window.ts';
@@ -74,6 +75,7 @@ async function ensureTables() {
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS call_tier_classification JSONB DEFAULT '{}';
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS narrative_review JSONB DEFAULT '{}';
       ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS vbat_classification JSONB DEFAULT '{}';
+      ALTER TABLE ae_call_analysis ADD COLUMN IF NOT EXISTS spiced_classification JSONB DEFAULT '{}';
     `,
   }).catch(() => {});
 
@@ -652,7 +654,7 @@ async function fillLLMGaps() {
   while (true) {
     const { data: page, error } = await supabase
       .from('ae_call_analysis')
-      .select('recording_id, recorder_name, title, duration_seconds, vbat_classification, narrative_review')
+      .select('recording_id, recorder_name, title, duration_seconds, vbat_classification, spiced_classification, narrative_review')
       .gte('duration_seconds', MIN_DURATION_SECONDS)
       .gte('created_at', windowCutoff)
       .order('created_at', { ascending: false })
@@ -674,12 +676,14 @@ async function fillLLMGaps() {
   console.log(`  ${rows.length} calls >= ${MIN_DURATION_SECONDS / 60} min within last ${COACHING_WINDOW_DAYS} days (excluded ${excludedCount} from excluded AEs)`);
 
   const needsVBAT = rows.filter(r => !r.vbat_classification || Object.keys(r.vbat_classification as object).length === 0);
+  const needsSPICED = rows.filter(r => !r.spiced_classification || Object.keys(r.spiced_classification as object).length === 0);
   const needsNarrative = rows.filter(r => !r.narrative_review || Object.keys(r.narrative_review as object).length === 0);
   const jobs = new Set<string>();
   for (const r of needsVBAT) jobs.add(r.recording_id);
+  for (const r of needsSPICED) jobs.add(r.recording_id);
   for (const r of needsNarrative) jobs.add(r.recording_id);
-  if (jobs.size === 0) { console.log('  All calls have VBAT + narrative'); return; }
-  console.log(`  ${jobs.size} calls missing VBAT or narrative (VBAT: ${needsVBAT.length}, Narrative: ${needsNarrative.length})`);
+  if (jobs.size === 0) { console.log('  All calls have VBAT + SPICED + narrative'); return; }
+  console.log(`  ${jobs.size} calls missing LLM analysis (VBAT: ${needsVBAT.length}, SPICED: ${needsSPICED.length}, Narrative: ${needsNarrative.length})`);
 
   // Load transcripts for those calls
   const rowsById = new Map(rows.map(r => [r.recording_id, r]));
@@ -702,6 +706,7 @@ async function fillLLMGaps() {
       const parsed = parseTranscript(rec.transcript_text, row.recorder_name);
       const callLang = (rec.transcript_lang || 'en').toLowerCase();
       const needVBAT = !row.vbat_classification || Object.keys(row.vbat_classification as object).length === 0;
+      const needSPICED = !row.spiced_classification || Object.keys(row.spiced_classification as object).length === 0;
       const needNar = !row.narrative_review || Object.keys(row.narrative_review as object).length === 0;
 
       const updates: Record<string, unknown> = {};
@@ -711,6 +716,13 @@ async function fillLLMGaps() {
         tasks.push((async () => {
           const result = await classifyVBAT(parsed.turns, row.recorder_name, row.title || 'Untitled', row.duration_seconds || 0, callLang);
           if (result) { updates.vbat_classification = result; return true; }
+          return false;
+        })());
+      }
+      if (needSPICED) {
+        tasks.push((async () => {
+          const result = await classifySPICED(parsed.turns, row.recorder_name, row.title || 'Untitled', row.duration_seconds || 0, callLang);
+          if (result) { updates.spiced_classification = result; return true; }
           return false;
         })());
       }

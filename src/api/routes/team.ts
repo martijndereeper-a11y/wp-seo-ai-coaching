@@ -318,7 +318,7 @@ routes.get('/v1/team', async (c) => {
   const [{ data: profiles }, { data: recentCalls }, teamByAE] = await Promise.all([
     supabase.from('ae_coaching_profiles').select('recorder_name, total_calls'),
     supabase.from('ae_call_analysis')
-      .select('recorder_name, created_at, vbat_classification, call_tier, call_quality_score, outcome')
+      .select('recorder_name, created_at, vbat_classification, spiced_classification, call_tier, call_quality_score, outcome')
       .gte('created_at', sixtyDaysAgo)
       .order('created_at', { ascending: false })
       .limit(2000),
@@ -364,6 +364,23 @@ routes.get('/v1/team', async (c) => {
     else if (lastPct - prevPct > 5) trend = 'up';
     else if (lastPct - prevPct < -5) trend = 'down';
 
+    // SPICED hit rate across full 60-day window (hitCount out of 5)
+    const spicedCalls = calls.filter((c: any) => c.spiced_classification && typeof (c.spiced_classification as any).hitCount === 'number');
+    const spicedTotal = spicedCalls.reduce((s: number, c: any) => s + ((c.spiced_classification as any).hitCount || 0), 0);
+    const spicedMax = spicedCalls.length * 5;
+    const spicedPct = spicedMax > 0 ? Math.round((spicedTotal / spicedMax) * 100) : null;
+
+    const lastSpiced = last30.filter((c: any) => c.spiced_classification && typeof (c.spiced_classification as any).hitCount === 'number');
+    const prevSpiced = prev30.filter((c: any) => c.spiced_classification && typeof (c.spiced_classification as any).hitCount === 'number');
+    const lastSpicedTotal = lastSpiced.reduce((s: number, c: any) => s + ((c.spiced_classification as any).hitCount || 0), 0);
+    const prevSpicedTotal = prevSpiced.reduce((s: number, c: any) => s + ((c.spiced_classification as any).hitCount || 0), 0);
+    const lastSpicedPct = lastSpiced.length > 0 ? Math.round((lastSpicedTotal / (lastSpiced.length * 5)) * 100) : null;
+    const prevSpicedPct = prevSpiced.length > 0 ? Math.round((prevSpicedTotal / (prevSpiced.length * 5)) * 100) : null;
+    let spicedTrend: 'up' | 'flat' | 'down' | 'new' = 'flat';
+    if (lastSpicedPct === null || prevSpicedPct === null) spicedTrend = 'new';
+    else if (lastSpicedPct - prevSpicedPct > 5) spicedTrend = 'up';
+    else if (lastSpicedPct - prevSpicedPct < -5) spicedTrend = 'down';
+
     // Real close rate from HubSpot-grounded outcome (60d, won/lost only)
     const decided = calls.filter((c: any) => c.outcome === 'won' || c.outcome === 'lost');
     const wonCount = decided.filter((c: any) => c.outcome === 'won').length;
@@ -385,6 +402,9 @@ routes.get('/v1/team', async (c) => {
       recent60Days: recent60DayByAE.get(p.recorder_name) || 0,
       vbatHitRate: vbatPct,
       vbatCallsAnalyzed: vbatCalls.length,
+      spicedHitRate: spicedPct,
+      spicedCallsAnalyzed: spicedCalls.length,
+      spicedTrend,
       trend,
       closeRate,
       closeTrend,
