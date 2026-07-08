@@ -137,6 +137,7 @@ Evidence should show the process or the agreed next step.
 
 ## Rules
 
+- ALWAYS return all five elements — S, P, I, C, D — in a single classify_call. Never omit one. If an element was not addressed in the call, still return it with confirmed=false. A response missing any of the five is invalid.
 - Only transcript evidence counts. Never invent or paraphrase — use verbatim quotes.
 - Each verdict must include: confirmed (bool), evidence (verbatim quote, max 150 chars), speaker, timestamp (MM:SS), reasoning (one line), confidence (high/medium/low).
 - If an element was never addressed at all, set confirmed=false, evidence="", speaker="none", timestamp="", and reasoning should say the AE never surfaced it.
@@ -186,11 +187,14 @@ const CLASSIFY_TOOL = {
 /**
  * Default model for SPICED classification.
  *
- * Haiku 4.5, same rationale as VBAT: this is structured extraction (pick a
- * verdict, cite a verbatim quote, give a reason). The Sonnet delta is negligible
- * and Haiku is ~3x cheaper, which matters running over thousands of calls.
+ * Sonnet, not Haiku. This tool forces a single call filling 5 nested verdict
+ * objects (30 required fields). Haiku intermittently completes the tool call
+ * with only the first element (S) populated — ~30% of calls even after 3
+ * retries — silently defaulting P/I/C/D to "not confirmed" and corrupting every
+ * downstream adoption/causal number. Sonnet fills the full schema reliably.
+ * Correctness beats the ~5x Haiku cost saving on a metric people coach against.
  */
-export const SPICED_DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+export const SPICED_DEFAULT_MODEL = 'claude-sonnet-5';
 
 export async function classifySPICED(
   turns: TranscriptTurn[],
@@ -210,10 +214,15 @@ export async function classifySPICED(
   const AnthropicClass = await getAnthropic();
   const client = new AnthropicClass({ apiKey });
 
-  // Trim transcript to ~25k chars to leave room for prompt + reasoning
+  // Cap only as a safety valve for pathological transcripts. The old 25k cap
+  // truncated ~90% of real calls mid-way — and Impact / Critical Event / Decision
+  // are closing-phase moves, so cutting the end systematically marked them absent.
+  // Median call is ~50k chars (~13k tokens); Haiku has 200k context, so keep the
+  // whole call. 120k chars (~30k tokens) covers every real call with headroom.
+  const TRANSCRIPT_CHAR_CAP = 120000;
   const fullTranscript = buildTranscriptForPrompt(turns, recorderName);
-  const transcript = fullTranscript.length > 25000
-    ? fullTranscript.slice(0, 25000) + '\n[... transcript truncated ...]'
+  const transcript = fullTranscript.length > TRANSCRIPT_CHAR_CAP
+    ? fullTranscript.slice(0, TRANSCRIPT_CHAR_CAP) + '\n[... transcript truncated ...]'
     : fullTranscript;
 
   const userMessage = `Call: ${callTitle}
@@ -225,44 +234,54 @@ ${transcript}
 
 Classify this call on all five SPICED elements (S/P/I/C/D). Cite direct quotes and timestamps. Be strict — false positives destroy AE trust.`;
 
-  try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 2000,
-      // Cache the static system prompt — keyed by language so each cohort hits the cache.
-      system: [{ type: 'text', text: buildSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
-      tools: [CLASSIFY_TOOL],
-      tool_choice: { type: 'tool', name: 'classify_call' },
-      messages: [{ role: 'user', content: userMessage }],
-    });
+  const ALL: SPICEDKey[] = ['S', 'P', 'I', 'C', 'D'];
 
-    const toolUse = response.content.find((b: any) => b.type === 'tool_use');
-    if (!toolUse || !toolUse.input) {
-      console.error('SPICED classifier: no tool_use block returned');
-      return null;
+  // Haiku intermittently returns only the first element(s) of the 5-object tool
+  // schema (stop_reason=tool_use, but P/I/C/D simply absent). That silently
+  // defaulted them to "not confirmed" and corrupted every downstream number.
+  // Retry until all five come back; never store a partial result.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model,
+        max_tokens: 4096,
+        // Cache the static system prompt — keyed by language so each cohort hits the cache.
+        system: [{ type: 'text', text: buildSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
+        tools: [CLASSIFY_TOOL],
+        tool_choice: { type: 'tool', name: 'classify_call' },
+        messages: [{ role: 'user', content: userMessage }],
+      });
+
+      const toolUse = response.content.find((b: any) => b.type === 'tool_use');
+      if (!toolUse || !toolUse.input) {
+        console.error('SPICED classifier: no tool_use block returned');
+        continue;
+      }
+
+      const input = toolUse.input as Record<string, SPICEDVerdict>;
+      const missing = ALL.filter(k => !input[k] || typeof input[k] !== 'object');
+      if (response.stop_reason === 'max_tokens' || missing.length > 0) {
+        console.error(`SPICED classifier: incomplete output (stop_reason=${response.stop_reason}, missing=${missing.join(',') || 'none'}) — retry ${attempt + 1}/3`);
+        continue;
+      }
+
+      const verdicts = {
+        S: normalizeVerdict(input.S),
+        P: normalizeVerdict(input.P),
+        I: normalizeVerdict(input.I),
+        C: normalizeVerdict(input.C),
+        D: normalizeVerdict(input.D),
+      };
+      const hitCount = ALL.filter(k => verdicts[k].confirmed).length;
+
+      return { ...verdicts, hitCount, generatedAt: new Date().toISOString(), model };
+    } catch (err: any) {
+      console.error(`SPICED classifier error (attempt ${attempt + 1}/3):`, err?.message || err);
     }
-
-    const input = toolUse.input as Record<string, SPICEDVerdict>;
-    const verdicts = {
-      S: normalizeVerdict(input.S),
-      P: normalizeVerdict(input.P),
-      I: normalizeVerdict(input.I),
-      C: normalizeVerdict(input.C),
-      D: normalizeVerdict(input.D),
-    };
-
-    const hitCount = (['S', 'P', 'I', 'C', 'D'] as SPICEDKey[]).filter(k => verdicts[k].confirmed).length;
-
-    return {
-      ...verdicts,
-      hitCount,
-      generatedAt: new Date().toISOString(),
-      model,
-    };
-  } catch (err: any) {
-    console.error('SPICED classifier error:', err?.message || err);
-    return null;
   }
+
+  console.error('SPICED classifier: gave up after 3 incomplete attempts');
+  return null;
 }
 
 function normalizeVerdict(raw: any): SPICEDVerdict {

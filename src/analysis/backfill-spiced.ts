@@ -25,6 +25,9 @@ const supabase = createSupabaseClient();
 
 const limitArg = process.argv.indexOf('--limit');
 const LIMIT = limitArg >= 0 ? parseInt(process.argv[limitArg + 1], 10) || Infinity : Infinity;
+// --force re-classifies calls that already have a verdict (e.g. after a prompt or
+// truncation-cap change makes prior verdicts stale).
+const FORCE = process.argv.includes('--force');
 const MIN_DURATION_SECONDS = 600;
 const CONCURRENCY = 4;
 const PAGE_SIZE = 1000;
@@ -54,7 +57,7 @@ async function main() {
 
   const eligible = rows
     .filter(r => !isExcludedAE(r.recorder_name))
-    .filter(r => !r.spiced_classification || Object.keys(r.spiced_classification as object).length === 0);
+    .filter(r => FORCE || !r.spiced_classification || Object.keys(r.spiced_classification as object).length === 0);
 
   const jobList = eligible.slice(0, LIMIT).map(r => r.recording_id);
   const rowsById = new Map(eligible.map(r => [r.recording_id, r]));
