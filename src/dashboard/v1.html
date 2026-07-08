@@ -1181,28 +1181,33 @@ let currentCallAE = '';
 
 async function loadCall(rid, aeName){
   currentCallAE = aeName;
+  const mode = getViewMode();
   try {
     $('app').innerHTML = `<button class="back" onclick="loadAE('${esc(aeName)}')">← Back to ${esc(aeName)}</button><div class="loading">Loading call…</div>`;
-    const [call, vbat] = await Promise.all([
+    const framework = mode === 'spiced' ? 'spiced' : 'vbat';
+    const [call, classification] = await Promise.all([
       apiJSON('/api/call/' + encodeURIComponent(rid)),
-      apiJSON('/api/call/' + encodeURIComponent(rid) + '/vbat').catch(()=>null),
+      apiJSON('/api/call/' + encodeURIComponent(rid) + '/' + framework).catch(()=>null),
     ]);
     if (!call || call.error) throw new Error(call?.error || 'Not found');
-    renderCall(call, vbat);
+    renderCall(call, classification, framework);
   } catch(err){
     $('app').innerHTML = `<button class="back" onclick="loadAE('${esc(aeName)}')">← Back</button><div class="err">${esc(err.message)}</div>`;
   }
 }
 
-function renderCall(call, vbat){
+function renderCall(call, classification, framework){
+  framework = framework || 'vbat';
+  const isSpiced = framework === 'spiced';
   const sr = call.smart_review || {};
   const summary = sr.summary || '';
   const oneThing = sr.oneThingToChange || '';
   const url = call.recording_url || '';
-  const hasVBAT = vbat && !vbat.error;
+  const has = classification && !classification.error;
 
-  const vbatCore = hasVBAT ? ['V','B','A','T'].map(d => renderVBATRow(call.recording_id, d, vbat[d], url)).join('') : '';
-  const vbatExpert = hasVBAT ? ['E','F'].map(d => renderVBATRow(call.recording_id, d, vbat[d], url)).join('') : '';
+  const classificationCard = isSpiced
+    ? renderSpicedCard(call, classification, has, url)
+    : renderVbatCard(call, classification, has, url);
 
   const hasNarrative = call.narrative_review && Object.keys(call.narrative_review).length > 0;
 
@@ -1217,14 +1222,7 @@ function renderCall(call, vbat){
       ${oneThing ? `<div class="one-thing"><div class="label">The one thing to change</div><div class="text">${esc(oneThing)}</div></div>` : ''}
     </div>
 
-    <div class="card">
-      <h3>VBAT — what the prospect said</h3>
-      ${hasVBAT ? `<div class="vbat-nav">${vbatCore}</div>` :
-        `<div class="narrative-loading">Not classified yet. <button class="pill-btn" onclick="regenerateVBAT('${esc(call.recording_id)}')">Classify now</button></div>`}
-
-      ${hasVBAT ? `<div class="expert-label">Expert level — advanced moves</div><div class="vbat-nav">${vbatExpert}</div>` : ''}
-      ${hasVBAT ? `<div style="margin-top:14px;text-align:right"><button class="pill-btn" onclick="regenerateVBAT('${esc(call.recording_id)}')">Re-classify</button></div>` : ''}
-    </div>
+    ${classificationCard}
 
     <div class="card" id="call-narrative-card">
       <div class="regenerate-row">
@@ -1244,6 +1242,84 @@ function renderCall(call, vbat){
   // Render cached narrative
   if (hasNarrative) renderCallNarrative(call.narrative_review);
   else $('call-narrative-body').innerHTML = '<div class="narrative-loading">Not generated yet. Click Generate to create.</div>';
+}
+
+function renderVbatCard(call, vbat, has, url){
+  const core = has ? ['V','B','A','T'].map(d => renderVBATRow(call.recording_id, d, vbat[d], url)).join('') : '';
+  const expert = has ? ['E','F'].map(d => renderVBATRow(call.recording_id, d, vbat[d], url)).join('') : '';
+  return `<div class="card">
+      <h3>VBAT — what the prospect said</h3>
+      ${has ? `<div class="vbat-nav">${core}</div>` :
+        `<div class="narrative-loading">Not classified yet. <button class="pill-btn" onclick="regenerateVBAT('${esc(call.recording_id)}')">Classify now</button></div>`}
+      ${has ? `<div class="expert-label">Expert level — advanced moves</div><div class="vbat-nav">${expert}</div>` : ''}
+      ${has ? `<div style="margin-top:14px;text-align:right"><button class="pill-btn" onclick="regenerateVBAT('${esc(call.recording_id)}')">Re-classify</button></div>` : ''}
+    </div>`;
+}
+
+function renderSpicedCard(call, spiced, has, url){
+  const dims = ['S','P','I','C','D'];
+  const rows = has ? dims.map(d => renderSPICEDRow(call.recording_id, d, spiced[d], url)).join('') : '';
+  // SPICED coaching callout: which element(s) were missed → what to do
+  let coaching = '';
+  if (has) {
+    const missed = dims.filter(d => spiced[d] && spiced[d].confirmed === false);
+    const hit = dims.filter(d => spiced[d] && spiced[d].confirmed === true).length;
+    if (missed.length) {
+      const items = missed.map(d => `<li><strong>${esc(SPICED_LABELS[d])}</strong> — ${esc(SPICED_DESC[d])}.</li>`).join('');
+      coaching = `<div class="one-thing"><div class="label">SPICED coaching — ${hit}/5 confirmed · close these gaps</div>
+        <ul style="margin:8px 0 0 0;padding-left:18px;line-height:1.6;color:var(--text2)">${items}</ul></div>`;
+    } else {
+      coaching = `<div class="one-thing"><div class="label">SPICED — 5/5 confirmed</div><div class="text">Full discovery. Use this call as a model.</div></div>`;
+    }
+  }
+  return `<div class="card">
+      <h3>SPICED — discovery quality</h3>
+      ${has ? `<div class="vbat-nav">${rows}</div>${coaching}` :
+        `<div class="narrative-loading">Not classified yet. <button class="pill-btn" onclick="regenerateSPICED('${esc(call.recording_id)}')">Classify now</button></div>`}
+      ${has ? `<div style="margin-top:14px;text-align:right"><button class="pill-btn" onclick="regenerateSPICED('${esc(call.recording_id)}')">Re-classify</button></div>` : ''}
+    </div>`;
+}
+
+function renderSPICEDRow(rid, dim, verdict, recordingUrl){
+  if (!verdict) {
+    return `<div class="vbat-row missed">
+      <div class="vbat-letter missed">${dim}</div>
+      <div class="vbat-body">
+        <div class="vbat-label">${esc(SPICED_LABELS[dim])}</div>
+        <div class="vbat-evidence" style="color:var(--text3)">No verdict available.</div>
+      </div>
+    </div>`;
+  }
+  const cls = verdict.confirmed ? 'confirmed' : 'missed';
+  const conf = verdict.confidence || 'medium';
+  const tsDisplay = verdict.timestamp ? `<span class="ts">${esc(verdict.timestamp)}</span>` : '';
+  const evidence = verdict.evidence && verdict.evidence.trim()
+    ? `<div class="vbat-evidence">"${esc(verdict.evidence)}"</div>`
+    : `<div class="vbat-evidence" style="color:var(--text3)">No evidence captured.</div>`;
+  const jumpHandler = recordingUrl && verdict.timestamp
+    ? `onclick="jumpToMoment('${esc(recordingUrl)}','${esc(verdict.timestamp)}')"`
+    : '';
+  return `<div class="vbat-row ${cls}" ${jumpHandler}>
+    <div class="vbat-letter ${cls}">${dim}</div>
+    <div class="vbat-body">
+      <div class="vbat-label">${esc(SPICED_LABELS[dim])} — ${verdict.confirmed?'confirmed':'not confirmed'}<span class="conf-badge conf-${conf}">${esc(conf)}</span>${tsDisplay}</div>
+      ${evidence}
+      <div class="vbat-reasoning">${esc(verdict.reasoning || '')}</div>
+    </div>
+  </div>`;
+}
+
+async function regenerateSPICED(rid){
+  if (!confirm('Re-classify SPICED for this call? Uses one LLM call.')) return;
+  try {
+    $('app').querySelectorAll('.vbat-row').forEach(el => el.style.opacity = '.4');
+    const res = await api('/api/call/' + encodeURIComponent(rid) + '/spiced/regenerate', {method:'POST'});
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+    loadCall(rid, currentCallAE);
+  } catch(err) {
+    alert('Re-classify failed: ' + err.message);
+    $('app').querySelectorAll('.vbat-row').forEach(el => el.style.opacity = '1');
+  }
 }
 
 function renderVBATRow(rid, dim, verdict, recordingUrl){

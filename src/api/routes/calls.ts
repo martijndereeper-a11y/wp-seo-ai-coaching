@@ -308,6 +308,31 @@ routes.post('/call/:id/vbat/regenerate', requireRole('lead'), async (c) => {
   return c.json(result);
 });
 
+// SPICED discovery classification for a single call
+routes.get('/call/:id/spiced', async (c) => {
+  const id = c.req.param('id');
+  const { data, error } = await supabase.from('ae_call_analysis').select('spiced_classification').eq('recording_id', id).single();
+  if (error) return c.json({ error: error.message }, 404);
+  const v = data?.spiced_classification as Record<string, unknown> | null;
+  if (!v || Object.keys(v).length === 0) return c.json({ error: 'Not classified yet', status: 'missing' }, 404);
+  return c.json(v);
+});
+
+// Regenerate SPICED (force re-classify)
+routes.post('/call/:id/spiced/regenerate', requireRole('lead'), async (c) => {
+  const id = c.req.param('id')!;
+  const recording = await fetchParsedTranscript(id);
+  if (!recording) return c.json({ error: 'Recording or transcript not found' }, 404);
+  const { data: row } = await supabase.from('ae_call_analysis').select('title, duration_seconds').eq('recording_id', id).single();
+  if (!row) return c.json({ error: 'Call not analyzed' }, 404);
+
+  const { classifySPICED } = await import('../../analysis/spiced-classifier.ts');
+  const result = await classifySPICED(recording.turns, recording.recorderName, row.title || 'Untitled', row.duration_seconds || 0);
+  if (!result) return c.json({ error: 'Classification failed' }, 500);
+  await supabase.from('ae_call_analysis').update({ spiced_classification: result }).eq('recording_id', id);
+  return c.json(result);
+});
+
 // AE flags a VBAT verdict as incorrect
 routes.post('/call/:id/vbat/feedback', async (c) => {
   const id = c.req.param('id');
