@@ -29,7 +29,7 @@ const LIMIT = limitArg >= 0 ? parseInt(process.argv[limitArg + 1], 10) || Infini
 // truncation-cap change makes prior verdicts stale).
 const FORCE = process.argv.includes('--force');
 const MIN_DURATION_SECONDS = 600;
-const CONCURRENCY = 4;
+const CONCURRENCY = 3;
 const PAGE_SIZE = 1000;
 
 async function main() {
@@ -55,9 +55,17 @@ async function main() {
     from += PAGE_SIZE;
   }
 
+  // A row is "done" only if it has a complete Sonnet-generated verdict. Under
+  // --force, re-run anything not yet done (so repeated runs converge and don't
+  // redo already-fixed rows). Without --force, only fill empty verdicts.
+  const isDone = (r: any) => {
+    const s = r.spiced_classification;
+    if (!s || typeof s !== 'object' || !(s.model || '').includes('sonnet')) return false;
+    return ['S', 'P', 'I', 'C', 'D'].every(k => s[k] && typeof s[k] === 'object');
+  };
   const eligible = rows
     .filter(r => !isExcludedAE(r.recorder_name))
-    .filter(r => FORCE || !r.spiced_classification || Object.keys(r.spiced_classification as object).length === 0);
+    .filter(r => FORCE ? !isDone(r) : (!r.spiced_classification || Object.keys(r.spiced_classification as object).length === 0));
 
   const jobList = eligible.slice(0, LIMIT).map(r => r.recording_id);
   const rowsById = new Map(eligible.map(r => [r.recording_id, r]));
@@ -74,11 +82,15 @@ async function main() {
     const row = rowsById.get(id);
     if (!row) return;
     try {
-      const { data: rec } = await supabase
-        .from('recordings')
-        .select('transcript_text, transcript_lang')
-        .eq('id', id)
-        .single();
+      // Transcript fetch can transiently time out under concurrency (big text
+      // column). Retry before treating it as genuinely missing — otherwise a
+      // timeout gets miscounted as "no transcript" and the call is skipped.
+      let rec: any = null;
+      for (let a = 0; a < 3; a++) {
+        const res = await supabase.from('recordings').select('transcript_text, transcript_lang').eq('id', id).single();
+        if (res.data?.transcript_text) { rec = res.data; break; }
+        if (!res.error) break; // genuine empty (no error) → stop retrying
+      }
       if (!rec?.transcript_text) { skipped++; return; }
 
       const parsed = parseTranscript(rec.transcript_text, row.recorder_name);
