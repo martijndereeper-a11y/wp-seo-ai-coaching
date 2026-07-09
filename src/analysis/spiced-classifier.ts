@@ -245,6 +245,10 @@ Classify this call on all five SPICED elements (S/P/I/C/D). Cite direct quotes a
       const response = await client.messages.create({
         model,
         max_tokens: 4096,
+        // Pure structured extraction — no reasoning needed. Sonnet 5 runs adaptive
+        // thinking by default when omitted, which would consume the 4096 budget and
+        // risk re-truncating the tool output. Disable it: cheaper, faster, safer.
+        thinking: { type: 'disabled' },
         // Cache the static system prompt — keyed by language so each cohort hits the cache.
         system: [{ type: 'text', text: buildSystemPrompt(language), cache_control: { type: 'ephemeral' } }],
         tools: [CLASSIFY_TOOL],

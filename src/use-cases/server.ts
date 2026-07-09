@@ -135,8 +135,9 @@ app.post('/api/admin/analyze-pdf', async (c) => {
       const objList = OBJECTIONS.map((o, i) => `${i + 1}. ${o}`).join('\n');
 
       const msg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5',
         max_tokens: 1024,
+        thinking: { type: 'disabled' },  // pure JSON extraction — no thinking (Sonnet 5 runs adaptive by default, which would eat max_tokens)
         messages: [{
           role: 'user',
           content: `Extract structured data from this success case PDF text. Return ONLY valid JSON, no markdown.
